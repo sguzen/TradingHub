@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Trading Research · Project Hub</title>
+<style>
+/* ── Reset & base ──────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ease: cubic-bezier(.4,0,.2,1);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'DM Mono', 'Fira Code', monospace;
+}
+
+[data-theme="dark"] {
+  --bg:           #080c14;
+  --bg-card:      #0f1623;
+  --bg-raised:    #161f2e;
+  --bg-hover:     #1a2540;
+  --border:       #1e2d45;
+  --border-mid:   #243350;
+  --text:         #e8edf5;
+  --text-sub:     #8fa3bf;
+  --text-muted:   #4a6080;
+  --green:        #10b981;
+  --green-tint:   rgba(16,185,129,.08);
+  --green-border: rgba(16,185,129,.25);
+  --red:          #ef4444;
+  --red-tint:     rgba(239,68,68,.08);
+  --red-border:   rgba(239,68,68,.25);
+  --blue:         #3b82f6;
+  --blue-tint:    rgba(59,130,246,.08);
+  --amber:        #f59e0b;
+  --purple:       #8b5cf6;
+  --cyan:         #06b6d4;
+  --shadow:       0 2px 12px rgba(0,0,0,.4);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.5);
+}
+
+[data-theme="light"] {
+  --bg:           #f0f4fb;
+  --bg-card:      #ffffff;
+  --bg-raised:    #f7f9fd;
+  --bg-hover:     #eef2fa;
+  --border:       #d8e2f0;
+  --border-mid:   #c8d6e8;
+  --text:         #0f172a;
+  --text-sub:     #4a607a;
+  --text-muted:   #8fa3bf;
+  --green:        #059669;
+  --green-tint:   rgba(5,150,105,.06);
+  --green-border: rgba(5,150,105,.25);
+  --red:          #dc2626;
+  --red-tint:     rgba(220,38,38,.06);
+  --red-border:   rgba(220,38,38,.25);
+  --blue:         #2563eb;
+  --blue-tint:    rgba(37,99,235,.06);
+  --amber:        #d97706;
+  --purple:       #7c3aed;
+  --cyan:         #0891b2;
+  --shadow:       0 2px 8px rgba(0,0,0,.08);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,.12);
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+.hdr {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: var(--shadow);
+}
+.hdr-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hdr-logo {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  color: var(--text);
+}
+.hdr-logo em { color: var(--blue); font-style: normal; }
+.hdr-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  border-left: 1px solid var(--border-mid);
+  padding-left: 12px;
+}
+.theme-btn {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-mid);
+  border-radius: 8px;
+  color: var(--text-sub);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 6px 12px;
+  transition: all .15s var(--ease);
+}
+.theme-btn:hover { background: var(--bg-hover); color: var(--text); }
+
+/* ── Main layout ───────────────────────────────────────────────────────────── */
+main {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px 80px;
+}
+
+/* ── Hero ──────────────────────────────────────────────────────────────────── */
+.hero {
+  text-align: center;
+  margin-bottom: 56px;
+}
+.hero-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin-bottom: 12px;
+}
+.hero-title {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.hero-title .accent { color: var(--blue); }
+.hero-desc {
+  font-size: 16px;
+  color: var(--text-sub);
+  max-width: 560px;
+  margin: 0 auto 28px;
+}
+.hero-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 12px;
+}
+.hero-badge .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+/* ── Section heading ────────────────────────────────────────────────────────── */
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.sec-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.sec-line { flex: 1; height: 1px; background: var(--border); }
+
+/* ── Project grid ──────────────────────────────────────────────────────────── */
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 24px;
+  margin-bottom: 56px;
+}
+
+.project-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  transition: transform .2s var(--ease), box-shadow .2s var(--ease), border-color .2s;
+}
+.project-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--border-mid);
+}
+
+.card-accent {
+  height: 4px;
+  width: 100%;
+}
+
+.card-body {
+  padding: 24px 24px 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.card-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.card-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+.card-tag.active { background: var(--green-tint); border-color: var(--green-border); color: var(--green); }
+
+.card-title {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.4px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.card-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-bottom: 14px;
+}
+
+.card-desc {
+  font-size: 13.5px;
+  color: var(--text-sub);
+  line-height: 1.65;
+  margin-bottom: 18px;
+  flex: 1;
+}
+
+/* ── Stats row ─────────────────────────────────────────────────────────────── */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.stat-cell {
+  background: var(--bg-raised);
+  padding: 12px 10px;
+  text-align: center;
+}
+.stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.stat-val.pos { color: var(--green); }
+.stat-val.neg { color: var(--red); }
+.stat-val.neutral { color: var(--blue); }
+
+/* ── Card footer ────────────────────────────────────────────────────────────── */
+.card-footer {
+  padding: 16px 24px;
+  background: var(--bg-raised);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.card-date-range {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all .15s var(--ease);
+  white-space: nowrap;
+}
+.open-btn svg { width: 12px; height: 12px; }
+
+/* ── Model detail section ────────────────────────────────────────────────────── */
+.model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 56px;
+}
+.model-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.model-panel-hd {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.model-panel-icon {
+  font-size: 18px;
+}
+.model-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.model-panel-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.model-panel-body {
+  padding: 18px 22px;
+}
+.rule-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.rule-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+.rule-list li::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.rule-list.blue li::before { background: var(--blue); }
+.rule-list.green li::before { background: var(--green); }
+.rule-list.purple li::before { background: var(--purple); }
+.rule-list.amber li::before { background: var(--amber); }
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.kv-item {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.kv-key {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.kv-val {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.kv-val.green { color: var(--green); }
+.kv-val.blue  { color: var(--blue); }
+.kv-val.amber { color: var(--amber); }
+
+/* ── Sweep model sub-table ───────────────────────────────────────────────────── */
+.sweep-sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.sweep-sub-table th {
+  padding: 8px 10px;
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+.sweep-sub-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-sub);
+}
+.sweep-sub-table tr:last-child td { border-bottom: none; }
+.sweep-sub-table tr:hover td { background: var(--bg-raised); }
+
+/* ── Quick nav ──────────────────────────────────────────────────────────────── */
+.quick-nav {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-sub);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  transition: all .15s;
+  cursor: pointer;
+}
+.nav-item:hover { background: var(--bg-hover); color: var(--text); border-color: var(--border-mid); }
+.nav-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ── Loading / error states ────────────────────────────────────────────────── */
+.loading-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  animation: fade 1s ease-in-out infinite alternate;
+}
+@keyframes fade { from { opacity: .4 } to { opacity: 1 } }
+
+/* ── Responsive ────────────────────────────────────────────────────────────── */
+@media(max-width: 720px) {
+  main { padding: 28px 16px 60px; }
+  .project-grid { grid-template-columns: 1fr; }
+  .model-grid { grid-template-columns: 1fr; }
+  .hdr { padding: 0 16px; }
+  .hero-title { font-size: 28px; }
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-logo">Trade<em>Research</em></div>
+    <div class="hdr-sub">NQ · ES Futures · Backtesting Hub</div>
+  </div>
+  <button class="theme-btn" id="themeBtn" title="Toggle theme" onclick="toggleTheme()">☀</button>
+</header>
+
+<main>
+
+  <!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+  <div class="hero">
+    <div class="hero-eyebrow">NQ / ES Futures · Statistical Research</div>
+    <h1 class="hero-title">Quantitative <span class="accent">Trading</span><br/>Research Hub</h1>
+    <p class="hero-desc">
+      Three independent backtesting projects covering sweep patterns, fractal zones,
+      and first-presented fair value gaps — all on 15+ years of 1-minute NQ futures data.
+    </p>
+    <div class="hero-meta">
+      <div class="hero-badge"><div class="dot"></div>Live data · Updated daily</div>
+      <div class="hero-badge">📊 3 Models</div>
+      <div class="hero-badge">🕐 2010 – 2026</div>
+      <div class="hero-badge">⚡ DuckDB · Python</div>
+    </div>
+  </div>
+
+  <!-- ── Project cards ──────────────────────────────────────────────────── -->
+  <div class="sec-head">
+    <span class="sec-label">Projects</span>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="project-grid" id="projectGrid">
+    <!-- Cards injected by JS -->
+    <div class="loading-pill">Loading project stats…</div>
+  </div>
+
+  <!-- ── Model deep-dive ────────────────────────────────────────────────── -->
+  <div class="sec-head">
+    <span class="sec-label">Model Mechanics</span>
+    <div class="sec-line"></div>
+  </div>
+
+  <div class="model-grid">
+
+    <!-- CandleScience Sweep Model -->
+    <div class="model-panel">
+      <div class="model-panel-hd">
+        <div class="model-panel-icon">🌊</div>
+        <div>
+          <div class="model-panel-title">CandleScience — Sweep + CISD</div>
+          <div class="model-panel-sub">4 timeframe pairs · Prior candle sweep logic</div>
+        </div>
+      </div>
+      <div class="model-panel-body">
+        <ul class="rule-list blue" style="margin-bottom:16px;">
+          <li><strong>Sweep:</strong> Prior HTF candle's high or low is violated in the Q1 window (first portion of the new candle)</li>
+          <li><strong>Close-back:</strong> Price must close back inside the prior candle's range, confirming the manipulation</li>
+          <li><strong>CISD:</strong> A 1M candle body closes through the open of the first opposing delivery run — confirmation trigger</li>
+          <li><strong>Entry:</strong> Next candle open after CISD · <strong>Stop:</strong> Sweep extreme · <strong>Target:</strong> 2R from manipulation range</li>
+        </ul>
+        <div class="kv-grid">
+          <div class="kv-item"><div class="kv-key">Timeframe Pairs</div><div class="kv-val blue">4</div></div>
+          <div class="kv-item"><div class="kv-key">Risk:Reward</div><div class="kv-val">1 : 2</div></div>
+          <div class="kv-item"><div class="kv-key">Best Model</div><div class="kv-val amber">1H_5M</div></div>
+          <div class="kv-item"><div class="kv-key">Instrument</div><div class="kv-val">NQ / ES</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TTFM -->
+    <div class="model-panel">
+      <div class="model-panel-hd">
+        <div class="model-panel-icon">🔷</div>
+        <div>
+          <div class="model-panel-title">TTFM° — TTrades Fractal Model</div>
+          <div class="model-panel-sub">6 T-Spot variants · HTF zone entry logic</div>
+        </div>
+      </div>
+      <div class="model-panel-body">
+        <ul class="rule-list purple" style="margin-bottom:16px;">
+          <li><strong>C1–C2–C3:</strong> Three consecutive 1H candles. C1=context, C2=reference (swept), C3=trigger (most recent)</li>
+          <li><strong>T-Spot Zone:</strong> C3.close ↔ sweep midpoint (log-weighted), activated at C3 close</li>
+          <li><strong>Entry:</strong> Limit at sweep_mid when price retraces into the zone · <strong>Stop:</strong> C3 extreme</li>
+          <li><strong>6 Variants:</strong> Normal / Expansive / ProTrend × BULL / BEAR (classified by C3 sweep percentage)</li>
+        </ul>
+        <div class="kv-grid">
+          <div class="kv-item"><div class="kv-key">Variants</div><div class="kv-val blue">6</div></div>
+          <div class="kv-item"><div class="kv-key">Risk:Reward</div><div class="kv-val">1 : 2</div></div>
+          <div class="kv-item"><div class="kv-key">HTF</div><div class="kv-val amber">60 min</div></div>
+          <div class="kv-item"><div class="kv-key">Instrument</div><div class="kv-val">NQ</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NY1 FPFVG -->
+    <div class="model-panel">
+      <div class="model-panel-hd">
+        <div class="model-panel-icon">🎯</div>
+        <div>
+          <div class="model-panel-title">NY1 F.P.FVG — First Presented FVG</div>
+          <div class="model-panel-sub">9:31–10:00 ET window · 10bps TP1 · 20% runner</div>
+        </div>
+      </div>
+      <div class="model-panel-body">
+        <ul class="rule-list green" style="margin-bottom:16px;">
+          <li><strong>FVG Detection:</strong> First 3-candle fair value gap forming between 9:31–9:59 ET (9:30 excluded — institutional open noise)</li>
+          <li><strong>Direction:</strong> C2 bullish body → LONG FVG · C2 bearish body → SHORT FVG</li>
+          <li><strong>Entry:</strong> Limit at FVG boundary on retrace (C3.low LONG / C3.high SHORT) · <strong>Stop:</strong> C1 extreme</li>
+          <li><strong>TP1 (POTQ):</strong> +10 basis points (0.10%) from entry — 80% of position. Runner (20%) held to 16:00 EOD</li>
+        </ul>
+        <div class="kv-grid">
+          <div class="kv-item"><div class="kv-key">TP1 Target</div><div class="kv-val green">10 bps</div></div>
+          <div class="kv-item"><div class="kv-key">Position Split</div><div class="kv-val">80 / 20</div></div>
+          <div class="kv-item"><div class="kv-key">Window</div><div class="kv-val amber">9:31–10:00</div></div>
+          <div class="kv-item"><div class="kv-key">Instrument</div><div class="kv-val">NQ</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stack & infrastructure -->
+    <div class="model-panel">
+      <div class="model-panel-hd">
+        <div class="model-panel-icon">⚙️</div>
+        <div>
+          <div class="model-panel-title">Data Infrastructure</div>
+          <div class="model-panel-sub">DuckDB · Databento · Python 3.14 · Daily cron</div>
+        </div>
+      </div>
+      <div class="model-panel-body">
+        <ul class="rule-list amber" style="margin-bottom:16px;">
+          <li><strong>Source:</strong> Databento GLBX.MDP3 dataset — 1-minute continuous front-month NQ &amp; ES</li>
+          <li><strong>Database:</strong> DuckDB <code>candle_science.duckdb</code> · tables <code>nq_1m</code>, <code>es_1m</code> · 15+ years of data</li>
+          <li><strong>Daily Update:</strong> <code>daily_update.py</code> runs at 7:00am ET weekdays via cron — fetches missing bars from Databento, rebuilds all JSON outputs</li>
+          <li><strong>Dashboards:</strong> Standalone HTML + vanilla JS — no framework required. Serve with <code>python3 -m http.server</code></li>
+        </ul>
+        <div class="kv-grid">
+          <div class="kv-item"><div class="kv-key">Data Source</div><div class="kv-val blue">Databento</div></div>
+          <div class="kv-item"><div class="kv-key">Database</div><div class="kv-val">DuckDB</div></div>
+          <div class="kv-item"><div class="kv-key">Language</div><div class="kv-val amber">Python 3.14</div></div>
+          <div class="kv-item"><div class="kv-key">Update Freq</div><div class="kv-val green">Daily 7am</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Serve instructions ─────────────────────────────────────────────── -->
+  <div class="sec-head">
+    <span class="sec-label">Quick Start</span>
+    <div class="sec-line"></div>
+  </div>
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;padding:22px 26px;margin-bottom:56px;">
+    <p style="font-size:13px;color:var(--text-sub);margin-bottom:14px;">
+      Serve all dashboards from the <code style="font-family:var(--font-mono);background:var(--bg-raised);padding:2px 6px;border-radius:4px;">Downloads</code> directory at <code style="font-family:var(--font-mono);background:var(--bg-raised);padding:2px 6px;border-radius:4px;">http://localhost:9000</code>:
+    </p>
+    <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:10px;padding:14px 18px;font-family:var(--font-mono);font-size:13px;color:var(--cyan);">
+      cd ~/Downloads &amp;&amp; python3 -m http.server 9000
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-top:10px;">
+      Then open the dashboard links above. Data refreshes daily at 7am ET via cron → <code>daily_update.py</code> → rebuilds all JSON outputs.
+    </p>
+  </div>
+
+</main>
+
+<footer style="text-align:center;padding:24px;font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);font-family:var(--font-mono);">
+  Trading Research Hub · NQ &amp; ES Futures · Data: Databento GLBX.MDP3 · Timestamps: America/New_York
+</footer>
+
+<script>
+// ── Theme ────────────────────────────────────────────────────────────────────
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('themeBtn').textContent = t === 'dark' ? '☀' : '☾';
+  localStorage.setItem('hub-theme', t);
+}
+function toggleTheme() {
+  applyTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+const saved = localStorage.getItem('hub-theme');
+if (saved) applyTheme(saved);
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function pct(v)  { return v != null ? (v * 100).toFixed(1) + '%' : '—'; }
+function sgn(v)  { return v != null ? (v >= 0 ? '+' : '') + v.toFixed(3) + 'R' : '—'; }
+function num(v)  { return v != null ? Number(v).toLocaleString() : '—'; }
+
+function wrColor(wr) {
+  if (wr == null) return 'neutral';
+  if (wr >= 0.55) return 'pos';
+  if (wr <= 0.28) return 'neg';
+  return '';
+}
+
+// ── Projects config ──────────────────────────────────────────────────────────
+const PROJECTS = [
+  {
+    id:       'sweep',
+    title:    'CandleScience',
+    subtitle: 'Sweep + CISD · 4 Models',
+    desc:     'Detects prior candle sweep → close-back → CISD confirmation across four HTF timeframe pairs (1D/1H, 4H/15M, 1H/5M, 1H/3M). Entry at next 1M open after CISD. Stop at sweep extreme. 2:1 target projected from the manipulation range.',
+    json:     'CandleScience/model_stats.json',
+    link:     'CandleScience/model_dashboard.html',
+    color:    '#3b82f6',
+    icon:     '🌊',
+    type:     'sweep',
+    stats:    null,
+  },
+  {
+    id:       'ttfm',
+    title:    'TTFM°',
+    subtitle: 'TTrades Fractal Model · 6 T-Spot Variants',
+    desc:     'Replicates the TTrades Fractal Model° Pine Script indicator. Identifies 1H candle triples (C1–C2–C3), computes a log-weighted T-Spot zone from C3, and enters on limit when price retraces into the zone. Six variants classified by sweep depth.',
+    json:     'TTrades Fractal Model Analysis/ttfm_results.json',
+    link:     'TTrades Fractal Model Analysis/index.html',
+    color:    '#8b5cf6',
+    icon:     '🔷',
+    type:     'ttfm',
+    stats:    null,
+  },
+  {
+    id:       'ny1',
+    title:    'NY1 F.P.FVG',
+    subtitle: 'First Presented FVG · 9:31–10:00 ET',
+    desc:     'Targets the very first Fair Value Gap that forms between 9:31 and 9:59 ET. Enters on retrace to the FVG boundary. TP1 (Protect The Queen) takes 80% of the position at 10bps profit. The remaining 20% runner is held to end of day at 16:00 ET.',
+    json:     'NY1 FPFVG/ny1_results.json',
+    link:     'NY1 FPFVG/index.html',
+    color:    '#10b981',
+    icon:     '🎯',
+    type:     'ny1',
+    stats:    null,
+  },
+];
+
+// ── Load JSON and extract key stats ──────────────────────────────────────────
+async function loadStats(project) {
+  try {
+    const res = await fetch(project.json);
+    if (!res.ok) return null;
+    const d = await res.json();
+
+    if (project.type === 'sweep') {
+      // Pick best model by EV (exclude 1D_1H which has too few trades)
+      const models = Object.entries(d).filter(([k]) => !k.startsWith('1D'));
+      const best = models.sort((a,b) => b[1].meta.ev_per_trade - a[1].meta.ev_per_trade)[0];
+      if (!best) return null;
+      const m = best[1].meta;
+      const allN = Object.values(d).reduce((s, v) => s + (v.meta?.total_wl || 0), 0);
+      return {
+        label1: 'Best WR', val1: pct(m.win_rate), cls1: wrColor(m.win_rate),
+        label2: 'Best EV',  val2: sgn(m.ev_per_trade), cls2: m.ev_per_trade > 0 ? 'pos' : 'neg',
+        label3: 'Trades',   val3: num(allN), cls3: 'neutral',
+        dateRange: m.date_range || '—',
+        subtitle2: `Best: ${best[0].replace('_PREV_CISD','').replace('_',' · ')}`,
+        sweepModels: models.map(([k, v]) => ({
+          key: k.replace('_PREV_CISD',''),
+          wr: v.meta.win_rate,
+          ev: v.meta.ev_per_trade,
+          n: v.meta.total_wl,
+        })),
+      };
+    }
+
+    if (project.type === 'ttfm') {
+      const o = d.overall || {};
+      const dateRange = (() => {
+        const rt = d.recent_trades;
+        if (!rt) return '—';
+        const all = Object.values(rt).flat();
+        if (!all.length) return '—';
+        const dates = all.map(t => t.date).sort();
+        return `${dates[dates.length-1]}`;  // most recent date
+      })();
+      return {
+        label1: 'Win Rate', val1: pct(o.wr), cls1: wrColor(o.wr),
+        label2: 'EV',       val2: sgn(o.ev), cls2: o.ev > 0 ? 'pos' : 'neg',
+        label3: 'Trades',   val3: num(d.meta?.total_resolved), cls3: 'neutral',
+        dateRange: d.meta?.table ? `${d.meta.table} · HTF ${d.meta.htf_min}min` : '—',
+      };
+    }
+
+    if (project.type === 'ny1') {
+      const m = d.meta || {};
+      return {
+        label1: 'TP1 WR',  val1: pct(m.tp1_wr), cls1: wrColor(m.tp1_wr),
+        label2: 'Avg R',   val2: m.avg_r != null ? (m.avg_r >= 0 ? '+' : '') + m.avg_r.toFixed(3) + 'R' : '—',
+                           cls2: m.avg_r > 0 ? 'pos' : 'neg',
+        label3: 'Trades',  val3: num(m.n), cls3: 'neutral',
+        dateRange: m.date_range || '—',
+      };
+    }
+  } catch(e) {
+    return null;
+  }
+}
+
+// ── Build project card HTML ───────────────────────────────────────────────────
+function buildCard(p) {
+  const s = p.stats;
+  const statsHtml = s ? `
+    <div class="stats-row">
+      <div class="stat-cell">
+        <div class="stat-lbl">${s.label1}</div>
+        <div class="stat-val ${s.cls1}">${s.val1}</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">${s.label2}</div>
+        <div class="stat-val ${s.cls2}">${s.val2}</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-lbl">${s.label3}</div>
+        <div class="stat-val ${s.cls3}">${s.val3}</div>
+      </div>
+    </div>
+    ${p.type === 'sweep' && s.sweepModels ? buildSweepSubTable(s.sweepModels) : ''}
+  ` : `
+    <div class="stats-row" style="margin-bottom:18px;">
+      <div class="stat-cell"><div class="stat-lbl">Status</div>
+        <div class="stat-val neutral loading-pill">Loading…</div></div>
+      <div class="stat-cell"><div class="stat-lbl">—</div><div class="stat-val">—</div></div>
+      <div class="stat-cell"><div class="stat-lbl">—</div><div class="stat-val">—</div></div>
+    </div>
+  `;
+
+  return `
+  <div class="project-card" id="card-${p.id}">
+    <div class="card-accent" style="background:${p.color};"></div>
+    <div class="card-body">
+      <div class="card-tag-row">
+        <span class="card-tag active">Live</span>
+        <span class="card-tag">${p.icon} ${p.type.toUpperCase()}</span>
+      </div>
+      <div class="card-title">${p.title}</div>
+      <div class="card-subtitle">${s?.subtitle2 || p.subtitle}</div>
+      <p class="card-desc">${p.desc}</p>
+      ${statsHtml}
+    </div>
+    <div class="card-footer">
+      <div class="card-date-range">${s?.dateRange || '—'}</div>
+      <a class="open-btn" href="${p.link}" target="_blank"
+         style="background:${p.color};color:#fff;">
+        Open Dashboard
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M2 6h8M6 2l4 4-4 4"/>
+        </svg>
+      </a>
+    </div>
+  </div>`;
+}
+
+function buildSweepSubTable(models) {
+  const rows = models.map(m => {
+    const wrCls = m.wr >= 0.55 ? 'pos' : m.wr <= 0.28 ? 'neg' : '';
+    const evCls = m.ev > 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${m.key.replace('_',' · ')}</td>
+      <td class="stat-val ${wrCls}" style="font-size:12px;">${pct(m.wr)}</td>
+      <td class="stat-val ${evCls}" style="font-size:12px;">${sgn(m.ev)}</td>
+      <td style="color:var(--text-muted);">${num(m.n)}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div style="overflow-x:auto;margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      <table class="sweep-sub-table">
+        <thead><tr><th>Model</th><th>WR</th><th>EV</th><th>N</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+async function init() {
+  // Load all stats in parallel
+  const results = await Promise.all(PROJECTS.map(p => loadStats(p)));
+  results.forEach((s, i) => { PROJECTS[i].stats = s; });
+
+  // Render cards
+  const grid = document.getElementById('projectGrid');
+  grid.innerHTML = PROJECTS.map(buildCard).join('');
+}
+
+init();
+</script>
+</body>
+</html>

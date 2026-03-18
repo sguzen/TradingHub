@@ -1,0 +1,2468 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TTFM° — TTrades Fractal Model Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* ── Dark theme (default) ───────────────────────────────────────── */
+  :root,
+  [data-theme="dark"] {
+    --bg:         #0a0e17;
+    --card:       #111827;
+    --card-alt:   #0d1420;
+    --border:     #1f2937;
+    --muted:      #374151;
+    --text:       #e2e8f0;
+    --subtle:     #94a3b8;
+    --faint:      #64748b;
+    --green:      #10b981;
+    --red:        #f87171;
+    --amber:      #fbbf24;
+    --blue:       #60a5fa;
+    --orange:     #fb923c;
+    --purple:     #c084fc;
+    --cyan:       #22d3ee;
+    --green-bg:   rgba(16,185,129,0.10);
+    --red-bg:     rgba(248,113,113,0.10);
+    --blue-bg:    rgba(96,165,250,0.10);
+    --amber-bg:   rgba(251,191,36,0.10);
+    --nav-bg:     rgba(10,14,23,0.92);
+    --canvas-bg:  #0d1420;
+    --code-bg:    rgba(255,255,255,0.07);
+    --hover-bg:   rgba(255,255,255,0.03);
+  }
+
+  /* ── Light theme ────────────────────────────────────────────────── */
+  [data-theme="light"] {
+    --bg:         #f4f6fb;
+    --card:       #ffffff;
+    --card-alt:   #eef1f8;
+    --border:     #d1d9e6;
+    --muted:      #b0bcd4;
+    --text:       #0f172a;
+    --subtle:     #3d4f6b;
+    --faint:      #64748b;
+    --green:      #047857;
+    --red:        #b91c1c;
+    --amber:      #92400e;
+    --blue:       #1d4ed8;
+    --orange:     #c2410c;
+    --purple:     #6d28d9;
+    --cyan:       #0e7490;
+    --green-bg:   rgba(4,120,87,0.08);
+    --red-bg:     rgba(185,28,28,0.08);
+    --blue-bg:    rgba(29,78,216,0.08);
+    --amber-bg:   rgba(146,64,14,0.08);
+    --nav-bg:     rgba(244,246,251,0.95);
+    --canvas-bg:  #eef1f8;
+    --code-bg:    rgba(0,0,0,0.06);
+    --hover-bg:   rgba(0,0,0,0.03);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* ── Nav ────────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--nav-bg);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 28px;
+    display: flex; align-items: center; gap: 20px;
+    height: 52px;
+    transition: background 0.25s, border-color 0.25s;
+  }
+  nav .logo {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 16px;
+    color: var(--amber);
+    letter-spacing: 0.04em;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+  .nav-links {
+    display: flex; gap: 18px; align-items: center; flex: 1;
+  }
+  nav a {
+    color: var(--faint); text-decoration: none;
+    font-size: 12.5px; font-weight: 500;
+    letter-spacing: 0.03em;
+    transition: color 0.15s;
+  }
+  nav a:hover { color: var(--text); }
+
+  /* ── Theme toggle ────────────────────────────────────────────────── */
+  .theme-toggle {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover { border-color: var(--faint); }
+  .theme-toggle-icon { font-size: 14px; line-height: 1; }
+  .theme-toggle-label {
+    font-size: 11.5px; font-weight: 600;
+    color: var(--subtle);
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.04em;
+    user-select: none;
+  }
+
+  /* ── Layout ─────────────────────────────────────────────────────── */
+  .page { max-width: 1200px; margin: 0 auto; padding: 48px 28px 96px; }
+
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 42px;
+    line-height: 1.12; letter-spacing: -0.025em;
+    color: var(--text);
+  }
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 22px;
+    letter-spacing: -0.01em;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+  h3 {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 14px;
+    letter-spacing: 0.01em;
+    margin-bottom: 10px;
+  }
+  p { color: var(--subtle); line-height: 1.75; }
+  strong { color: var(--text); font-weight: 600; }
+  em { color: var(--text); }
+
+  /* ── Hero ───────────────────────────────────────────────────────── */
+  .hero {
+    padding: 52px 0 44px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 52px;
+  }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--amber-bg);
+    border: 1px solid rgba(146,64,14,0.2);
+    border-radius: 20px;
+    padding: 4px 13px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    color: var(--amber);
+    margin-bottom: 20px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+  [data-theme="dark"] .hero-badge {
+    border-color: rgba(251,191,36,0.2);
+  }
+  .hero-sub {
+    font-size: 16.5px; line-height: 1.75;
+    max-width: 680px; margin-top: 14px;
+    color: var(--subtle);
+  }
+  .hero-pills {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px;
+  }
+
+  /* ── Pills ──────────────────────────────────────────────────────── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    border-radius: 6px; padding: 5px 13px;
+    font-size: 12px; font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.03em;
+    border: 1px solid transparent;
+  }
+  .pill-green  { background: var(--green-bg);  color: var(--green);  border-color: var(--green);  opacity: 0.9; }
+  .pill-red    { background: var(--red-bg);    color: var(--red);    border-color: var(--red);    opacity: 0.9; }
+  .pill-blue   { background: var(--blue-bg);   color: var(--blue);   border-color: var(--blue);   opacity: 0.9; }
+  .pill-amber  { background: var(--amber-bg);  color: var(--amber);  border-color: var(--amber);  opacity: 0.9; }
+  .pill-purple { background: rgba(109,40,217,0.08); color: var(--purple); border-color: var(--purple); opacity: 0.9; }
+  .pill-cyan   { background: rgba(14,116,144,0.08);  color: var(--cyan);   border-color: var(--cyan);   opacity: 0.9; }
+  [data-theme="dark"] .pill { opacity: 1; }
+  [data-theme="dark"] .pill-green  { border-color: rgba(16,185,129,0.25); }
+  [data-theme="dark"] .pill-red    { border-color: rgba(248,113,113,0.25); }
+  [data-theme="dark"] .pill-blue   { border-color: rgba(96,165,250,0.25); }
+  [data-theme="dark"] .pill-amber  { border-color: rgba(251,191,36,0.25); }
+  [data-theme="dark"] .pill-purple { border-color: rgba(192,132,252,0.25); }
+  [data-theme="dark"] .pill-cyan   { border-color: rgba(34,211,238,0.25); }
+
+  /* ── Sections ───────────────────────────────────────────────────── */
+  section { margin-bottom: 72px; }
+  .section-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.14em;
+    color: var(--faint);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  /* ── Cards ──────────────────────────────────────────────────────── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 26px;
+    transition: background 0.25s, border-color 0.25s;
+  }
+  .card-sm { padding: 18px; }
+  .inset {
+    background: var(--card-alt);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 13px 16px;
+    transition: background 0.25s;
+  }
+
+  /* ── Grid ───────────────────────────────────────────────────────── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+  /* ── Step Flow ──────────────────────────────────────────────────── */
+  .flow { display: flex; align-items: flex-start; gap: 0; flex-wrap: wrap; }
+  .flow-step {
+    flex: 1; min-width: 140px;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; position: relative;
+  }
+  .flow-step:not(:last-child)::after {
+    content: '→';
+    position: absolute; right: -14px; top: 18px;
+    color: var(--muted); font-size: 18px;
+  }
+  .flow-num {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .flow-title { font-size: 12.5px; font-weight: 700; margin-bottom: 4px; }
+  .flow-desc  { font-size: 11.5px; color: var(--faint); line-height: 1.5; }
+
+  /* ── Canvas ─────────────────────────────────────────────────────── */
+  .canvas-wrap {
+    width: 100%; border-radius: 10px; overflow: hidden;
+    background: var(--canvas-bg);
+    border: 1px solid var(--border);
+    transition: background 0.25s, border-color 0.25s;
+  }
+  canvas { display: block; width: 100%; }
+
+  /* ── Tables ─────────────────────────────────────────────────────── */
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th {
+    text-align: left; padding: 10px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--faint);
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top; color: var(--subtle);
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--hover-bg); }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+
+  /* ── Code ───────────────────────────────────────────────────────── */
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: var(--cyan);
+  }
+  pre {
+    background: var(--canvas-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    line-height: 1.8;
+    color: var(--text);
+    transition: background 0.25s;
+  }
+  pre .kw  { color: var(--purple); }
+  pre .fn  { color: var(--blue); }
+  pre .str { color: var(--green); }
+  pre .num { color: var(--orange); }
+  pre .cmt { color: var(--faint); }
+
+  /* ── Variant cards ──────────────────────────────────────────────── */
+  .variant-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .variant-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) {
+    .variant-grid { grid-template-columns: 1fr; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    nav a { display: none; }
+  }
+  .variant-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    transition: background 0.25s, border-color 0.25s;
+  }
+  .variant-header {
+    padding: 11px 16px;
+    display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .variant-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .variant-name { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 13px; }
+  .variant-dir {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.06em; margin-left: auto;
+  }
+  .variant-canvas-wrap { background: var(--canvas-bg); padding: 10px; transition: background 0.25s; }
+  .variant-body { padding: 12px 16px; }
+  .variant-condition {
+    font-size: 11.5px; color: var(--subtle); line-height: 1.65;
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 4px;
+  }
+  .variant-body > p { font-size: 11.5px; margin-top: 8px; }
+
+  /* ── Bias list ──────────────────────────────────────────────────── */
+  .bias-case {
+    display: flex; gap: 12px; align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .bias-case:last-child { border-bottom: none; }
+  .bias-num { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: var(--amber); min-width: 20px; }
+  .bias-cond { font-size: 13px; color: var(--subtle); flex: 1; }
+  .bias-result { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 700; min-width: 80px; text-align: right; }
+
+  /* ── Section anchor ─────────────────────────────────────────────── */
+  .section-anchor { scroll-margin-top: 72px; }
+
+  /* ── Silver T-spot ──────────────────────────────────────────────── */
+  .silver-box {
+    background: var(--card);
+    border: 2px solid var(--purple);
+    border-radius: 12px;
+    padding: 26px 28px;
+    transition: background 0.25s;
+  }
+  [data-theme="light"] .silver-box {
+    background: linear-gradient(135deg, rgba(109,40,217,0.04), rgba(14,116,144,0.03));
+  }
+  [data-theme="dark"] .silver-box {
+    background: linear-gradient(135deg, rgba(167,139,250,0.07), rgba(34,211,238,0.04));
+    border-color: rgba(192,132,252,0.5);
+  }
+  .silver-title {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800; font-size: 18px;
+    color: var(--purple);
+    margin-bottom: 12px;
+  }
+  .silver-req { display: flex; flex-direction: column; gap: 10px; }
+  .silver-req-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; }
+  .req-check { color: var(--cyan); font-size: 15px; margin-top: 1px; flex-shrink: 0; }
+
+  /* ── Misc ───────────────────────────────────────────────────────── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 36px 0; }
+  .tag-label {
+    font-size: 10px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 5px;
+  }
+
+  /* ── Backtest tile grid responsive ───────────────────────────────── */
+  @media (max-width: 700px) { .bt-tiles { grid-template-columns: 1fr 1fr !important; } }
+  @media (max-width: 400px) { .bt-tiles { grid-template-columns: 1fr !important; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">TTFM°</span>
+  <div class="nav-links">
+    <a href="#overview">Overview</a>
+    <a href="#flow">Trade Flow</a>
+    <a href="#tspots">T-Spots</a>
+    <a href="#cisd">CISD</a>
+    <a href="#confirmation">Confirmation</a>
+    <a href="#logmid">Log Mid</a>
+    <a href="#bias">Bias</a>
+    <a href="#silver">Silver</a>
+    <a href="#reference">Reference</a>
+    <a href="#backtest">Backtest</a>
+  </div>
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+    <span class="theme-toggle-icon" id="themeIcon">☀️</span>
+    <span class="theme-toggle-label" id="themeLabel">Light</span>
+  </button>
+</nav>
+
+<div class="page">
+
+  <!-- ═══════════════════════ HERO ═══════════════════════ -->
+  <div class="hero" id="overview">
+    <div class="hero-badge">Pine Script v6 · Overlay Indicator</div>
+    <h1>TTrades Fractal<br>Model° Anatomy</h1>
+    <p class="hero-sub">
+      A multi-timeframe price-action indicator that detects high-timeframe candle sweeps,
+      draws T-Spot zones at log-weighted midpoints, and confirms entries through CISD delivery
+      sequences and pivot sweep mechanics.
+    </p>
+    <div class="hero-pills">
+      <span class="pill pill-amber">4 HTF Candles tracked</span>
+      <span class="pill pill-green">6 T-Spot variants</span>
+      <span class="pill pill-blue">CISD projections</span>
+      <span class="pill pill-red">Pivot sweep confirmation</span>
+      <span class="pill pill-purple">Silver T-Spot</span>
+      <span class="pill pill-cyan">HTF Bias engine</span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════ CORE CONCEPTS ═══════════════════════ -->
+  <section class="section-anchor" id="concepts">
+    <div class="section-label">Core Concepts</div>
+    <h2>How TTFM° Works</h2>
+    <div class="grid-2" style="gap:20px; margin-bottom:20px;">
+      <div class="card">
+        <h3 style="color:var(--amber)">What is a T-Spot?</h3>
+        <p style="font-size:13.5px;">
+          A <strong>T-Spot (Trade Spot)</strong> is a supply/demand zone drawn when
+          a new higher-timeframe (HTF) candle opens and C3 (the last closed HTF candle) has performed a qualifying sweep
+          pattern. The zone spans from the <em>close of C3</em> to the
+          <em>log midpoint</em> of the triggering candle — defining a high-probability re-entry area.
+        </p>
+        <div style="margin-top:14px;" class="inset">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:1.9;">
+            Zone top    = max(C3.c, sweep_mid)<br>
+            Zone bottom = min(C3.c, sweep_mid)
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--blue)">HTF Auto-Selection</h3>
+        <p style="font-size:13.5px;">
+          The indicator automatically maps the chart timeframe to its parent HTF.
+          All T-Spot detection, CISD, and bias logic operate on HTF candle close events,
+          not chart bars. The chart TF is only used for entry precision and confirmation.
+        </p>
+        <table style="margin-top:14px;">
+          <thead><tr><th>Chart TF</th><th>HTF</th><th>Chart TF</th><th>HTF</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">1m</td><td class="mono" style="color:var(--blue); font-weight:600;">15m</td><td class="mono">30m / 1H</td><td class="mono" style="color:var(--blue); font-weight:600;">1D</td></tr>
+            <tr><td class="mono">3m</td><td class="mono" style="color:var(--blue); font-weight:600;">30m</td><td class="mono">4H / 8H</td><td class="mono" style="color:var(--blue); font-weight:600;">1W</td></tr>
+            <tr><td class="mono">5m</td><td class="mono" style="color:var(--blue); font-weight:600;">1H</td><td class="mono">1D</td><td class="mono" style="color:var(--blue); font-weight:600;">1M</td></tr>
+            <tr><td class="mono">15m</td><td class="mono" style="color:var(--blue); font-weight:600;">4H</td><td colspan="2"></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--faint)">4 Reference HTF Candles</h3>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:8px;">
+        <div class="inset" style="text-align:center; padding:16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:800; color:var(--amber)">C0</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:5px;"><code>candles[0]</code></div>
+          <div style="font-size:12px; color:var(--subtle); margin-top:7px; line-height:1.5;">Current forming candle</div>
+        </div>
+        <div class="inset" style="text-align:center; padding:16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:800; color:var(--green)">C3</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:5px;"><code>last_closed</code></div>
+          <div style="font-size:12px; color:var(--subtle); margin-top:7px; line-height:1.5;">Last closed — the <strong>trigger</strong></div>
+        </div>
+        <div class="inset" style="text-align:center; padding:16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:800; color:var(--blue)">C2</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:5px;"><code>prev_closed</code></div>
+          <div style="font-size:12px; color:var(--subtle); margin-top:7px; line-height:1.5;">Candle swept by C3</div>
+        </div>
+        <div class="inset" style="text-align:center; padding:16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-size:22px; font-weight:800; color:var(--purple)">C1</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:5px;"><code>prev_prev_closed</code></div>
+          <div style="font-size:12px; color:var(--subtle); margin-top:7px; line-height:1.5;">Used by Expansive variant</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ TRADE FLOW ═══════════════════════ -->
+  <section class="section-anchor" id="flow">
+    <div class="section-label">Trade Anatomy</div>
+    <h2>5-Step Trade Flow</h2>
+
+    <div class="card" style="margin-bottom:20px;">
+      <div class="flow">
+        <div class="flow-step">
+          <div class="flow-num" style="background:var(--amber-bg); color:var(--amber); border:1.5px solid var(--amber);">1</div>
+          <div class="flow-title" style="color:var(--amber)">HTF Sweep</div>
+          <div class="flow-desc">New HTF candle opens. C3 swept C2's high or low and closed back inside</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background:var(--blue-bg); color:var(--blue); border:1.5px solid var(--blue);">2</div>
+          <div class="flow-title" style="color:var(--blue)">T-Spot Zone</div>
+          <div class="flow-desc">Zone drawn from C3.close to log-weighted midpoint of triggering candle</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background:var(--green-bg); color:var(--green); border:1.5px solid var(--green);">3</div>
+          <div class="flow-title" style="color:var(--green)">Zone Touch</div>
+          <div class="flow-desc">Price re-enters the T-Spot zone on chart TF bars</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background:rgba(109,40,217,0.1); color:var(--purple); border:1.5px solid var(--purple);">4</div>
+          <div class="flow-title" style="color:var(--purple)">CISD Fires</div>
+          <div class="flow-desc">Delivery sequence detected; price closes through series extreme</div>
+        </div>
+        <div class="flow-step">
+          <div class="flow-num" style="background:var(--red-bg); color:var(--red); border:1.5px solid var(--red);">5</div>
+          <div class="flow-title" style="color:var(--red)">Pivot → Entry</div>
+          <div class="flow-desc">Pivot forms, price sweeps it, entry at close of confirmation bar</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="cvFlow" height="260"></canvas>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ T-SPOT VARIANTS ═══════════════════════ -->
+  <section class="section-anchor" id="tspots">
+    <div class="section-label">T-Spot Variants</div>
+    <h2>6 T-Spot Detection Patterns</h2>
+    <p style="font-size:13.5px; margin-bottom:24px; max-width:740px;">
+      All 6 variants share the same three-candle structure: <strong>C1</strong> provides context,
+      <strong>C2</strong> is the reference candle whose high or low gets swept, and <strong>C3</strong>
+      is the trigger candle that determines the variant type. The zone activates at C3's close
+      (the open of the next HTF candle). Only one T-spot fires per HTF candle.
+    </p>
+
+    <!-- Candle legend -->
+    <div class="card" style="margin-bottom:24px; padding:18px 22px;">
+      <h3 style="margin-bottom:14px;">Candle Roles</h3>
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+        <div style="background:var(--card-alt); border-radius:8px; padding:14px 16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--faint); margin-bottom:6px;">C1 — Context</div>
+          <div style="font-size:13px; color:var(--subtle); line-height:1.6;">Two candles back. Used only by Expansive variants to confirm C2 already made a new high or low.</div>
+        </div>
+        <div style="background:var(--card-alt); border-radius:8px; padding:14px 16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--amber); margin-bottom:6px;">C2 — Reference</div>
+          <div style="font-size:13px; color:var(--subtle); line-height:1.6;">The candle being swept. Its high (BEAR) or low (BULL) is the liquidity level that C3 must breach and return from.</div>
+        </div>
+        <div style="background:var(--card-alt); border-radius:8px; padding:14px 16px;">
+          <div style="font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; color:var(--blue); margin-bottom:6px;">C3 — Trigger</div>
+          <div style="font-size:13px; color:var(--subtle); line-height:1.6;">The variant-defining candle. Its sweep, close, and log midpoint determine which pattern fired and where the zone sits.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="variant-grid">
+
+      <!-- Normal Bearish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--red-bg);">
+          <div class="variant-dot" style="background:var(--red)"></div>
+          <span class="variant-name" style="color:var(--red)">Normal Bearish</span>
+          <span class="variant-dir" style="color:var(--red)">SHORT ↓</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvNB" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C3.h &gt; C2.h<br>C3.c &lt; C2.h<br>C3.c &lt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            The most common bearish setup. C3 spikes above C2's high — taking out buy-side stops — then closes
+            back below C2's high. The close must also be below C3's log midpoint, confirming the wick dominated
+            the candle. Conceptually: stops were run above the prior high, sellers absorbed the breakout, and
+            price rejected hard.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-red" style="font-size:11px;">Classic stop hunt</span>
+            <span class="pill pill-red" style="font-size:11px;">High frequency</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Normal Bullish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--green-bg);">
+          <div class="variant-dot" style="background:var(--green)"></div>
+          <span class="variant-name" style="color:var(--green)">Normal Bullish</span>
+          <span class="variant-dir" style="color:var(--green)">LONG ↑</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvNBull" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C3.l &lt; C2.l<br>C3.c &gt; C2.l<br>C3.c &gt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            Mirror of Normal Bearish. C3 dips below C2's low — triggering sell-side stops — then closes back above
+            C2's low with a close above the log midpoint. The lower wick represents a liquidity grab below prior
+            support, with buyers stepping in to absorb the engineered selloff.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-green" style="font-size:11px;">Liquidity grab</span>
+            <span class="pill pill-green" style="font-size:11px;">High frequency</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expansive Bearish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--red-bg);">
+          <div class="variant-dot" style="background:var(--orange)"></div>
+          <span class="variant-name" style="color:var(--orange)">Expansive Bearish</span>
+          <span class="variant-dir" style="color:var(--red)">SHORT ↓</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvEB" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C2.h &gt; C1.h<br>C3.c &lt; max(C2.o, C2.c)<br>C3.c &lt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            A two-bar expansion followed by a reversal. C2 must have already broken above C1's high (an
+            expanding upswing), and then C3 closes back below C2's body top. Unlike Normal, C3 doesn't need
+            to break C2's high — the expansion already happened in C2. C3 is the rejection candle.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-amber" style="font-size:11px;">Two-bar pattern</span>
+            <span class="pill pill-red" style="font-size:11px;">Expanding range</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expansive Bullish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--green-bg);">
+          <div class="variant-dot" style="background:var(--cyan)"></div>
+          <span class="variant-name" style="color:var(--cyan)">Expansive Bullish</span>
+          <span class="variant-dir" style="color:var(--green)">LONG ↑</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvEBull" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C2.l &lt; C1.l<br>C3.c &gt; min(C2.o, C2.c)<br>C3.c &gt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            Mirror of Expansive Bearish. C2 made a new low relative to C1 (expanding downswing), and C3 then
+            closes back above C2's body bottom. The pattern captures a downside expansion that fails — C2
+            drives lower and C3 recovers, suggesting the expansion was a fake-out absorbed by buyers.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-cyan" style="font-size:11px;">Two-bar pattern</span>
+            <span class="pill pill-green" style="font-size:11px;">Failed expansion</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pro-Trend Bearish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--red-bg);">
+          <div class="variant-dot" style="background:var(--purple)"></div>
+          <span class="variant-name" style="color:var(--purple)">Pro-Trend Bearish</span>
+          <span class="variant-dir" style="color:var(--red)">SHORT ↓</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvPB" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C3.h &gt; mid_level<br>C3.h &lt; C2.o<br>C3.c &lt; C2.l<br>C3.c &lt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            The rarest and most aggressive bearish variant. C3's high only partially enters C2's range —
+            reaching above C2's log midpoint but <em>not reaching C2's open</em>. Yet C3 closes <em>below C2's
+            entire low</em>. The sweep was shallow but the close was devastating: a full range-extension
+            breakdown signalling strong trend continuation downward.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-purple" style="font-size:11px;">Shallow sweep</span>
+            <span class="pill pill-purple" style="font-size:11px;">Aggressive close</span>
+            <span class="pill pill-red" style="font-size:11px;">Rarest pattern</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pro-Trend Bullish -->
+      <div class="variant-card">
+        <div class="variant-header" style="background:var(--green-bg);">
+          <div class="variant-dot" style="background:var(--amber)"></div>
+          <span class="variant-name" style="color:var(--amber)">Pro-Trend Bullish</span>
+          <span class="variant-dir" style="color:var(--green)">LONG ↑</span>
+        </div>
+        <div class="variant-canvas-wrap"><canvas id="cvPBull" height="160"></canvas></div>
+        <div class="variant-body">
+          <div class="variant-condition">C3.l &lt; mid_level<br>C3.l &gt; C2.o<br>C3.c &gt; C2.h<br>C3.c &gt; sweep_mid</div>
+          <p style="margin-top:10px; font-size:13px; line-height:1.65;">
+            Mirror of Pro-Trend Bearish. C3 dips below C2's log midpoint but stays above C2's open (shallow
+            pullback into range), then closes <em>above C2's entire high</em>. The wick into C2 was brief;
+            the close through C2's high confirms buyers overwhelmed — a full range-extension breakout. Highest
+            win rate of all 6 variants in backtesting.
+          </p>
+          <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <span class="pill pill-amber" style="font-size:11px;">Shallow sweep</span>
+            <span class="pill pill-amber" style="font-size:11px;">Aggressive close</span>
+            <span class="pill pill-green" style="font-size:11px;">Highest WR</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Comparison table -->
+    <div class="card" style="margin-top:22px;">
+      <h3 style="margin-bottom:14px;">Variant Comparison</h3>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Variant</th>
+              <th>C3 sweeps C2?</th>
+              <th>C2 sweeps C1?</th>
+              <th>Close condition</th>
+              <th>Frequency</th>
+              <th>Backtest WR</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="color:var(--red); font-weight:700;">Normal BEAR</td>
+              <td class="mono">C3.h &gt; C2.h</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td>Below C2.h &amp; sweep_mid</td>
+              <td>High</td>
+              <td class="mono" style="color:var(--subtle);">31.6%</td>
+            </tr>
+            <tr>
+              <td style="color:var(--green); font-weight:700;">Normal BULL</td>
+              <td class="mono">C3.l &lt; C2.l</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td>Above C2.l &amp; sweep_mid</td>
+              <td>High</td>
+              <td class="mono" style="color:var(--subtle);">34.4%</td>
+            </tr>
+            <tr>
+              <td style="color:var(--orange); font-weight:700;">Expansive BEAR</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td class="mono">C2.h &gt; C1.h</td>
+              <td>Below C2 body top &amp; sweep_mid</td>
+              <td>High</td>
+              <td class="mono" style="color:var(--subtle);">31.8%</td>
+            </tr>
+            <tr>
+              <td style="color:var(--cyan); font-weight:700;">Expansive BULL</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td class="mono">C2.l &lt; C1.l</td>
+              <td>Above C2 body bottom &amp; sweep_mid</td>
+              <td>High</td>
+              <td class="mono" style="color:var(--subtle);">34.5%</td>
+            </tr>
+            <tr>
+              <td style="color:var(--purple); font-weight:700;">ProTrend BEAR</td>
+              <td>Partial (mid &lt; C3.h &lt; C2.o)</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td>Below C2.l &amp; sweep_mid</td>
+              <td>Low</td>
+              <td class="mono" style="color:var(--subtle);">32.6%</td>
+            </tr>
+            <tr>
+              <td style="color:var(--amber); font-weight:700;">ProTrend BULL</td>
+              <td>Partial (C2.o &lt; C3.l &lt; mid)</td>
+              <td style="color:var(--faint);">Not required</td>
+              <td>Above C2.h &amp; sweep_mid</td>
+              <td>Low</td>
+              <td class="mono" style="color:var(--green); font-weight:700;">36.4%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p style="font-size:12px; margin-top:12px;">Backtest: NQ 2014–2025, HTF=60min, 2:1 RR, min risk 5pts. Breakeven WR = 33.3%.</p>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <h3>CISD Candle Exclusion (all variants)</h3>
+      <p style="font-size:13.5px; margin-bottom:10px;">
+        All 6 variants require that C3 is <strong>not</strong> a CISD candle. A CISD candle is an outside bar
+        that closes back <em>inside</em> C2's range — it breaks both C2's high and low, then closes within C2.
+      </p>
+      <div class="inset">
+        <code style="font-size:12.5px;">(C3.h &gt; C2.h AND C3.l &lt; C2.l) AND (C3.c &gt; C2.l AND C3.c &lt; C2.h)</code>
+      </div>
+      <p style="font-size:13px; margin-top:10px;">
+        This prevents false T-spots during delivery sequences where price is actively being distributed
+        or accumulated — the outside-bar-inside-close is a sign of indecision, not a clean directional sweep.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ LOG MIDPOINT ═══════════════════════ -->
+  <section class="section-anchor" id="logmid">
+    <div class="section-label">Zone Calculation</div>
+    <h2>Log Midpoint Formula</h2>
+
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <p style="font-size:13.5px; margin-bottom:18px;">
+          The zone boundary uses a <strong>log-space weighted midpoint</strong>
+          rather than a simple arithmetic average. The weight shifts toward the dominant wick,
+          giving a bias-aware reference level that reflects institutional positioning.
+        </p>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div class="inset">
+            <div class="tag-label" style="color:var(--amber)">Upper wick dominant</div>
+            <code style="font-size:12.5px;">mid = ln(high) − upper_wick / 2</code>
+            <div style="font-size:12px; color:var(--faint); margin-top:5px;">Result pushed toward <em>lower</em> half of candle</div>
+          </div>
+          <div class="inset">
+            <div class="tag-label" style="color:var(--green)">Lower wick dominant</div>
+            <code style="font-size:12.5px;">mid = ln(low) + lower_wick / 2</code>
+            <div style="font-size:12px; color:var(--faint); margin-top:5px;">Result pushed toward <em>upper</em> half of candle</div>
+          </div>
+          <div class="inset">
+            <div class="tag-label" style="color:var(--blue)">Body dominant</div>
+            <code style="font-size:12.5px;">mid = (ln(high) + ln(low)) / 2</code>
+            <div style="font-size:12px; color:var(--faint); margin-top:5px;">Geometric mean — balanced midpoint</div>
+          </div>
+        </div>
+        <div style="margin-top:16px; font-size:13px; color:var(--subtle);">
+          Final price level: <code>sweep_mid = exp(mid)</code>
+        </div>
+      </div>
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="cvLogMid" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ CISD ═══════════════════════ -->
+  <section class="section-anchor" id="cisd">
+    <div class="section-label">Entry Confirmation</div>
+    <h2>CISD — Change in State of Delivery</h2>
+
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3 style="color:var(--purple)">Detection Algorithm</h3>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--purple); font-weight:800; min-width:22px;">①</div>
+            <div style="font-size:13.5px; color:var(--subtle);"><strong>Anchor bar (C2)</strong> identified as the last bar before the current scan window</div>
+          </div>
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--purple); font-weight:800; min-width:22px;">②</div>
+            <div style="font-size:13.5px; color:var(--subtle);"><strong>Backward scan</strong> from C2: collect consecutive bars with opposite polarity to the expected direction (the "delivery series")</div>
+          </div>
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--purple); font-weight:800; min-width:22px;">③</div>
+            <div style="font-size:13.5px; color:var(--subtle);"><strong>Series extreme</strong> computed: highest high (bearish series) or lowest low (bullish series)</div>
+          </div>
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--purple); font-weight:800; min-width:22px;">④</div>
+            <div style="font-size:13.5px; color:var(--subtle);"><strong>Forward scan</strong> from C2: find the first bar whose close breaks through the series extreme</div>
+          </div>
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--purple); font-weight:800; min-width:22px;">⑤</div>
+            <div style="font-size:13.5px; color:var(--subtle);"><strong>CISD line</strong> drawn at series extreme. <strong>Projections</strong> drawn at 0.5R, 1R, 1.5R, 2R of series_range</div>
+          </div>
+        </div>
+        <div class="inset" style="margin-top:18px;">
+          <div class="tag-label" style="color:var(--amber)">CISD_FAST_BARS parameter</div>
+          <div style="font-size:13px; color:var(--subtle); margin-top:2px;">Controls max lookback for the backward delivery series scan</div>
+        </div>
+      </div>
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="cvCISD" height="320"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ PIVOT CONFIRMATION ═══════════════════════ -->
+  <section class="section-anchor" id="confirmation">
+    <div class="section-label">Entry Trigger</div>
+    <h2>Pivot Sweep Confirmation</h2>
+
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="cvPivot" height="300"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--amber)">Confirmation Sequence</h3>
+        <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+          <div class="inset">
+            <div class="tag-label" style="color:var(--amber)">Step 1 — T-Spot Touch</div>
+            <div style="font-size:13px; color:var(--subtle); margin-top:3px;">Price re-enters the T-Spot zone. Watcher activates.</div>
+          </div>
+          <div class="inset">
+            <div class="tag-label" style="color:var(--blue)">Step 2 — Pivot Forms</div>
+            <div style="font-size:13px; color:var(--subtle); margin-top:3px;">
+              <code>ta.pivothigh(src, 2, 2)</code> or <code>ta.pivotlow(src, 2, 2)</code> fires.
+              Source = wicks by default, or bodies per <code>usebody_for_confirmation</code>.
+            </div>
+          </div>
+          <div class="inset">
+            <div class="tag-label" style="color:var(--purple)">Step 3 — Pivot Swept</div>
+            <div style="font-size:13px; color:var(--subtle); margin-top:3px;">A subsequent bar's high exceeds the pivot high (bearish) or low undercuts the pivot low (bullish).</div>
+          </div>
+          <div class="inset" style="border-color:var(--green);">
+            <div class="tag-label" style="color:var(--green)">Entry — Confirmation Close</div>
+            <div style="font-size:13px; color:var(--subtle); margin-top:3px;">
+              Entry at <strong>close of the confirmation bar</strong>.<br>
+              Stop = lowest low / highest high between pivot and confirmation bar.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ BIAS ═══════════════════════ -->
+  <section class="section-anchor" id="bias">
+    <div class="section-label">Directional Context</div>
+    <h2>HTF Bias Engine</h2>
+
+    <div class="grid-2" style="margin-bottom:20px;">
+      <div class="card">
+        <h3 style="color:var(--cyan)">GetHTFBias(C3, C2) — 7 Cases</h3>
+        <p style="font-size:13px; margin-bottom:14px;">
+          Called at each new HTF candle open. Returns <code>BULLISH</code>, <code>BEARISH</code>,
+          or <code>NEUTRAL</code> based on sweep direction and wick comparison.
+        </p>
+        <div class="bias-case">
+          <span class="bias-num">1</span>
+          <span class="bias-cond">C3 swept C2.h and closed above C2.h</span>
+          <span class="bias-result" style="color:var(--green)">BULLISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">2</span>
+          <span class="bias-cond">C3 swept C2.l and closed below C2.l</span>
+          <span class="bias-result" style="color:var(--red)">BEARISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">3</span>
+          <span class="bias-cond">C3 swept C2.h, closed inside C2. C2 upper wick &gt; lower wick</span>
+          <span class="bias-result" style="color:var(--red)">BEARISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">4</span>
+          <span class="bias-cond">C3 swept C2.l, closed inside C2. C2 lower wick &gt; upper wick</span>
+          <span class="bias-result" style="color:var(--green)">BULLISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">5</span>
+          <span class="bias-cond">C3 swept C2.h, closed inside C2. C2 lower wick &gt; upper wick</span>
+          <span class="bias-result" style="color:var(--green)">BULLISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">6</span>
+          <span class="bias-cond">C3 swept C2.l, closed inside C2. C2 upper wick &gt; lower wick</span>
+          <span class="bias-result" style="color:var(--red)">BEARISH</span>
+        </div>
+        <div class="bias-case">
+          <span class="bias-num">7</span>
+          <span class="bias-cond">No clear sweep or equal wicks</span>
+          <span class="bias-result" style="color:var(--faint)">NEUTRAL</span>
+        </div>
+      </div>
+      <div>
+        <div class="canvas-wrap">
+          <canvas id="cvBias" height="300"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ SILVER T-SPOT ═══════════════════════ -->
+  <section class="section-anchor" id="silver">
+    <div class="section-label">Premium Setup</div>
+    <h2>Silver T-Spot</h2>
+
+    <div class="silver-box">
+      <div class="silver-title">★ Silver T-Spot Requirements</div>
+      <p style="font-size:13.5px; margin-bottom:18px;">
+        A T-Spot is upgraded to <strong style="color:var(--purple)">Silver</strong> when it meets all of the following criteria simultaneously.
+        Silver T-Spots are flagged with a distinctive visual treatment to highlight the highest-conviction setups.
+      </p>
+      <div class="silver-req">
+        <div class="silver-req-item">
+          <span class="req-check">✦</span>
+          <div>
+            <strong>Time Gate</strong>: <code>candleOfDay == 5</code>
+            <em style="color:var(--faint)">OR</em> <code>candleOfDay == 4 AND NY_hour ≥ 13</code>
+            — only forms on the 5th HTF candle of the day (or 4th if afternoon session)
+          </div>
+        </div>
+        <div class="silver-req-item">
+          <span class="req-check">✦</span>
+          <div>
+            <strong>Multi-level break (bearish)</strong>: C3.close breaks below
+            <em>all of</em> C2.low, C1.low, C4.low — price punches through 3 consecutive prior candle lows
+          </div>
+        </div>
+        <div class="silver-req-item">
+          <span class="req-check">✦</span>
+          <div>
+            <strong>Multi-level break (bullish)</strong>: C3.close breaks above
+            <em>all of</em> C2.high, C1.high, C4.high — price punches through 3 consecutive prior candle highs
+          </div>
+        </div>
+        <div class="silver-req-item">
+          <span class="req-check">✦</span>
+          <div>
+            <strong>Standard T-Spot valid</strong>: any of the 6 variants must independently qualify
+            (Normal / Expansive / Pro-trend, Bull or Bear)
+          </div>
+        </div>
+      </div>
+      <div class="inset" style="margin-top:18px; border-color:var(--purple);">
+        <div style="font-size:13px; color:var(--subtle); line-height:1.7;">
+          <strong style="color:var(--purple)">Rationale:</strong> The 5th candle of the day aligns with
+          the highest-volume institutional window. Breaking through 3 consecutive
+          prior HTF extremes indicates a significant liquidity sweep, maximising the probability
+          of a strong reversal from the T-Spot zone.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════ REFERENCE ═══════════════════════ -->
+  <section class="section-anchor" id="reference">
+    <div class="section-label">Data Structures &amp; Reference</div>
+    <h2>User-Defined Types (UDTs)</h2>
+
+    <div class="grid-3" style="margin-bottom:28px;">
+      <div class="card card-sm">
+        <h3 style="color:var(--blue)">Candle</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          o · h · l · c <span style="color:var(--faint)">// OHLC</span><br>
+          ts <span style="color:var(--faint)">// bar timestamp</span><br>
+          is_bull <span style="color:var(--faint)">// c &gt; o</span>
+        </div>
+      </div>
+      <div class="card card-sm">
+        <h3 style="color:var(--amber)">Trace</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          level <span style="color:var(--faint)">// price level</span><br>
+          bar_idx <span style="color:var(--faint)">// bar index</span><br>
+          active · visible
+        </div>
+      </div>
+      <div class="card card-sm">
+        <h3 style="color:var(--green)">Imbalance</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          top · bottom<br>
+          direction <span style="color:var(--faint)">// BULL/BEAR</span><br>
+          active · bar_created
+        </div>
+      </div>
+      <div class="card card-sm">
+        <h3 style="color:var(--purple)">CandleSettings</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          usebody_for_conf<br>
+          show_projections<br>
+          max_tspot_bars
+        </div>
+      </div>
+      <div class="card card-sm">
+        <h3 style="color:var(--red)">CandleSet</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          candles[] <span style="color:var(--faint)">// array[4]</span><br>
+          sweep_mid<br>
+          tspot_created
+        </div>
+      </div>
+      <div class="card card-sm">
+        <h3 style="color:var(--cyan)">Helper</h3>
+        <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--subtle); line-height:2;">
+          htf_bias<br>
+          pivot_level<br>
+          cisd_fired
+        </div>
+      </div>
+    </div>
+
+    <h2 style="margin-top:16px;">Key Parameters</h2>
+    <div class="card">
+      <table>
+        <thead><tr><th>Parameter</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">htf_override</td>
+            <td class="mono">auto</td>
+            <td>Force a specific HTF instead of using the auto-mapping table</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">usebody_for_confirmation</td>
+            <td class="mono">false</td>
+            <td>Use candle bodies (open/close) instead of wicks for pivot detection and series scanning</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">show_projections</td>
+            <td class="mono">true</td>
+            <td>Draw CISD projection lines at 0.5R, 1R, 1.5R, 2R</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">max_tspot_bars</td>
+            <td class="mono">varies</td>
+            <td>Max bars a T-Spot zone stays active before auto-deletion</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">cisd_fast_bars</td>
+            <td class="mono">varies</td>
+            <td>Max lookback bars for the backward delivery series scan in CISD detection</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">show_silver_only</td>
+            <td class="mono">false</td>
+            <td>Hide non-silver T-Spots, showing only the highest-conviction setups</td>
+          </tr>
+          <tr>
+            <td class="mono" style="color:var(--cyan); font-weight:600;">risk_per_trade</td>
+            <td class="mono">1.0%</td>
+            <td>Account percentage risked per trade — drives the position size label on chart</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:36px;">Position Sizing</h2>
+    <div class="card">
+      <p style="font-size:13.5px; margin-bottom:14px;">
+        The indicator calculates and displays a position size label at entry given account size, risk %, entry price, and stop price:
+      </p>
+      <pre><span class="kw">risk_dollars</span>      = account_size × risk_pct
+<span class="kw">risk_per_contract</span> = abs(entry − stop) × tick_value / tick_size
+<span class="kw">contracts</span>         = floor(risk_dollars / risk_per_contract)
+
+<span class="cmt">// NQ tick: $5 / 0.25pt  |  ES tick: $12.50 / 0.25pt</span></pre>
+    </div>
+  </section>
+
+
+  <!-- ═══════════════════════ BACKTEST ═══════════════════════ -->
+  <section class="section-anchor" id="backtest">
+    <div class="section-label">Historical Performance · NQ Futures · 2014–2025</div>
+    <h2>Backtest Results</h2>
+
+    <div id="bt-loading" class="card" style="text-align:center; padding:48px 32px; color:var(--faint);">
+      <div style="font-size:15px; margin-bottom:8px;">Loading <code>ttfm_results.json</code>…</div>
+      <div style="font-size:12px;">Run <code>python3 ttfm_backtest.py</code> first if this doesn't resolve.</div>
+    </div>
+
+    <div id="bt-content" style="display:none;">
+
+      <div id="bt-meta" style="font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--faint); margin-bottom:20px; letter-spacing:0.04em;"></div>
+
+      <!-- ── Summary tiles ── -->
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px;" class="bt-tiles">
+        <div class="card" style="text-align:center;">
+          <div class="section-label" style="margin-bottom:8px;">Trades Resolved</div>
+          <div id="bt-n" style="font-family:'Syne',sans-serif; font-size:34px; font-weight:800; color:var(--text); line-height:1;">—</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:6px;">of setups touched zone</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="section-label" style="margin-bottom:8px;">Win Rate</div>
+          <div id="bt-wr" style="font-family:'Syne',sans-serif; font-size:34px; font-weight:800; line-height:1;">—</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:6px;">breakeven = 33.3%</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="section-label" style="margin-bottom:8px;">Expected Value</div>
+          <div id="bt-ev" style="font-family:'Syne',sans-serif; font-size:34px; font-weight:800; line-height:1;">—</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:6px;">per trade at 2:1 RR</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="section-label" style="margin-bottom:8px;">Zone Touch Rate</div>
+          <div id="bt-touch" style="font-family:'Syne',sans-serif; font-size:34px; font-weight:800; color:var(--blue); line-height:1;">—</div>
+          <div style="font-size:11px; color:var(--faint); margin-top:6px;">setups that filled</div>
+        </div>
+      </div>
+
+      <!-- ── Variant + Direction + DOW ── -->
+      <div class="grid-2" style="margin-bottom:24px;">
+        <div class="card">
+          <h3>By Variant</h3>
+          <div id="bt-variants"></div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          <div class="card" style="flex:0 0 auto;">
+            <h3>By Direction</h3>
+            <div id="bt-direction"></div>
+          </div>
+          <div class="card" style="flex:1;">
+            <h3>By Day of Week</h3>
+            <div id="bt-dow"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Hour bar chart ── -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3>Win Rate by Hour (ET)</h3>
+        <p style="font-size:13px; margin-bottom:16px;">Dashed line = 33.3% breakeven for 2:1 RR. Hover a bar for trade count.</p>
+        <div class="canvas-wrap">
+          <canvas id="cvHourChart" height="240"></canvas>
+        </div>
+      </div>
+
+      <!-- ── Heatmap ── -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3>Win Rate Heatmap — Day × Hour</h3>
+        <p style="font-size:13px; margin-bottom:18px;">
+          Color intensity = distance from 33.3% breakeven. Cells with fewer than 5 resolved trades show —.
+          Hover any cell for N, WR, and EV.
+        </p>
+        <div style="overflow-x:auto;">
+          <div id="bt-heatmap"></div>
+        </div>
+      </div>
+
+      <!-- ── Best combos ── -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3>Best Variant × Hour <span style="font-size:11.5px; color:var(--faint); font-weight:400; font-family:'DM Sans',sans-serif;">— min N=10, sorted by win rate</span></h3>
+        <div id="bt-combos"></div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+           TIMING DEEP DIVE — Intra-Hour Quarters
+           ══════════════════════════════════════════════════════════ -->
+      <div style="margin-top:8px;">
+        <h2 style="font-family:'Syne',sans-serif; font-size:22px; font-weight:800; color:var(--text); margin:0 0 6px;">
+          Timing Deep Dive — Intra-Hour Quarters
+        </h2>
+        <p style="font-size:13px; color:var(--subtle); margin:0 0 22px; line-height:1.6;">
+          Each RTH hour split into four 15-minute windows based on the <em>minute of fill</em> (when the zone is first touched).
+          Q1 = 0–14 min · Q2 = 15–29 min · Q3 = 30–44 min · Q4 = 45–59 min.
+          Reveals whether early-hour or late-hour zone touches perform better.
+        </p>
+
+        <!-- Q1–Q4 summary bars -->
+        <div class="card" style="margin-bottom:24px;">
+          <h3>Win Rate by Quarter <span style="font-size:11.5px; color:var(--faint); font-weight:400; font-family:'DM Sans',sans-serif;">— all variants combined</span></h3>
+          <div id="bt-quarter-bars"></div>
+        </div>
+
+        <!-- Hour × Quarter heatmap -->
+        <div class="card" style="margin-bottom:24px;">
+          <h3>Hour × Quarter Win-Rate Grid
+            <span style="font-size:11.5px; color:var(--faint); font-weight:400; font-family:'DM Sans',sans-serif;">
+              — cells with N &lt; 3 shown as —
+            </span>
+          </h3>
+          <p style="font-size:13px; margin-bottom:18px;">Rows = RTH hour (ET). Columns = 15-min quarter within that hour. Color = distance from 33.3% breakeven.</p>
+          <div style="overflow-x:auto;">
+            <div id="bt-hour-quarter"></div>
+          </div>
+        </div>
+
+        <!-- Variant × Quarter table -->
+        <div class="card" style="margin-bottom:24px;">
+          <h3>Variant × Quarter</h3>
+          <div id="bt-variant-quarter"></div>
+        </div>
+
+        <!-- DOW × Quarter table -->
+        <div class="card">
+          <h3>Day of Week × Quarter</h3>
+          <div id="bt-dow-quarter"></div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════════
+           MOST RECENT TRADES — per variant
+           ══════════════════════════════════════════════════════════ -->
+      <div style="margin-top:32px;">
+        <h2 style="font-family:'Syne',sans-serif; font-size:22px; font-weight:800; color:var(--text); margin:0 0 6px;">
+          Most Recent Trades
+        </h2>
+        <p style="font-size:13px; color:var(--subtle); margin:0 0 22px; line-height:1.6;">
+          Last 25 resolved (WIN / LOSS) trades per variant, sorted newest first.
+        </p>
+        <div class="card">
+          <div id="bt-recent-tabs" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px;"></div>
+          <div id="bt-recent-table"></div>
+        </div>
+      </div>
+
+    </div><!-- /bt-content -->
+  </section>
+
+</div><!-- /page -->
+
+<!-- ═══════════════════════ SCRIPTS ═══════════════════════ -->
+<script>
+/* ── Theme toggle ─────────────────────────────────────────────────── */
+const html        = document.documentElement;
+const toggleBtn   = document.getElementById('themeToggle');
+const themeIcon   = document.getElementById('themeIcon');
+const themeLabel  = document.getElementById('themeLabel');
+
+function applyTheme(t) {
+  html.dataset.theme = t;
+  if (t === 'light') {
+    themeIcon.textContent  = '🌙';
+    themeLabel.textContent = 'Dark';
+  } else {
+    themeIcon.textContent  = '☀️';
+    themeLabel.textContent = 'Light';
+  }
+  localStorage.setItem('ttfm-theme', t);
+  redrawAll();
+}
+
+toggleBtn.addEventListener('click', () => {
+  applyTheme(html.dataset.theme === 'dark' ? 'light' : 'dark');
+});
+
+// Restore saved preference
+const saved = localStorage.getItem('ttfm-theme');
+if (saved) applyTheme(saved);
+
+/* ── Theme-aware color palette ───────────────────────────────────── */
+function getC() {
+  const light = html.dataset.theme === 'light';
+  return {
+    bg:     light ? '#eef1f8' : '#0d1420',
+    border: light ? '#d1d9e6' : '#1e2a3a',
+    muted:  light ? '#b0bcd4' : '#1e2a3a',
+    text:   light ? '#0f172a' : '#e2e8f0',
+    subtle: light ? '#3d4f6b' : '#94a3b8',
+    faint:  light ? '#64748b' : '#64748b',
+    green:  light ? '#047857' : '#10b981',
+    red:    light ? '#b91c1c' : '#f87171',
+    amber:  light ? '#92400e' : '#fbbf24',
+    blue:   light ? '#1d4ed8' : '#60a5fa',
+    orange: light ? '#c2410c' : '#fb923c',
+    purple: light ? '#6d28d9' : '#c084fc',
+    cyan:   light ? '#0e7490' : '#22d3ee',
+  };
+}
+
+/* ── Canvas setup ────────────────────────────────────────────────── */
+const DPR = window.devicePixelRatio || 1;
+
+function setupCanvas(id) {
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const w = el.parentElement.clientWidth;
+  const h = parseInt(el.getAttribute('height') || 200);
+  el.width  = w * DPR;
+  el.height = h * DPR;
+  el.style.width  = w + 'px';
+  el.style.height = h + 'px';
+  const ctx = el.getContext('2d');
+  ctx.scale(DPR, DPR);
+  ctx.W = w; ctx.H = h;
+  const C = getC();
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, w, h);
+  return ctx;
+}
+
+/* ── Drawing helpers ─────────────────────────────────────────────── */
+function drawCandle(ctx, x, ohlc, scale, w, bull_col, bear_col) {
+  const C = getC();
+  w = w ?? 10; bull_col = bull_col ?? C.green; bear_col = bear_col ?? C.red;
+  const [o, h, l, c] = ohlc;
+  const yo = scale(o), yh = scale(h), yl = scale(l), yc = scale(c);
+  const col = c >= o ? bull_col : bear_col;
+  ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+  ctx.fillStyle = col;
+  const top = Math.min(yo, yc), ht = Math.max(Math.abs(yc - yo), 2);
+  ctx.fillRect(x - w/2, top, w, ht);
+}
+
+function hline(ctx, y, x1, x2, col, lbl, labelSide, dash) {
+  lbl = lbl ?? ''; labelSide = labelSide ?? 'right'; dash = dash ?? [4,3];
+  ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.setLineDash(dash);
+  ctx.beginPath(); ctx.moveTo(x1, y); ctx.lineTo(x2, y); ctx.stroke();
+  ctx.setLineDash([]);
+  if (lbl) {
+    ctx.fillStyle = col;
+    ctx.font = `600 10px 'JetBrains Mono', monospace`;
+    ctx.textAlign = labelSide === 'right' ? 'left' : 'right';
+    ctx.fillText(lbl, labelSide === 'right' ? x2 + 4 : x1 - 4, y + 3.5);
+  }
+}
+
+function zone(ctx, x1, x2, yTop, yBot, col, alpha) {
+  alpha = alpha ?? 0.14;
+  ctx.fillStyle = col; ctx.globalAlpha = alpha;
+  ctx.fillRect(x1, yTop, x2-x1, yBot-yTop);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = col; ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(x1, yTop); ctx.lineTo(x2, yTop); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x1, yBot); ctx.lineTo(x2, yBot); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function label(ctx, text, x, y, col, size, align, font) {
+  const C = getC();
+  col = col ?? C.subtle; size = size ?? 10; align = align ?? 'center';
+  font = font ?? "'DM Sans', sans-serif";
+  ctx.fillStyle = col;
+  ctx.font = `600 ${size}px ${font}`;
+  ctx.textAlign = align;
+  ctx.fillText(text, x, y);
+}
+
+function makeScale(minP, maxP, minY, maxY) {
+  return p => minY + (maxP - p) / (maxP - minP) * (maxY - minY);
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+/* ═══════════════════ FLOW DIAGRAM ════════════════════════════════ */
+function drawFlow() {
+  const ctx = setupCanvas('cvFlow');
+  if (!ctx) return;
+  const {W, H} = ctx;
+  const C = getC();
+  const steps = [
+    { label: 'HTF Sweep', col: C.amber,  sub: ['C3 sweeps C2', 'extreme & returns'] },
+    { label: 'T-Spot',    col: C.blue,   sub: ['Zone: C3.close', 'to log midpoint'] },
+    { label: 'Zone Touch',col: C.green,  sub: ['Chart TF bar', 'enters zone'] },
+    { label: 'CISD',      col: C.purple, sub: ['Delivery series', 'break detected'] },
+    { label: 'Entry',     col: C.red,    sub: ['Pivot swept →', 'conf. bar close'] },
+  ];
+  const n = steps.length;
+  const xStep = W / n;
+  const circY = H * 0.32;
+
+  // Connecting dashed lines
+  for (let i = 0; i < n - 1; i++) {
+    const x1 = (i + 0.7) * xStep, x2 = (i + 1.3) * xStep;
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(x1, circY); ctx.lineTo(x2, circY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  steps.forEach((s, i) => {
+    const x = (i + 0.5) * xStep;
+    // circle fill
+    ctx.beginPath(); ctx.arc(x, circY, 22, 0, Math.PI * 2);
+    ctx.fillStyle = s.col + '18'; ctx.fill();
+    ctx.strokeStyle = s.col; ctx.lineWidth = 2;
+    ctx.stroke();
+    // number
+    ctx.fillStyle = s.col;
+    ctx.font = `700 14px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(i + 1, x, circY);
+    ctx.textBaseline = 'alphabetic';
+    // label
+    label(ctx, s.label, x, circY + 38, s.col, 12, 'center', "'Syne', sans-serif");
+    // sub lines
+    s.sub.forEach((ln, j) => label(ctx, ln, x, circY + 56 + j * 15, C.subtle, 11));
+  });
+}
+
+/* ═══════════════════ VARIANT CANVAS HELPERS ══════════════════════ */
+function _variantSetup(id, minP, maxP) {
+  const ctx = setupCanvas(id);
+  if (!ctx) return null;
+  ctx.sc = makeScale(minP, maxP, 10, ctx.H - 14);
+  ctx.cx = ctx.W / 2;
+  return ctx;
+}
+
+/* ═══════════════════ NORMAL BEARISH ══════════════════════════════ */
+function drawNormalBearish() {
+  const ctx = _variantSetup('cvNB', 55, 95);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 52, [72, 85, 65, 74], sc, 9);
+  label(ctx, 'C1', cx - 52, ctx.H - 2, C.faint, 9);
+
+  drawCandle(ctx, cx - 24, [70, 82, 63, 78], sc, 9);
+  label(ctx, 'C2', cx - 24, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(82), cx - 56, cx + 58, C.blue, 'C2.h', 'right', [3,2]);
+
+  drawCandle(ctx, cx + 8, [80, 88, 60, 69], sc, 9);
+  label(ctx, 'C3', cx + 8, ctx.H - 2, C.red, 9);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(cx + 8, sc(88)); ctx.lineTo(cx + 30, sc(88)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '↑ SWEEP', cx + 36, sc(88) + 3.5, C.amber, 9, 'left');
+
+  hline(ctx, sc(74), cx - 8, cx + 22, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 22, cx + 58, sc(74), sc(69), C.red);
+  label(ctx, 'T-Spot', cx + 42, sc(71.5), C.red, 9);
+}
+
+/* ═══════════════════ NORMAL BULLISH ══════════════════════════════ */
+function drawNormalBullish() {
+  const ctx = _variantSetup('cvNBull', 20, 65);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 52, [40, 53, 35, 42], sc, 9);
+  label(ctx, 'C1', cx - 52, ctx.H - 2, C.faint, 9);
+
+  drawCandle(ctx, cx - 24, [42, 55, 34, 38], sc, 9);
+  label(ctx, 'C2', cx - 24, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(34), cx - 56, cx + 58, C.blue, 'C2.l', 'right', [3,2]);
+
+  drawCandle(ctx, cx + 8, [36, 54, 26, 44], sc, 9);
+  label(ctx, 'C3', cx + 8, ctx.H - 2, C.green, 9);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(cx + 8, sc(26)); ctx.lineTo(cx + 30, sc(26)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '↓ SWEEP', cx + 36, sc(26) + 3.5, C.amber, 9, 'left');
+
+  hline(ctx, sc(37), cx - 8, cx + 22, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 22, cx + 58, sc(44), sc(37), C.green);
+  label(ctx, 'T-Spot', cx + 42, sc(40.5), C.green, 9);
+}
+
+/* ═══════════════════ EXPANSIVE BEARISH ══════════════════════════ */
+function drawExpansiveBearish() {
+  const ctx = _variantSetup('cvEB', 50, 100);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 52, [72, 82, 66, 75], sc, 9);
+  label(ctx, 'C1', cx - 52, ctx.H - 2, C.faint, 9);
+  hline(ctx, sc(82), cx - 62, cx + 22, C.faint, 'C1.h', 'left', [2,3]);
+
+  drawCandle(ctx, cx - 20, [74, 90, 68, 86], sc, 9);
+  label(ctx, 'C2', cx - 20, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(86), cx - 32, cx + 58, C.orange, 'C2 body top', 'right', [3,2]);
+
+  drawCandle(ctx, cx + 16, [84, 91, 64, 72], sc, 9);
+  label(ctx, 'C3', cx + 16, ctx.H - 2, C.red, 9);
+
+  hline(ctx, sc(78), cx - 2, cx + 30, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 30, ctx.W - 8, sc(78), sc(72), C.red);
+  label(ctx, 'T-Spot', ctx.W - 8 - 30, sc(75), C.red, 9);
+}
+
+/* ═══════════════════ EXPANSIVE BULLISH ══════════════════════════ */
+function drawExpansiveBullish() {
+  const ctx = _variantSetup('cvEBull', 50, 100);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 52, [72, 80, 62, 69], sc, 9);
+  label(ctx, 'C1', cx - 52, ctx.H - 2, C.faint, 9);
+  hline(ctx, sc(62), cx - 62, cx + 22, C.faint, 'C1.l', 'left', [2,3]);
+
+  drawCandle(ctx, cx - 20, [70, 74, 56, 60], sc, 9);
+  label(ctx, 'C2', cx - 20, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(60), cx - 32, cx + 58, C.cyan, 'C2 body bot', 'right', [3,2]);
+
+  drawCandle(ctx, cx + 16, [62, 80, 55, 72], sc, 9);
+  label(ctx, 'C3', cx + 16, ctx.H - 2, C.green, 9);
+
+  hline(ctx, sc(65), cx - 2, cx + 30, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 30, ctx.W - 8, sc(72), sc(65), C.cyan);
+  label(ctx, 'T-Spot', ctx.W - 8 - 30, sc(68.5), C.cyan, 9);
+}
+
+/* ═══════════════════ PRO-TREND BEARISH ══════════════════════════ */
+function drawProTrendBearish() {
+  const ctx = _variantSetup('cvPB', 48, 95);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 28, [82, 87, 55, 84], sc, 9);
+  label(ctx, 'C2', cx - 28, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(84), cx - 42, ctx.W - 8, C.blue, 'C2.o', 'right', [2,3]);
+  hline(ctx, sc(55), cx - 42, ctx.W - 8, C.blue + 'aa', 'C2.l', 'right', [3,2]);
+
+  const midY = sc(71);
+  hline(ctx, midY, cx - 42, cx + 22, C.purple, 'C2 mid', 'right', [2,3]);
+
+  drawCandle(ctx, cx + 14, [77, 83, 51, 53], sc, 9);
+  label(ctx, 'C3', cx + 14, ctx.H - 2, C.purple, 9);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(cx + 14, sc(83)); ctx.lineTo(cx + 36, sc(83)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '< C2.o', cx + 40, sc(83) + 3.5, C.amber, 9, 'left');
+
+  const sweepMid = sc(60);
+  hline(ctx, sweepMid, cx + 26, ctx.W - 8, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 26, ctx.W - 8, sweepMid, sc(53), C.red);
+  label(ctx, 'T-Spot', ctx.W - 8 - 28, sc(56.5), C.red, 9);
+}
+
+/* ═══════════════════ PRO-TREND BULLISH ══════════════════════════ */
+function drawProTrendBullish() {
+  const ctx = _variantSetup('cvPBull', 48, 95);
+  if (!ctx) return;
+  const {sc, cx} = ctx;
+  const C = getC();
+
+  drawCandle(ctx, cx - 28, [62, 88, 58, 60], sc, 9);
+  label(ctx, 'C2', cx - 28, ctx.H - 2, C.blue, 9);
+  hline(ctx, sc(60), cx - 42, ctx.W - 8, C.blue, 'C2.o', 'right', [2,3]);
+  hline(ctx, sc(88), cx - 42, ctx.W - 8, C.blue + 'aa', 'C2.h', 'right', [3,2]);
+
+  const midY = sc(74);
+  hline(ctx, midY, cx - 42, cx + 22, C.purple, 'C2 mid', 'right', [2,3]);
+
+  drawCandle(ctx, cx + 14, [66, 92, 58, 90], sc, 9);
+  label(ctx, 'C3', cx + 14, ctx.H - 2, C.amber, 9);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(cx + 14, sc(58)); ctx.lineTo(cx + 36, sc(58)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '> C2.o', cx + 40, sc(58) + 3.5, C.amber, 9, 'left');
+
+  const sweepMid = sc(83);
+  hline(ctx, sweepMid, cx + 26, ctx.W - 8, C.purple, 'mid', 'right', [2,3]);
+  zone(ctx, cx + 26, ctx.W - 8, sc(90), sweepMid, C.green);
+  label(ctx, 'T-Spot', ctx.W - 8 - 28, sc(86.5), C.green, 9);
+}
+
+/* ═══════════════════ LOG MIDPOINT ════════════════════════════════ */
+function drawLogMid() {
+  const ctx = setupCanvas('cvLogMid');
+  if (!ctx) return;
+  const {W, H} = ctx;
+  const C = getC();
+  const sc = makeScale(50, 110, 20, H - 28);
+
+  const cases = [
+    { ohlc: [90, 105, 72, 88], lbl: ['Upper wick', 'dominant'], mid: 91, col: C.amber,  dx: W*0.17 },
+    { ohlc: [75, 98, 60, 78],  lbl: ['Body', 'dominant'],       mid: 79, col: C.blue,   dx: W*0.50 },
+    { ohlc: [68, 82, 54, 72],  lbl: ['Lower wick', 'dominant'], mid: 65, col: C.green,  dx: W*0.83 },
+  ];
+
+  // divider grid lines
+  ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(W*0.33, 10); ctx.lineTo(W*0.33, H - 10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W*0.67, 10); ctx.lineTo(W*0.67, H - 10); ctx.stroke();
+
+  cases.forEach(({ohlc, lbl, mid, col, dx}) => {
+    drawCandle(ctx, dx, ohlc, sc, 16);
+    const my = sc(mid);
+    ctx.strokeStyle = col; ctx.lineWidth = 2;
+    ctx.setLineDash([5,3]);
+    ctx.beginPath(); ctx.moveTo(dx - 30, my); ctx.lineTo(dx + 30, my); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.arc(dx, my, 5, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = col;
+    ctx.font = `700 10.5px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'left';
+    ctx.fillText('← mid', dx + 36, my + 4);
+    lbl.forEach((l, i) => {
+      label(ctx, l, dx, H - 18 + i * 13, C.subtle, 11);
+    });
+  });
+
+  label(ctx, 'sweep_mid = exp( log_weighted_mid )', W/2, 13, C.faint, 10.5, 'center', "'JetBrains Mono', monospace");
+}
+
+/* ═══════════════════ CISD ════════════════════════════════════════ */
+function drawCISD() {
+  const ctx = setupCanvas('cvCISD');
+  if (!ctx) return;
+  const {W, H} = ctx;
+  const C = getC();
+  const sc = makeScale(48, 98, 22, H - 32);
+
+  // Delivery series (upward, bullish candles — they are the delivery series for a bearish CISD)
+  const seriesBars = [[68,74,65,72],[72,78,70,76],[75,82,73,79]];
+  const startX = 30;
+  seriesBars.forEach((ohlc, i) => drawCandle(ctx, startX + i*28, ohlc, sc, 10));
+
+  // Series bounding box
+  ctx.strokeStyle = C.faint; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+  ctx.strokeRect(startX - 18, sc(83) - 4, 84, sc(63) - sc(83) + 18);
+  ctx.setLineDash([]);
+  label(ctx, 'delivery series', startX + 24, sc(84) - 10, C.faint, 9.5);
+
+  // Series extreme line
+  const extremeY = sc(82);
+  hline(ctx, extremeY, 12, W - 12, C.red + 'cc', 'series extreme', 'right', [6,3]);
+  label(ctx, 'CISD line', 16, extremeY - 7, C.red, 9.5, 'left');
+
+  // C2 — the bar whose close breaks through extreme
+  const c2x = startX + 3*28 + 16;
+  drawCandle(ctx, c2x, [74,84,72,84], sc, 11);
+  label(ctx, 'C2', c2x, H - 16, C.purple, 9);
+  label(ctx, '← CISD break', c2x + 9, sc(84) - 8, C.purple, 9.5, 'left');
+  ctx.strokeStyle = C.purple; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(c2x, sc(84)); ctx.lineTo(c2x, sc(82) + 2); ctx.stroke();
+
+  // Projection levels
+  const range = 82 - 65;
+  const projLevels = [0.5, 1.0, 1.5, 2.0];
+  const projCols = [C.green, C.green, C.cyan, C.amber];
+  const projX = c2x + 22;
+  projLevels.forEach((m, i) => {
+    const py = sc(82 + m * range);
+    if (py < 12 || py > H - 12) return;
+    ctx.strokeStyle = projCols[i]; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(projX, py); ctx.lineTo(W - 6, py); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = projCols[i];
+    ctx.font = `700 9.5px 'JetBrains Mono', monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText(`${m}R`, W - 6, py - 3);
+  });
+  label(ctx, '← projections', projX + 12, extremeY + 18, C.faint, 9.5, 'left');
+}
+
+/* ═══════════════════ PIVOT CONFIRMATION ═════════════════════════ */
+function drawPivot() {
+  const ctx = setupCanvas('cvPivot');
+  if (!ctx) return;
+  const {W, H} = ctx;
+  const C = getC();
+  const sc = makeScale(48, 95, 22, H - 30);
+
+  // T-Spot zone (bearish)
+  zone(ctx, 16, W - 10, sc(76), sc(72), C.red);
+  label(ctx, 'T-Spot Zone', 20, sc(74), C.red, 9.5, 'left');
+
+  // Approach bars
+  [[83,88,80,84],[84,86,81,82],[82,83,77,78]].forEach((ohlc, i) => {
+    drawCandle(ctx, 30 + i*26, ohlc, sc, 10);
+  });
+  // Touch annotation
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(82, sc(77)); ctx.lineTo(82, sc(76)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '① touch', 82, sc(76) - 9, C.amber, 9.5, 'center');
+
+  // Pivot area bars
+  [[78,82,75,79],[79,85,77,83],[83,84,78,80]].forEach((ohlc, i) => {
+    drawCandle(ctx, 112 + i*26, ohlc, sc, 10);
+  });
+  // Pivot label
+  ctx.strokeStyle = C.blue; ctx.lineWidth = 1.5; ctx.setLineDash([3,3]);
+  ctx.beginPath(); ctx.moveTo(124, sc(85)); ctx.lineTo(152, sc(85)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '② PIVOT', 138, sc(85) - 9, C.blue, 9.5, 'center');
+
+  // Sweep + entry bar
+  drawCandle(ctx, 190, [80,87,74,75], sc, 10);
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(190, sc(87)); ctx.lineTo(214, sc(87)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '③ SWEEP', 195, sc(87) - 8, C.amber, 9.5, 'left');
+
+  // Entry arrow
+  ctx.strokeStyle = C.green; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(190, sc(75)); ctx.lineTo(190, sc(73)); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(190, sc(73)); ctx.lineTo(185, sc(74)); ctx.lineTo(195, sc(74));
+  ctx.closePath(); ctx.fillStyle = C.green; ctx.fill();
+  label(ctx, '④ ENTRY', 190, sc(71), C.green, 10, 'center');
+
+  // Stop
+  hline(ctx, sc(87), 180, 214, C.red, 'STOP', 'right', [3,2]);
+  label(ctx, '← 2,2 pivot window →', 138, H - 14, C.faint, 9.5, 'center');
+}
+
+/* ═══════════════════ BIAS DIAGRAM ═══════════════════════════════ */
+function drawBias() {
+  const ctx = setupCanvas('cvBias');
+  if (!ctx) return;
+  const {W, H} = ctx;
+  const C = getC();
+
+  const sc1 = makeScale(60, 100, 28, H * 0.55);
+  const lx = W * 0.25;
+  drawCandle(ctx, lx - 18, [78,88,70,82], sc1, 11);
+  label(ctx, 'C2', lx - 18, sc1(60) + 14, C.blue, 9);
+  drawCandle(ctx, lx + 18, [82,96,74,78], sc1, 11);
+  label(ctx, 'C3', lx + 18, sc1(60) + 14, C.text, 9);
+  hline(ctx, sc1(88), lx - 34, lx + 38, C.blue, 'C2.h', 'right', [2,2]);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(lx+18, sc1(96)); ctx.lineTo(lx+40, sc1(96)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '↑ sweep', lx + 44, sc1(96)+3.5, C.amber, 8.5, 'left');
+  label(ctx, 'C3.c < C2.h', lx + 18, sc1(78) + 15, C.faint, 8.5, 'center');
+
+  const bx1 = lx - 42, by1 = H * 0.6;
+  ctx.fillStyle = C.red + '20'; ctx.strokeStyle = C.red; ctx.lineWidth = 1.5;
+  roundRect(ctx, bx1, by1, 84, 22, 5); ctx.fill(); ctx.stroke();
+  label(ctx, 'BEARISH', bx1 + 42, by1 + 15, C.red, 11, 'center', "'Syne',sans-serif");
+  label(ctx, 'upper wick > lower wick', lx, by1 + 36, C.faint, 9, 'center');
+
+  // Right: bullish
+  const sc2 = makeScale(60, 100, 28, H * 0.55);
+  const rx = W * 0.75;
+  drawCandle(ctx, rx - 18, [78,85,68,72], sc2, 11);
+  label(ctx, 'C2', rx - 18, sc2(60) + 14, C.blue, 9);
+  drawCandle(ctx, rx + 18, [72,78,62,74], sc2, 11);
+  label(ctx, 'C3', rx + 18, sc2(60) + 14, C.text, 9);
+  hline(ctx, sc2(68), rx - 34, rx + 38, C.blue, 'C2.l', 'right', [2,2]);
+
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+  ctx.beginPath(); ctx.moveTo(rx+18, sc2(62)); ctx.lineTo(rx+40, sc2(62)); ctx.stroke();
+  ctx.setLineDash([]);
+  label(ctx, '↓ sweep', rx + 44, sc2(62)+3.5, C.amber, 8.5, 'left');
+  label(ctx, 'C3.c > C2.l', rx + 18, sc2(74) + 15, C.faint, 8.5, 'center');
+
+  const bx2 = rx - 42, by2 = H * 0.6;
+  ctx.fillStyle = C.green + '20'; ctx.strokeStyle = C.green; ctx.lineWidth = 1.5;
+  roundRect(ctx, bx2, by2, 84, 22, 5); ctx.fill(); ctx.stroke();
+  label(ctx, 'BULLISH', bx2 + 42, by2 + 15, C.green, 11, 'center', "'Syne',sans-serif");
+  label(ctx, 'lower wick > upper wick', rx, by2 + 36, C.faint, 9, 'center');
+
+  // Divider
+  ctx.strokeStyle = C.border; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(W/2, 8); ctx.lineTo(W/2, H-8); ctx.stroke();
+
+  label(ctx, 'Cases 3–6: sweep happened but closed inside C2 → wick comparison decides', W/2, H - 6, C.faint, 9, 'center');
+}
+
+/* ═══════════════════ INIT + RESIZE ══════════════════════════════ */
+function redrawAll() {
+  [drawFlow,
+   drawNormalBearish, drawNormalBullish,
+   drawExpansiveBearish, drawExpansiveBullish,
+   drawProTrendBearish, drawProTrendBullish,
+   drawLogMid, drawCISD, drawPivot, drawBias,
+   () => { if (_btData) drawHourChart(_btData); }
+  ].forEach(fn => { try { fn(); } catch(e) { console.error(fn.name, e); } });
+}
+
+window.addEventListener('load', () => {
+  try { redrawAll(); } catch(e) { console.error('redrawAll', e); }
+  loadBacktest();
+});
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(redrawAll, 150);
+});
+</script>
+
+<!-- ═══════════════════════ BACKTEST JS ═══════════════════════════ -->
+<script>
+'use strict';
+
+let _btData = null;
+
+/* ── Load JSON ─────────────────────────────────────────────────── */
+async function loadBacktest() {
+  try {
+    const r = await fetch('./ttfm_results.json');
+    if (!r.ok) throw new Error(r.status);
+    _btData = await r.json();
+    document.getElementById('bt-loading').style.display = 'none';
+    document.getElementById('bt-content').style.display = '';
+    renderBacktest(_btData);
+  } catch (e) {
+    document.getElementById('bt-loading').innerHTML =
+      `<div style="color:var(--red); font-size:13.5px; line-height:1.8;">
+         ⚠ Could not load <code>ttfm_results.json</code>.<br>
+         Run <code>python3 ttfm_backtest.py</code> then reload this page.
+       </div>`;
+  }
+}
+
+/* ── Top-level render (called on load + theme change) ──────────── */
+function renderBacktest(d) {
+  if (!d) return;
+  const ov   = d.overall;
+  const meta = d.meta;
+  const rr   = meta.rr;
+  const BE   = 1 / (1 + rr);   // breakeven WR = 1/3 for 2:1
+
+  /* meta line */
+  document.getElementById('bt-meta').textContent =
+    `${meta.table.toUpperCase()} · HTF ${meta.htf_min}min · ${rr}:1 RR · ` +
+    `min_risk ${meta.min_risk}pts · ${ov.n.toLocaleString()} resolved trades · ` +
+    `${meta.total_trades.toLocaleString()} zone touches`;
+
+  /* tiles */
+  _setTile('bt-n',     ov.n.toLocaleString(), 'var(--text)');
+  const wrCol = ov.wr > BE + 0.01 ? 'var(--green)' : ov.wr < BE - 0.02 ? 'var(--red)' : 'var(--amber)';
+  _setTile('bt-wr',    _pct(ov.wr),                           wrCol);
+  _setTile('bt-ev',    (ov.ev >= 0 ? '+' : '') + ov.ev.toFixed(3) + 'R',
+                       ov.ev > 0 ? 'var(--green)' : 'var(--red)');
+  _setTile('bt-touch', _pct(meta.total_resolved / meta.total_trades), 'var(--blue)');
+
+  /* sections */
+  _renderVariants(d, BE);
+  _renderDirection(d, BE);
+  _renderDow(d, BE);
+  drawHourChart(d);
+  _renderHeatmap(d, BE);
+  _renderCombos(d, BE);
+  _renderQuarterBars(d, BE);
+  _renderHourQuarterHeatmap(d, BE);
+  _renderVariantQuarter(d, BE);
+  _renderDowQuarter(d, BE);
+  _renderRecentTrades(d);
+}
+
+function _setTile(id, val, col) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent  = val;
+  el.style.color  = col;
+}
+
+/* ── Helpers ────────────────────────────────────────────────────── */
+function _pct(v)    { return (v * 100).toFixed(1) + '%'; }
+function _ev(v)     { return (v >= 0 ? '+' : '') + v.toFixed(3) + 'R'; }
+function _pf(v)     { return v.toFixed(2); }
+
+function _wrTextColor(wr, BE) {
+  const d = wr - BE;
+  if (d >=  0.07) return 'var(--green)';
+  if (d >=  0.02) return 'color-mix(in srgb, var(--green) 65%, var(--text))';
+  if (d <= -0.07) return 'var(--red)';
+  if (d <= -0.02) return 'color-mix(in srgb, var(--red) 65%, var(--text))';
+  return 'var(--subtle)';
+}
+
+function _cellBg(wr, n, BE) {
+  if (!wr || n < 5) return null;
+  const light = document.documentElement.dataset.theme === 'light';
+  const d = wr - BE;
+  const t = Math.min(Math.abs(d) / 0.12, 1);
+  if (d > 0.02)  return light
+    ? `rgba(4,120,87,${(0.07 + t * 0.26).toFixed(2)})`
+    : `rgba(16,185,129,${(0.07 + t * 0.30).toFixed(2)})`;
+  if (d < -0.02) return light
+    ? `rgba(185,28,28,${(0.07 + t * 0.26).toFixed(2)})`
+    : `rgba(248,113,113,${(0.07 + t * 0.30).toFixed(2)})`;
+  return null;
+}
+
+/* ── Variant table ──────────────────────────────────────────────── */
+function _renderVariants(d, BE) {
+  const el = document.getElementById('bt-variants');
+  if (!el) return;
+  let html = `<table>
+    <thead><tr><th>Variant</th><th>N</th><th>WR</th><th>EV</th><th>PF</th></tr></thead><tbody>`;
+  d.variants.forEach(v => {
+    const s = d.by_variant[v];
+    if (!s) return;
+    const isBull = v.endsWith('BULL');
+    const dot    = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+      background:${isBull ? 'var(--green)' : 'var(--red)'};margin-right:7px;vertical-align:middle;"></span>`;
+    const wrc = _wrTextColor(s.wr, BE);
+    const evc = s.ev > 0 ? 'var(--green)' : 'var(--red)';
+    html += `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12.5px;">${dot}${v}</td>
+      <td class="mono">${s.n.toLocaleString()}</td>
+      <td class="mono" style="color:${wrc};font-weight:700;">${_pct(s.wr)}</td>
+      <td class="mono" style="color:${evc};">${_ev(s.ev)}</td>
+      <td class="mono">${_pf(s.pf)}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+/* ── Direction bars ─────────────────────────────────────────────── */
+function _renderDirection(d, BE) {
+  const el = document.getElementById('bt-direction');
+  if (!el) return;
+  let html = '';
+  [['LONG','BULL','var(--green)'], ['SHORT','BEAR','var(--red)']].forEach(([dir, suffix, col]) => {
+    let tn = 0, tw = 0;
+    d.variants.filter(v => v.endsWith(suffix)).forEach(v => {
+      const s = d.by_variant[v]; if (s) { tn += s.n; tw += s.wins; }
+    });
+    if (!tn) return;
+    const wr = tw / tn;
+    const ev = wr * d.meta.rr - (1 - wr);
+    const wrc = _wrTextColor(wr, BE);
+    html += `<div style="margin-bottom:16px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:${col};">${dir}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${wrc};font-weight:700;">${_pct(wr)}</span>
+      </div>
+      <div style="height:9px;border-radius:5px;background:var(--card-alt);overflow:hidden;">
+        <div style="height:100%;width:${(wr*100).toFixed(1)}%;background:${col};border-radius:5px;transition:width 0.4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:4px;">
+        <span>N = ${tn.toLocaleString()}</span>
+        <span>EV ${_ev(ev)}</span>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+/* ── DOW table ──────────────────────────────────────────────────── */
+function _renderDow(d, BE) {
+  const el = document.getElementById('bt-dow');
+  if (!el) return;
+  let html = `<table><thead><tr><th>Day</th><th>N</th><th>WR</th><th>EV</th></tr></thead><tbody>`;
+  d.dows.forEach(dn => {
+    const s = d.by_dow[dn];
+    if (!s) return;
+    const wrc = _wrTextColor(s.wr, BE);
+    html += `<tr>
+      <td style="font-weight:600;font-size:13.5px;">${dn}</td>
+      <td class="mono">${s.n.toLocaleString()}</td>
+      <td class="mono" style="color:${wrc};font-weight:700;">${_pct(s.wr)}</td>
+      <td class="mono" style="color:${s.ev>0?'var(--green)':'var(--red)'};">${_ev(s.ev)}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+/* ── Hour bar chart (canvas) ────────────────────────────────────── */
+function drawHourChart(d) {
+  const ctx = setupCanvas('cvHourChart');
+  if (!ctx) return;
+  const { W, H } = ctx;
+  const C = getC();
+  const hours = d.hours;
+  const rr    = d.meta.rr;
+  const BE    = 1 / (1 + rr);
+
+  const padL = 58, padR = 60, padT = 22, padB = 24;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const rowH   = chartH / hours.length;
+
+  /* WR range on x-axis */
+  const minWR = 0.20, maxWR = 0.52;
+  const xOf   = wr => padL + (wr - minWR) / (maxWR - minWR) * chartW;
+  const beX   = xOf(BE);
+
+  /* grid lines at every 5pp */
+  ctx.strokeStyle = C.border; ctx.lineWidth = 1; ctx.setLineDash([]);
+  for (let pct = 20; pct <= 50; pct += 5) {
+    const x = xOf(pct / 100);
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, H - padB); ctx.stroke();
+    ctx.globalAlpha = 1;
+    label(ctx, pct + '%', x, padT - 6, C.faint, 9, 'center', "'JetBrains Mono',monospace");
+  }
+
+  /* breakeven line */
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(beX, padT - 4); ctx.lineTo(beX, H - padB); ctx.stroke();
+  ctx.setLineDash([]);
+
+  hours.forEach((h, i) => {
+    const s = d.by_hour[h];
+    if (!s || !s.n) return;
+    const wr   = s.wr;
+    const y    = padT + i * rowH;
+    const barH = Math.max(rowH * 0.52, 6);
+    const barY = y + (rowH - barH) / 2;
+    const barW = Math.max(xOf(wr) - padL, 2);
+    const col  = wr > BE + 0.01 ? C.green : wr < BE - 0.01 ? C.red : C.faint;
+
+    /* track */
+    ctx.fillStyle = C.muted; ctx.globalAlpha = 0.2;
+    ctx.fillRect(padL, barY, chartW, barH);
+    ctx.globalAlpha = 1;
+
+    /* bar */
+    ctx.fillStyle = col + 'cc';
+    ctx.fillRect(padL, barY, barW, barH);
+    /* bar right edge accent */
+    ctx.fillStyle = col;
+    ctx.fillRect(padL + barW - 2, barY, 2, barH);
+
+    /* hour label left */
+    label(ctx, h + ':00', padL - 6, barY + barH / 2 + 4, C.subtle, 11, 'right', "'JetBrains Mono',monospace");
+
+    /* WR label */
+    const wrLabelX = xOf(wr) + 6;
+    label(ctx, _pct(wr), wrLabelX, barY + barH / 2 + 4, col, 11, 'left', "'JetBrains Mono',monospace");
+
+    /* N right */
+    label(ctx, 'n=' + s.n, W - padR + 4, barY + barH / 2 + 4, C.faint, 9.5, 'left', "'JetBrains Mono',monospace");
+  });
+}
+
+/* ── DOW × Hour heatmap ─────────────────────────────────────────── */
+function _renderHeatmap(d, BE) {
+  const el = document.getElementById('bt-heatmap');
+  if (!el) return;
+  const hours = d.hours;
+  const dows  = d.dows;
+
+  let html = '<div style="min-width:560px;">';
+
+  /* column headers */
+  html += '<div style="display:flex;gap:3px;margin-bottom:5px;padding-left:52px;">';
+  hours.forEach(h => {
+    html += `<div style="flex:1;min-width:52px;text-align:center;font-family:'JetBrains Mono',monospace;
+      font-size:10px;color:var(--faint);font-weight:600;letter-spacing:0.04em;">${h}:00</div>`;
+  });
+  html += '</div>';
+
+  /* rows */
+  dows.forEach(dn => {
+    html += '<div style="display:flex;gap:3px;margin-bottom:3px;align-items:stretch;">';
+    /* day label */
+    html += `<div style="width:48px;flex-shrink:0;display:flex;align-items:center;
+      font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:var(--subtle);">${dn}</div>`;
+
+    hours.forEach(h => {
+      const wr = d.heatmap_wr[dn]?.[h] ?? null;
+      const n  = d.heatmap_n[dn]?.[h]  ?? 0;
+      const ev = d.heatmap_ev[dn]?.[h] ?? null;
+      const bg = _cellBg(wr, n, BE);
+      const title = n ? `${dn} ${h}:00 — N=${n}${wr ? ' WR=' + _pct(wr) : ''}${ev != null ? ' EV=' + _ev(ev) : ''}` : '';
+
+      if (wr && n >= 5) {
+        const tc = _wrTextColor(wr, BE);
+        html += `<div title="${title}" style="flex:1;min-width:52px;border-radius:7px;padding:8px 4px;
+          text-align:center;background:${bg || 'var(--card-alt)'};border:1px solid var(--border);">
+          <div style="font-family:'JetBrains Mono',monospace;font-size:12.5px;font-weight:800;color:${tc};">${_pct(wr)}</div>
+          <div style="font-size:9.5px;color:var(--faint);margin-top:2px;">${n}</div>
+        </div>`;
+      } else {
+        html += `<div title="${title}" style="flex:1;min-width:52px;border-radius:7px;padding:8px 4px;
+          text-align:center;background:var(--card-alt);border:1px solid var(--border);">
+          <div style="font-size:12px;color:var(--muted);">—</div>
+        </div>`;
+      }
+    });
+    html += '</div>';
+  });
+
+  /* legend */
+  html += `<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:14px;">
+    <span style="font-size:11px;font-weight:600;color:var(--faint);font-family:'JetBrains Mono',monospace;">LEGEND:</span>`;
+  const light = document.documentElement.dataset.theme === 'light';
+  [
+    ['rgba(4,120,87,0.40)',   light ? 'rgba(4,120,87,0.40)'   : 'rgba(16,185,129,0.40)', '> 42%'],
+    ['rgba(4,120,87,0.18)',   light ? 'rgba(4,120,87,0.18)'   : 'rgba(16,185,129,0.18)', '37–42%'],
+    ['var(--card-alt)',       'var(--card-alt)',                                           '31–37%'],
+    ['rgba(185,28,28,0.18)',  light ? 'rgba(185,28,28,0.18)'  : 'rgba(248,113,113,0.18)', '27–31%'],
+    ['rgba(185,28,28,0.40)',  light ? 'rgba(185,28,28,0.40)'  : 'rgba(248,113,113,0.40)', '< 27%'],
+  ].forEach(([bgL, bgD, lbl]) => {
+    html += `<div style="display:flex;gap:6px;align-items:center;">
+      <div style="width:14px;height:14px;border-radius:4px;border:1px solid var(--border);
+        background:${light ? bgL : bgD};"></div>
+      <span style="font-size:11px;color:var(--faint);">${lbl}</span>
+    </div>`;
+  });
+  html += '</div></div>';
+
+  el.innerHTML = html;
+}
+
+/* ── Best combos table ──────────────────────────────────────────── */
+function _renderCombos(d, BE) {
+  const el = document.getElementById('bt-combos');
+  if (!el) return;
+  const rows = [];
+  d.variants.forEach(v => {
+    d.hours.forEach(h => {
+      const s = d.variant_hour?.[v]?.[h];
+      if (s && s.n >= 10) rows.push({ v, h, ...s });
+    });
+  });
+  rows.sort((a, b) => b.wr - a.wr);
+
+  let html = `<table><thead><tr>
+    <th>Variant</th><th>Hour</th><th>N</th><th>WR</th><th>EV</th><th>PF</th>
+  </tr></thead><tbody>`;
+
+  rows.slice(0, 20).forEach(r => {
+    const isBull = r.v.endsWith('BULL');
+    const dot    = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+      background:${isBull ? 'var(--green)' : 'var(--red)'};margin-right:7px;vertical-align:middle;"></span>`;
+    const wrc = _wrTextColor(r.wr, BE);
+    const evc = r.ev > 0 ? 'var(--green)' : 'var(--red)';
+    const evStr = _ev(r.ev);
+    html += `<tr>
+      <td style="font-family:'JetBrains Mono',monospace;font-size:12.5px;">${dot}${r.v}</td>
+      <td class="mono">${r.h}:00</td>
+      <td class="mono">${r.n}</td>
+      <td class="mono" style="color:${wrc};font-weight:800;">${_pct(r.wr)}</td>
+      <td class="mono" style="color:${evc};">${evStr}</td>
+      <td class="mono">${_pf(r.pf)}</td>
+    </tr>`;
+  });
+  el.innerHTML = html + '</tbody></table>';
+}
+
+/* ── Quarter bars (Q1–Q4 summary) ──────────────────────────────── */
+function _renderQuarterBars(d, BE) {
+  const el = document.getElementById('bt-quarter-bars');
+  if (!el || !d.by_quarter) return;
+  const QN = { '1': 'Q1  0–14m', '2': 'Q2  15–29m', '3': 'Q3  30–44m', '4': 'Q4  45–59m' };
+  const qColors = ['var(--blue)', 'var(--amber)', 'var(--green)', 'var(--red)'];
+  let html = '';
+  ['1','2','3','4'].forEach((q, i) => {
+    const key = Object.keys(d.by_quarter).find(k => k.startsWith(`Q${q}`));
+    const s = key ? d.by_quarter[key] : null;
+    if (!s || !s.n) return;
+    const col = qColors[i];
+    const wrc = _wrTextColor(s.wr, BE);
+    const evc = s.ev > 0 ? 'var(--green)' : 'var(--red)';
+    html += `<div style="margin-bottom:18px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:${col};">${QN[q]}</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:${wrc};font-weight:700;">${_pct(s.wr)}</span>
+      </div>
+      <div style="height:10px;border-radius:5px;background:var(--card-alt);overflow:hidden;">
+        <div style="height:100%;width:${(s.wr*100).toFixed(1)}%;background:${col};border-radius:5px;transition:width 0.4s;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--faint);margin-top:4px;">
+        <span>N = ${s.n.toLocaleString()} trades</span>
+        <span>EV ${_ev(s.ev)}  ·  PF ${_pf(s.pf)}</span>
+      </div>
+    </div>`;
+  });
+  el.innerHTML = html;
+}
+
+/* ── Hour × Quarter heatmap grid ───────────────────────────────── */
+function _renderHourQuarterHeatmap(d, BE) {
+  const el = document.getElementById('bt-hour-quarter');
+  if (!el || !d.hour_quarter) return;
+
+  const qs = ['1','2','3','4'];
+  const qLabels = { '1':'Q1 · 0–14m', '2':'Q2 · 15–29m', '3':'Q3 · 30–44m', '4':'Q4 · 45–59m' };
+  const cellW = 120, cellH = 48, rowH = cellH, hdrH = 44, rowLabelW = 58;
+
+  // Build HTML table
+  let html = `<table style="border-collapse:separate;border-spacing:4px;font-family:'JetBrains Mono',monospace;font-size:12px;">
+    <thead><tr>
+      <th style="width:${rowLabelW}px;text-align:right;padding-right:8px;font-size:11px;color:var(--faint);font-weight:400;">Hour</th>`;
+  qs.forEach(q => {
+    html += `<th style="width:${cellW}px;text-align:center;font-size:11px;color:var(--subtle);font-weight:600;padding-bottom:6px;">${qLabels[q]}</th>`;
+  });
+  html += `</tr></thead><tbody>`;
+
+  d.hours.forEach(h => {
+    html += `<tr>
+      <td style="text-align:right;padding-right:8px;color:var(--subtle);font-size:12px;font-weight:600;">${h}:00</td>`;
+    qs.forEach(q => {
+      const s = d.hour_quarter?.[h]?.[q];
+      const bg = s ? _cellBg(s.wr, s.n, BE) : null;
+      const bgStyle = bg ? `background:${bg};` : 'background:var(--card-alt);';
+      const wrc    = s ? _wrTextColor(s.wr, BE) : 'var(--faint)';
+      if (!s) {
+        html += `<td style="${bgStyle}border-radius:6px;text-align:center;padding:10px 6px;">
+          <span style="color:var(--faint);font-size:14px;">—</span></td>`;
+      } else {
+        const evc = s.ev > 0 ? 'var(--green)' : 'var(--red)';
+        html += `<td style="${bgStyle}border-radius:6px;text-align:center;padding:8px 6px;cursor:default;"
+          title="N=${s.n} · WR=${_pct(s.wr)} · EV=${_ev(s.ev)}">
+          <div style="font-size:15px;font-weight:800;color:${wrc};">${_pct(s.wr)}</div>
+          <div style="font-size:10px;color:var(--faint);margin-top:2px;">N=${s.n} · ${_ev(s.ev)}</div>
+        </td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+/* ── Variant × Quarter table ────────────────────────────────────── */
+function _renderVariantQuarter(d, BE) {
+  const el = document.getElementById('bt-variant-quarter');
+  if (!el || !d.variant_quarter) return;
+  const qs = ['1','2','3','4'];
+  const qLabels = ['Q1 · 0–14m','Q2 · 15–29m','Q3 · 30–44m','Q4 · 45–59m'];
+
+  let html = `<table><thead><tr>
+    <th>Variant</th>
+    ${qs.map((q,i) => `<th colspan="2" style="text-align:center;">${qLabels[i]}</th>`).join('')}
+  </tr><tr>
+    <th></th>
+    ${qs.map(() => '<th>WR</th><th>N</th>').join('')}
+  </tr></thead><tbody>`;
+
+  d.variants.forEach(v => {
+    const isBull = v.endsWith('BULL');
+    const dot = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;
+      background:${isBull ? 'var(--green)' : 'var(--red)'};margin-right:7px;vertical-align:middle;"></span>`;
+    html += `<tr><td style="font-family:'JetBrains Mono',monospace;font-size:12px;">${dot}${v}</td>`;
+    qs.forEach(q => {
+      const s = d.variant_quarter?.[v]?.[q];
+      if (!s || !s.n) {
+        html += `<td class="mono" style="color:var(--faint);">—</td><td class="mono" style="color:var(--faint);">—</td>`;
+      } else {
+        const wrc = _wrTextColor(s.wr, BE);
+        html += `<td class="mono" style="color:${wrc};font-weight:700;">${_pct(s.wr)}</td>
+                 <td class="mono" style="color:var(--faint);">${s.n}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+/* ── DOW × Quarter table ────────────────────────────────────────── */
+function _renderDowQuarter(d, BE) {
+  const el = document.getElementById('bt-dow-quarter');
+  if (!el || !d.dow_quarter) return;
+  const qs = ['1','2','3','4'];
+  const qLabels = ['Q1 · 0–14m','Q2 · 15–29m','Q3 · 30–44m','Q4 · 45–59m'];
+
+  let html = `<table><thead><tr>
+    <th>Day</th>
+    ${qs.map((q,i) => `<th colspan="2" style="text-align:center;">${qLabels[i]}</th>`).join('')}
+  </tr><tr>
+    <th></th>
+    ${qs.map(() => '<th>WR</th><th>N</th>').join('')}
+  </tr></thead><tbody>`;
+
+  d.dows.forEach(dn => {
+    html += `<tr><td style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;">${dn}</td>`;
+    qs.forEach(q => {
+      const s = d.dow_quarter?.[dn]?.[q];
+      if (!s || !s.n) {
+        html += `<td class="mono" style="color:var(--faint);">—</td><td class="mono" style="color:var(--faint);">—</td>`;
+      } else {
+        const wrc = _wrTextColor(s.wr, BE);
+        html += `<td class="mono" style="color:${wrc};font-weight:700;">${_pct(s.wr)}</td>
+                 <td class="mono" style="color:var(--faint);">${s.n}</td>`;
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+/* ── Most Recent Trades per variant ────────────────────────────── */
+let _recentVariant = null;
+function _renderRecentTrades(d) {
+  const tabsEl  = document.getElementById('bt-recent-tabs');
+  const tableEl = document.getElementById('bt-recent-table');
+  if (!tabsEl || !tableEl || !d.recent_trades) return;
+
+  const variants = d.variants || Object.keys(d.recent_trades);
+  if (!_recentVariant || !variants.includes(_recentVariant)) {
+    _recentVariant = variants[0];
+  }
+
+  // Tabs
+  tabsEl.innerHTML = variants.map(v => {
+    const active = v === _recentVariant;
+    const [type, dir] = v.split('_');
+    const dirColor = dir === 'BULL' ? 'var(--green)' : 'var(--red)';
+    return `<button
+      onclick="_recentVariant='${v}';_renderRecentTradeTable(document.getElementById('bt-recent-table'),${JSON.stringify(d.recent_trades[v]||[])},${1/(1+d.meta.rr)})"
+      style="padding:7px 14px;border-radius:8px;border:1px solid ${active?'var(--accent)':'var(--border-soft)'};
+             background:${active?'color-mix(in srgb,var(--accent) 15%,transparent)':'transparent'};
+             color:${active?'var(--accent)':'var(--subtle)'};cursor:pointer;font-size:12px;font-weight:600;
+             font-family:'DM Mono',monospace;transition:all .15s;">
+      <span style="color:${dirColor};">${dir === 'BULL' ? '▲' : '▼'}</span> ${type}
+    </button>`;
+  }).join('');
+
+  _renderRecentTradeTable(tableEl, d.recent_trades[_recentVariant] || [], 1/(1+d.meta.rr));
+}
+
+function _renderRecentTradeTable(el, trades, BE) {
+  if (!trades || !trades.length) {
+    el.innerHTML = '<p style="color:var(--faint);font-size:13px;padding:8px 0;">No trades recorded.</p>';
+    return;
+  }
+  const DOW_NAMES = ['Mon','Tue','Wed','Thu','Fri'];
+  let html = `<div style="overflow-x:auto;">
+  <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px;">
+    <thead><tr style="border-bottom:1px solid var(--border-soft);color:var(--faint);text-transform:uppercase;font-size:10px;letter-spacing:.06em;">
+      <th style="padding:8px 10px;text-align:left;">Date</th>
+      <th style="padding:8px 6px;text-align:left;">Day</th>
+      <th style="padding:8px 6px;text-align:center;">Hr</th>
+      <th style="padding:8px 6px;text-align:center;">Q</th>
+      <th style="padding:8px 6px;text-align:left;">Dir</th>
+      <th style="padding:8px 6px;text-align:right;">Entry</th>
+      <th style="padding:8px 6px;text-align:right;">Stop</th>
+      <th style="padding:8px 6px;text-align:right;">Target</th>
+      <th style="padding:8px 6px;text-align:right;">Risk</th>
+      <th style="padding:8px 6px;text-align:center;">Result</th>
+    </tr></thead><tbody>`;
+
+  trades.forEach((t, i) => {
+    const bg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb,var(--bg) 40%,transparent)';
+    const isWin = t.outcome === 'WIN';
+    const resColor = isWin ? 'var(--green)' : 'var(--red)';
+    const dirColor = t.direction === 'LONG' ? 'var(--green)' : 'var(--red)';
+    const dirArrow = t.direction === 'LONG' ? '▲' : '▼';
+    const dowName  = t.dow_name || DOW_NAMES[t.dow] || '?';
+    html += `<tr style="background:${bg};border-bottom:1px solid color-mix(in srgb,var(--border-soft) 50%,transparent);">
+      <td style="padding:7px 10px;color:var(--subtle);">${t.date}</td>
+      <td style="padding:7px 6px;color:var(--faint);">${dowName}</td>
+      <td style="padding:7px 6px;text-align:center;color:var(--subtle);">${String(t.hr).padStart(2,'0')}:00</td>
+      <td style="padding:7px 6px;text-align:center;color:var(--faint);">Q${t.quarter}</td>
+      <td style="padding:7px 6px;color:${dirColor};font-weight:700;">${dirArrow} ${t.direction}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--text);">${t.entry.toFixed(2)}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--red);">${t.stop.toFixed(2)}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--green);">${t.target.toFixed(2)}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--faint);">${t.risk_pts.toFixed(1)}</td>
+      <td style="padding:7px 6px;text-align:center;font-weight:700;color:${resColor};">${isWin ? '✓ WIN' : '✗ LOSS'}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+  el.innerHTML = html;
+}
+
+/* ── Re-render all theme-sensitive sections on theme change ─────── */
+new MutationObserver(() => {
+  if (_btData) {
+    const BE = 1 / (1 + _btData.meta.rr);
+    _renderHeatmap(_btData, BE);
+    _renderVariants(_btData, BE);
+    _renderDirection(_btData, BE);
+    _renderDow(_btData, BE);
+    _renderCombos(_btData, BE);
+    _renderQuarterBars(_btData, BE);
+    _renderHourQuarterHeatmap(_btData, BE);
+    _renderVariantQuarter(_btData, BE);
+    _renderDowQuarter(_btData, BE);
+  }
+}).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+</script>
+
+</body>
+</html>
