@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style C — Quant Terminal</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+
+:root {
+  --bg: #080c14;
+  --grid: rgba(255,255,255,0.03);
+  --amber: #f0a500;
+  --green: #00e5a0;
+  --dim: rgba(255,255,255,0.18);
+}
+
+.slide {
+  width: 100vw; height: 100vh; height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Grid background */
+.slide::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: clamp(30px, 5vw, 60px) clamp(30px, 5vw, 60px);
+}
+
+/* Glow orbs */
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+.glow-1 {
+  width: clamp(200px, 35vw, 500px);
+  height: clamp(200px, 35vw, 500px);
+  background: rgba(240, 165, 0, 0.06);
+  top: -10%;
+  right: 5%;
+  animation: pulse 4s ease-in-out infinite;
+}
+.glow-2 {
+  width: clamp(150px, 25vw, 350px);
+  height: clamp(150px, 25vw, 350px);
+  background: rgba(0, 229, 160, 0.05);
+  bottom: 0;
+  left: 10%;
+  animation: pulse 4s 2s ease-in-out infinite;
+}
+
+/* Top bar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(1rem, 2.5vw, 2rem) clamp(1.5rem, 4vw, 4rem);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  z-index: 2;
+  opacity: 0;
+  animation: appear 0.4s 0.1s forwards;
+}
+
+.ticker-row {
+  display: flex;
+  gap: clamp(1.5rem, 3vw, 3rem);
+}
+.ticker { }
+.ticker-sym {
+  font-size: clamp(0.55rem, 0.75vw, 0.7rem);
+  font-weight: 700;
+  color: var(--dim);
+  letter-spacing: 0.15em;
+}
+.ticker-val {
+  font-size: clamp(0.7rem, 1vw, 0.9rem);
+  font-weight: 400;
+  color: var(--green);
+}
+.ticker-val.red { color: #ff4d6d; }
+
+.topbar-right {
+  font-size: clamp(0.55rem, 0.7vw, 0.65rem);
+  color: var(--dim);
+  letter-spacing: 0.2em;
+}
+
+/* Main content */
+.main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: clamp(1.5rem, 4vw, 4rem);
+  gap: clamp(2rem, 5vw, 6rem);
+  z-index: 2;
+}
+
+.main-left { }
+
+.prompt-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: clamp(1rem, 2vh, 1.75rem);
+  opacity: 0;
+  animation: appear 0.5s 0.3s forwards;
+}
+.prompt-sym {
+  color: var(--amber);
+  font-size: clamp(0.8rem, 1.1vw, 1rem);
+}
+.prompt-text {
+  font-size: clamp(0.65rem, 0.9vw, 0.8rem);
+  color: var(--dim);
+  letter-spacing: 0.1em;
+}
+
+.title-block {
+  opacity: 0;
+  animation: slideUp 0.8s 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.title-main {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(2.2rem, 5.5vw, 5.5rem);
+  font-weight: 800;
+  color: #fff;
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+}
+.title-main .amber { color: var(--amber); }
+
+.title-sub {
+  font-size: clamp(0.75rem, 1.1vw, 1rem);
+  color: var(--dim);
+  margin-top: clamp(0.75rem, 2vh, 1.5rem);
+  line-height: 1.6;
+  font-weight: 300;
+}
+
+.cta-row {
+  margin-top: clamp(1.5rem, 3vh, 2.5rem);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  opacity: 0;
+  animation: appear 0.6s 1s forwards;
+}
+.cta-text {
+  font-size: clamp(0.65rem, 0.85vw, 0.75rem);
+  color: var(--green);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.cta-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--green), transparent);
+  max-width: 120px;
+}
+
+/* Right — terminal card */
+.terminal {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+  opacity: 0;
+  animation: slideUp 0.9s 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.term-header {
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: clamp(0.5rem, 1vw, 0.85rem) clamp(0.75rem, 1.5vw, 1.25rem);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.r { background: #ff5f57; }
+.dot.y { background: #febc2e; }
+.dot.g { background: #28c840; }
+.term-title {
+  margin-left: auto;
+  font-size: clamp(0.55rem, 0.7vw, 0.65rem);
+  color: var(--dim);
+  letter-spacing: 0.2em;
+}
+
+.term-body {
+  padding: clamp(1rem, 2vw, 1.75rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 1.5vh, 1.25rem);
+}
+
+.term-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding-bottom: clamp(0.5rem, 1vh, 0.85rem);
+}
+.term-row:last-child { border-bottom: none; padding-bottom: 0; }
+
+.term-key {
+  font-size: clamp(0.6rem, 0.8vw, 0.72rem);
+  color: var(--dim);
+  font-weight: 300;
+}
+.term-val {
+  font-size: clamp(0.85rem, 1.3vw, 1.1rem);
+  font-weight: 700;
+  color: #fff;
+}
+.term-val.amber { color: var(--amber); }
+.term-val.green { color: var(--green); }
+
+/* Bottom bar */
+.bottombar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: clamp(0.75rem, 1.5vw, 1.25rem) clamp(1.5rem, 4vw, 4rem);
+  border-top: 1px solid rgba(255,255,255,0.05);
+  z-index: 2;
+  opacity: 0;
+  animation: appear 0.5s 1.3s forwards;
+}
+
+.progress-track {
+  flex: 1;
+  max-width: 200px;
+  height: 2px;
+  background: rgba(255,255,255,0.08);
+  position: relative;
+  overflow: hidden;
+}
+.progress-fill {
+  position: absolute;
+  inset: 0;
+  width: 12.5%;
+  background: var(--amber);
+}
+
+.page-count {
+  font-size: clamp(0.55rem, 0.7vw, 0.65rem);
+  color: var(--dim);
+  letter-spacing: 0.2em;
+}
+
+.style-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.15);
+  text-transform: uppercase;
+}
+
+@keyframes appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.1); opacity: 0.7; }
+}
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="glow-orb glow-1"></div>
+  <div class="glow-orb glow-2"></div>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="ticker-row">
+      <div class="ticker">
+        <div class="ticker-sym">NQH26</div>
+        <div class="ticker-val">21,847.50 ▲</div>
+      </div>
+      <div class="ticker">
+        <div class="ticker-sym">ESH26</div>
+        <div class="ticker-val red">5,682.25 ▼</div>
+      </div>
+      <div class="ticker">
+        <div class="ticker-sym">BACKTEST DB</div>
+        <div class="ticker-val">LIVE ●</div>
+      </div>
+    </div>
+    <div class="topbar-right">UPDATED 07:00 ET DAILY</div>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="main-left">
+      <div class="prompt-line">
+        <span class="prompt-sym">▸</span>
+        <span class="prompt-text">./wolfpack --models=all --backtest</span>
+      </div>
+      <div class="title-block">
+        <div class="title-main">
+          WOLF<span class="amber">PACK</span><br>
+          TRADING<br>HUB
+        </div>
+        <div class="title-sub">15+ years · NQ & ES futures<br>Three independent edge models</div>
+      </div>
+      <div class="cta-row">
+        <span class="cta-text">Scroll to explore</span>
+        <div class="cta-line"></div>
+      </div>
+    </div>
+
+    <div class="terminal">
+      <div class="term-header">
+        <div class="dot r"></div>
+        <div class="dot y"></div>
+        <div class="dot g"></div>
+        <div class="term-title">BACKTEST_SUMMARY.JSON</div>
+      </div>
+      <div class="term-body">
+        <div class="term-row">
+          <span class="term-key">total_trades</span>
+          <span class="term-val amber">8,332+</span>
+        </div>
+        <div class="term-row">
+          <span class="term-key">best_win_rate</span>
+          <span class="term-val green">67.69%</span>
+        </div>
+        <div class="term-row">
+          <span class="term-key">best_ev_per_trade</span>
+          <span class="term-val green">+1.274R</span>
+        </div>
+        <div class="term-row">
+          <span class="term-key">profit_factor</span>
+          <span class="term-val">2.57</span>
+        </div>
+        <div class="term-row">
+          <span class="term-key">data_span</span>
+          <span class="term-val">2010 → 2026</span>
+        </div>
+        <div class="term-row">
+          <span class="term-key">update_frequency</span>
+          <span class="term-val green">DAILY</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar -->
+  <div class="bottombar">
+    <div class="progress-track"><div class="progress-fill"></div></div>
+    <div class="page-count">01 / 08</div>
+    <div class="style-label">Style C — Quant Terminal</div>
+  </div>
+</div>
+</body>
+</html>

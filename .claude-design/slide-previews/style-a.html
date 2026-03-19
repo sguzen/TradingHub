@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Style A — Bold Signal</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; background: #1a1a1a; }
+
+.slide {
+  width: 100vw; height: 100vh; height: 100dvh;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr;
+  position: relative;
+  background: linear-gradient(145deg, #161616 0%, #222 60%, #1a1a1a 100%);
+}
+
+/* Label top-left */
+.slide-num {
+  position: absolute;
+  top: clamp(1.5rem, 3vw, 2.5rem);
+  left: clamp(1.5rem, 4vw, 3rem);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.65rem, 1vw, 0.85rem);
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  color: #555;
+  text-transform: uppercase;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.1s forwards;
+}
+
+/* Nav top-right */
+.nav {
+  position: absolute;
+  top: clamp(1.5rem, 3vw, 2.5rem);
+  right: clamp(1.5rem, 4vw, 3rem);
+  display: flex; gap: 0.5rem;
+  opacity: 0;
+  animation: fadeUp 0.6s 0.2s forwards;
+}
+.nav-dot { width: 6px; height: 6px; border-radius: 50%; background: #FF5722; }
+.nav-dot.dim { background: #333; }
+
+/* Left panel — text */
+.left {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: clamp(1.5rem, 5vw, 5rem);
+  padding-bottom: clamp(2rem, 6vw, 6rem);
+  z-index: 2;
+}
+
+.eyebrow {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.65rem, 0.9vw, 0.8rem);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  color: #FF5722;
+  text-transform: uppercase;
+  margin-bottom: clamp(0.75rem, 2vh, 1.5rem);
+  opacity: 0;
+  animation: fadeUp 0.7s 0.4s forwards;
+}
+
+.title {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(2rem, 5.5vw, 5.5rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  margin-bottom: clamp(1rem, 2.5vh, 2rem);
+  opacity: 0;
+  animation: fadeUp 0.8s 0.5s forwards;
+}
+
+.title span { color: #FF5722; }
+
+.subtitle {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.85rem, 1.4vw, 1.15rem);
+  font-weight: 300;
+  color: #888;
+  line-height: 1.6;
+  max-width: 38ch;
+  opacity: 0;
+  animation: fadeUp 0.7s 0.7s forwards;
+}
+
+/* Right panel — stat card */
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(1.5rem, 4vw, 4rem);
+  z-index: 2;
+}
+
+.card {
+  background: #FF5722;
+  border-radius: 4px;
+  padding: clamp(1.5rem, 3vw, 3rem);
+  width: min(90%, 380px);
+  opacity: 0;
+  animation: slideIn 0.9s 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.card-label {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.6rem, 0.8vw, 0.75rem);
+  font-weight: 500;
+  letter-spacing: 0.25em;
+  color: rgba(0,0,0,0.5);
+  text-transform: uppercase;
+  margin-bottom: clamp(0.75rem, 2vh, 1.5rem);
+}
+
+.card-stat {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  font-weight: 900;
+  color: #1a1a1a;
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.card-desc {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+  font-weight: 400;
+  color: rgba(0,0,0,0.65);
+  margin-bottom: clamp(1.5rem, 3vh, 2.5rem);
+}
+
+.card-divider { height: 1px; background: rgba(0,0,0,0.2); margin-bottom: clamp(1rem, 2vh, 1.5rem); }
+
+.mini-stats { display: flex; gap: clamp(1rem, 3vw, 2rem); }
+.mini-stat {}
+.mini-val {
+  font-family: 'Archivo Black', sans-serif;
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
+  color: #1a1a1a;
+  font-weight: 900;
+}
+.mini-lbl {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(0.6rem, 0.8vw, 0.75rem);
+  color: rgba(0,0,0,0.55);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* Bottom accent line */
+.accent-line {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  background: #FF5722;
+  transform: scaleX(0);
+  transform-origin: left;
+  animation: expand 1s 1.4s ease forwards;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes expand { to { transform: scaleX(1); } }
+
+/* Style label */
+.style-label {
+  position: absolute; bottom: 1.5rem; right: 2rem;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 0.7rem; letter-spacing: 0.2em; color: #444;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-num">WOLFPACK RESEARCH — 01 / 08</div>
+  <div class="nav">
+    <div class="nav-dot"></div>
+    <div class="nav-dot dim"></div>
+    <div class="nav-dot dim"></div>
+    <div class="nav-dot dim"></div>
+  </div>
+
+  <div class="left">
+    <div class="eyebrow">Quantitative Edge Research</div>
+    <h1 class="title">WOLFPACK<br>TRADING<br><span>HUB</span></h1>
+    <p class="subtitle">Three independent edge models backtested across 15+ years of institutional 1-minute futures data.</p>
+  </div>
+
+  <div class="right">
+    <div class="card">
+      <div class="card-label">Platform Overview</div>
+      <div class="card-stat">8,332+</div>
+      <div class="card-desc">Backtested trades across NQ & ES futures</div>
+      <div class="card-divider"></div>
+      <div class="mini-stats">
+        <div class="mini-stat">
+          <div class="mini-val">67.7%</div>
+          <div class="mini-lbl">Best WR</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-val">+1.27R</div>
+          <div class="mini-lbl">Best EV</div>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-val">15 yrs</div>
+          <div class="mini-lbl">Data span</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="accent-line"></div>
+  <div class="style-label">Style A — Bold Signal</div>
+</div>
+</body>
+</html>
