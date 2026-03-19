@@ -15,17 +15,14 @@ Statistical backtesting engine for NQ and ES futures. Detects sweep + CISD setup
 
 ## Key Files
 - `model_stats.py` — sweep+CISD detection engine → `model_stats.json`
-- `build_probs.py` — candle probability engine → `candle_probs.json`
-- `daily_update.py` — cron entry point (weekdays 7am); fetches from Databento, rebuilds probs
+- `daily_update.py` — cron entry point (weekdays 7am); fetches missing bars from Databento
 - `model_dashboard.html` — sweep model dashboard (loads `model_stats.json`)
-- `index.html` — candle probability dashboard (loads `candle_probs.json`)
 
 ## Running
 ```bash
 python3 model_stats.py              # run all 4 sweep models
-python3 build_probs.py              # rebuild candle probs
-python3 daily_update.py             # full update (fetch + rebuild)
-python3 -m http.server 8000         # serve dashboards at localhost:8000
+python3 daily_update.py             # fetch new bars from Databento
+python3 -m http.server 8000         # serve dashboard at localhost:8000
 ```
 
 ## Trading Model

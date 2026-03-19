@@ -4,8 +4,7 @@ Candle Science — Daily Update
 ===============================
 1. Fetches missing 1m bars for each instrument from Databento
 2. Upserts into candle_science.duckdb
-3. Rebuilds candle_probs.json
-4. Sends a Mac notification
+3. Sends a Mac notification
 
 Usage:
     python3 daily_update.py              # update all instruments
@@ -18,7 +17,6 @@ Crontab (weekdays at 7:00 AM):
 import os
 import re
 import sys
-import json
 import argparse
 import subprocess
 from datetime import datetime, timedelta
@@ -30,7 +28,6 @@ import pytz
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
 DB_PATH    = Path(__file__).parent / "candle_science.duckdb"
-PROBS_PATH = Path(__file__).parent / "candle_probs.json"
 API_KEY    = os.environ.get("DATABENTO_API_KEY", "")
 DATASET    = "GLBX.MDP3"
 SCHEMA     = "ohlcv-1m"
@@ -43,31 +40,6 @@ INSTRUMENTS = {
     "ES": {"symbol": "ES.c.0", "table": "es_1m"},
 }
 # ───────────────────────────────────────────────────────────────────────────────
-
-COLOR_COMBOS = {
-    "bull_bull": "c1_bull AND c2_bull",
-    "bull_bear": "c1_bull AND NOT c2_bull",
-    "bear_bull": "NOT c1_bull AND c2_bull",
-    "bear_bear": "NOT c1_bull AND NOT c2_bull",
-    "all":       "TRUE",
-}
-C2_METRICS = [
-    "c2_high_gt_c1_high","c2_high_gt_c1_open",
-    "c2_low_gt_c1_low",  "c2_low_gt_c1_open",
-    "c2_close_gt_c1_high","c2_close_gt_c1_low",
-    "c2_close_gt_c1_close","c2_close_gt_c1_open",
-    "c2_open_gt_c1_close","c2_open_gt_c1_open",
-    "c2_open_gt_c1_high", "c2_open_gt_c1_low",
-]
-C3_METRICS = [
-    "c3_high_gt_c2_high","c3_high_gt_c2_open",
-    "c3_low_gt_c2_low",  "c3_low_gt_c2_open",
-    "c3_close_gt_c2_high","c3_close_gt_c2_low",
-    "c3_close_gt_c2_close","c3_close_gt_c2_open",
-    "c3_open_gt_c2_close","c3_open_gt_c2_open",
-    "c3_open_gt_c2_high", "c3_open_gt_c2_low",
-    "c3_bull",
-]
 
 
 def log(msg):
@@ -173,28 +145,6 @@ def fetch_new_bars(con, key: str) -> int:
         log(f"[{key}] ERROR fetching: {e}"); return 0
 
 
-def rebuild_probs(con, keys):
-    """Delegates to build_probs.py which builds all panels (probs, sessions, hod/lod, etc.)"""
-    log("Rebuilding probabilities via build_probs.py…")
-    build_script = Path(__file__).parent / "build_probs.py"
-    if not build_script.exists():
-        log(f"ERROR: build_probs.py not found at {build_script}")
-        return
-    # Close the connection first — build_probs.py opens its own
-    try:
-        con.close()
-    except Exception:
-        pass
-    for key in keys:
-        result = subprocess.run(
-            [sys.executable, str(build_script), "--symbol", key],
-            capture_output=False,
-        )
-        if result.returncode != 0:
-            log(f"[{key}] build_probs.py exited with code {result.returncode}")
-        else:
-            log(f"[{key}] build_probs.py completed OK")
-
 
 def notify(title, message):
     if not MAC_NOTIFY: return
@@ -223,12 +173,11 @@ def main():
 
     con      = duckdb.connect(str(DB_PATH))
     new_rows = {k: fetch_new_bars(con, k) for k in keys}
-    rebuild_probs(con, keys)
-    # Note: con is closed inside rebuild_probs before calling build_probs.py
+    con.close()
 
     total = sum(new_rows.values())
     ts    = datetime.now(pytz.timezone(TIMEZONE)).strftime("%b %d %H:%M")
-    msg   = f"{total:,} new bars · probs updated · {ts}" if total else f"No new data · probs refreshed · {ts}"
+    msg   = f"{total:,} new bars · {ts}" if total else f"No new data · {ts}"
     notify("Candle Science Updated", msg)
     log(f"Done. {msg}")
     log("=" * 60)

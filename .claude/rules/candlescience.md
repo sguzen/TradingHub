@@ -8,15 +8,13 @@ paths:
 ## Engines
 
 - `model_stats.py` — sweep model engine → `model_stats.json`
-- `build_probs.py` — candle probability engine → `candle_probs.json`
-- `daily_update.py` — cron entry point (fetches Databento, rebuilds JSON)
+- `daily_update.py` — cron entry point (fetches missing bars from Databento)
 
 ```bash
 python3 model_stats.py                          # all 4 sweep models
 python3 model_stats.py --models 1H_5M 1H_3M    # specific models only
 python3 model_stats.py --table es_1m            # ES instead of NQ
-python3 build_probs.py                          # rebuild candle_probs.json
-python3 daily_update.py                         # fetch Databento + rebuild probs
+python3 daily_update.py                         # fetch new bars from Databento
 ```
 
 ## 4 Sweep Model Variants
