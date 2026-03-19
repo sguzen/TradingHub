@@ -16,7 +16,7 @@ python3 -m http.server 8001   # from repo root → http://localhost:8001
 pip install duckdb pandas numpy
 ```
 
-Python 3.9+. No web framework. Dashboards are standalone HTML (zero CDN deps except the candle profiler which uses React via CDN).
+Python 3.9+. No web framework. Dashboards are standalone HTML (zero CDN deps).
 
 ## Database
 

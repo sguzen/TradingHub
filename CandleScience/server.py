@@ -4,8 +4,8 @@ Candle Science — Local Server
 ==============================
 Serves the dashboard on http://localhost:8000 and exposes:
 
-  POST /api/update   — runs nq_daily_update.py, streams log lines as SSE
-  GET  /api/status   — returns last update time from nq_probs.json
+  POST /api/update   — runs daily_update.py, streams log lines as SSE
+  GET  /api/status   — returns last update time from model_stats.json
 
 Usage:
     python3 server.py
@@ -27,7 +27,7 @@ from datetime import datetime
 
 BASE_DIR     = Path(__file__).parent
 UPDATE_SCRIPT = BASE_DIR / "daily_update.py"
-PROBS_JSON   = BASE_DIR / "candle_probs.json"
+PROBS_JSON   = BASE_DIR / "model_stats.json"
 PYTHON       = sys.executable
 
 # Track running update so we don't start two at once
