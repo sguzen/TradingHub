@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-model_stats.py  —  Multi-Timeframe Sweep + CISD Statistical Engine v5.4
+model_stats.py  —  Multi-Timeframe Sweep + CISD Statistical Engine v6.0
 ========================================================================
 Runs each of the four model pairs across TWO sweep modes × ONE CISD mode,
 producing up to 8 output keys.
@@ -51,7 +51,6 @@ OUT_PATH = Path(__file__).parent / 'model_stats.json'
 TABLE    = 'nq_1m'
 
 # ── GLOBAL CONSTANTS ──────────────────────────────────────────────────────────
-RR               = 2.0
 MIN_RISK_PTS     = 3.0
 OUTCOME_MAX_BARS = 360
 SWEEP_MIN_PCT    = 0.10
@@ -59,7 +58,22 @@ SWEEP_MAX_PCT    = 1.50
 CISD_FAST_BARS   = 8
 UNSWEPT_LOOKBACK = 10
 
-DOW_NAMES = {1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri'}
+# ── RISK PROFILES ─────────────────────────────────────────────────────────────
+# Each tuple: (stop_mult, target_mult, display_key)
+# stop_mult  × base_risk = distance from entry to stop
+# target_mult × base_risk = distance from entry to target
+# base_risk = |entry_price − sweep_extreme|  (= 1 full "R unit")
+RR_PROFILES = [
+    (0.35, 0.35, '0.35:0.35'),
+    (0.35, 0.25, '0.35:0.25'),
+    (0.5,  0.5,  '0.5:0.5'),
+    (1.0,  1.0,  '1:1'),
+    (1.0,  1.5,  '1:1.5'),
+    (1.0,  2.0,  '1:2'),
+]
+DEFAULT_PROFILE = '1:2'
+
+DOW_NAMES = {0:'Sun', 1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat'}
 HR_LABELS = {h: f"{h:02d}:00" for h in range(0, 24)}
 
 # ── MODEL DEFINITIONS ─────────────────────────────────────────────────────────
@@ -367,12 +381,17 @@ def resolve_outcomes_vectorised(m1_arrs, pending):
     return results
 
 
-# ── CORE DETECTOR ─────────────────────────────────────────────────────────────
-def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
-                 cisd_fast_bars=CISD_FAST_BARS):
+# ── SETUP DETECTOR  (profile-agnostic — no stop/target computed here) ─────────
+def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
+                       cisd_fast_bars=CISD_FAST_BARS):
     """
-    All inner loops use pre-built numpy arrays and integer index arithmetic.
-    No pandas .loc[] or iterrows() in the hot path.
+    Detect all sweep+CISD setups.  Returns (base_rows, base_pending).
+
+    base_rows    — list of dicts with all metadata *except* stop/target/outcome.
+                   Includes `base_risk` = |entry_price − sweep_extreme| which
+                   apply_profile_and_resolve uses to scale stop / target.
+    base_pending — list of {idx, entry_ts_ns, entry_price, sweep_extreme,
+                            base_risk, direction} for every valid entry.
     """
     q1_min    = model_cfg['q1_min']
     min_range = model_cfg['min_range']
@@ -392,19 +411,19 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
     m1_high = m1_arrs['high']
     m1_low  = m1_arrs['low']
     m1_close= m1_arrs['close']
-    m1_open = m1_arrs['open']
     m1_hr   = m1_arrs['hr']
     m1_mn   = m1_arrs['mn']
+    m1_dow  = m1_arrs['dow']
+    m1_date = m1_arrs['trade_date']
 
     print(f"   [{label}] Scanning {s_n:,} sweep bars ...")
 
-    rows_pre     = []
-    pending      = []   # entries waiting for outcome resolution
+    base_rows    = []
+    base_pending = []
 
     for i in range(1, s_n):
         curr_ts_ns = s_ts[i]
 
-        # ── Reference candle (PREV — immediately prior sweep-TF bar) ──────────
         if curr_ts_ns - s_ts[i - 1] > gap_limit:
             continue
         refs = {
@@ -412,7 +431,6 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             'LONG':  (s_low[i - 1],  s_high[i - 1] - s_low[i - 1], 1),
         }
 
-        # ── Q1 1m bar slice (integer index arithmetic) ────────────────────────
         q1_start_ns = curr_ts_ns
         q1_end_ns   = curr_ts_ns + q1_ns - NS_PER_MIN
         q1_s = int(np.searchsorted(m1_ts, q1_start_ns, side='left'))
@@ -427,17 +445,14 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
         q1_mn = m1_mn[q1_s:q1_e]
         q1_ts = m1_ts[q1_s:q1_e]
 
-        # Session filter
         if sess_hrs:
             hrf = q1_hr + q1_mn / 60.0
             if not np.any((hrf >= sess_hrs[0]) & (hrf < sess_hrs[1])):
                 continue
 
         for direction in ('SHORT', 'LONG'):
-            # ── Reference level ───────────────────────────────────────────────
             ref_level, ref_range, ref_lookback = refs[direction]
 
-            # ── Sweep check ───────────────────────────────────────────────────
             if direction == 'SHORT':
                 swept_mask = q1_h > ref_level
             else:
@@ -455,7 +470,6 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
 
             sweep_ext = abs(sweep_extreme - ref_level)
 
-            # ── Filters ───────────────────────────────────────────────────────
             rejected_by = ''
             if ref_range < min_range:
                 rejected_by = 'F1_SMALL_RANGE'
@@ -464,7 +478,6 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             elif ref_range > 0 and (sweep_ext / ref_range) > SWEEP_MAX_PCT:
                 rejected_by = 'F3_SWEEP_TOO_LARGE'
 
-            # ── Return bar ────────────────────────────────────────────────────
             post_s = pos + 1
             if post_s >= len(q1_ts):
                 continue
@@ -477,10 +490,10 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             if not ret_mask.any():
                 continue
 
-            ret_rel    = int(ret_mask.argmax())
-            ret_idx    = post_s + ret_rel
-            ret_close  = float(q1_c[ret_idx])
-            ret_ts_ns  = int(q1_ts[ret_idx])
+            ret_rel   = int(ret_mask.argmax())
+            ret_idx   = post_s + ret_rel
+            ret_close = float(q1_c[ret_idx])
+            ret_ts_ns = int(q1_ts[ret_idx])
 
             if not rejected_by:
                 if direction == 'SHORT' and ret_close > ref_level:
@@ -488,7 +501,6 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 elif direction == 'LONG' and ret_close < ref_level:
                     rejected_by = 'F4_NO_CLOSE_BACK'
 
-            # ── CISD ──────────────────────────────────────────────────────────
             cisd_ts_ns, cisd_level = find_cisd(
                 c_arrs, ret_ts_ns, direction, cisd_fast_bars, 'CISD'
             )
@@ -510,98 +522,143 @@ def detect_model(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             if cisd_ts_ns is None:
                 base_row.update(
                     hr=int(s_arrs['hr'][i]), session='OTHER',
-                    entry_price=None, risk_pts=None, cisd_level=None,
-                    manip_range=None, target_price=None,
+                    entry_price=None, base_risk=None, cisd_level=None,
+                    stop_price=None, target_price=None, risk_pts=None,
                     outcome='SKIP', rejected_by=rejected_by or 'NO_CISD',
                     r=0.0, mae_pct=None, mfe_pct=None,
                 )
-                rows_pre.append(base_row)
+                base_rows.append(base_row)
                 continue
 
-            # ── Entry bar ─────────────────────────────────────────────────────
-            entry_start = int(np.searchsorted(m1_ts, cisd_ts_ns, side='right'))
+            # ── Entry bar: next CISD-TF candle open after CISD fires ──────────
+            cisd_c_idx = int(np.searchsorted(c_arrs['ts_ns'], cisd_ts_ns, side='left'))
+            next_c_idx = cisd_c_idx + 1
+            if next_c_idx >= len(c_arrs['ts_ns']):
+                continue
+
+            entry_ts_ns = int(c_arrs['ts_ns'][next_c_idx])
+            entry_price = float(c_arrs['open'][next_c_idx])
+
+            entry_start = int(np.searchsorted(m1_ts, entry_ts_ns, side='left'))
             if entry_start >= len(m1_ts):
                 continue
 
-            entry_ts_ns  = int(m1_ts[entry_start])
-            entry_price  = float(m1_open[entry_start])
-            stop_price   = sweep_extreme
+            # base_risk = |entry − sweep_extreme| = 1 full R-unit
+            base_risk = abs(entry_price - sweep_extreme)
 
-            if direction == 'SHORT' and entry_price >= stop_price:
+            # Entry must be on the correct side of the sweep extreme
+            if direction == 'LONG'  and entry_price <= sweep_extreme:
                 continue
-            if direction == 'LONG'  and entry_price <= stop_price:
-                continue
-
-            # ── Target: 2× manipulation range projected from sweep extreme ─────
-            # manip_range = full distance from ref_high/ref_low to sweep extreme
-            #   LONG:  ref_high  = ref_level + ref_range  (top of ref candle)
-            #          target    = sweep_extreme + 2 × (ref_high − sweep_extreme)
-            #   SHORT: ref_low   = ref_level − ref_range  (bottom of ref candle)
-            #          target    = sweep_extreme − 2 × (sweep_extreme − ref_low)
-            if direction == 'LONG':
-                ref_high    = ref_level + ref_range
-                manip_range = max(ref_high - sweep_extreme, MIN_RISK_PTS)
-                target_price = sweep_extreme + 2.0 * manip_range
-            else:
-                ref_low      = ref_level - ref_range
-                manip_range  = max(sweep_extreme - ref_low, MIN_RISK_PTS)
-                target_price = sweep_extreme - 2.0 * manip_range
-
-            if direction == 'LONG'  and target_price <= entry_price:
-                continue
-            if direction == 'SHORT' and target_price >= entry_price:
+            if direction == 'SHORT' and entry_price >= sweep_extreme:
                 continue
 
-            risk_pts = abs(entry_price - stop_price)
-            hr_val   = int(m1_hr[entry_start])
-            mn_val   = int(m1_mn[entry_start])
+            hr_val = int(m1_hr[entry_start])
+            mn_val = int(m1_mn[entry_start])
 
             base_row.update(
+                date         = str(m1_date[entry_start]),
+                dow          = int(m1_dow[entry_start]),
                 hr           = hr_val,
+                mn           = mn_val,
                 session      = get_session(hr_val + mn_val / 60.0),
                 entry_price  = round(entry_price, 2),
-                risk_pts     = round(risk_pts, 2),
-                manip_range  = round(float(manip_range), 2),
-                target_price = round(float(target_price), 2),
+                base_risk    = round(base_risk, 2),
                 cisd_level   = round(cisd_level, 2) if cisd_level is not None else None,
                 rejected_by  = rejected_by,
-                r            = 0.0,     # filled in after batch resolution
-                mae_pct      = None,    # filled in after batch resolution
-                mfe_pct      = None,    # filled in after batch resolution
-                outcome      = '',      # filled in after batch resolution
+                # profile-dependent fields — filled by apply_profile_and_resolve
+                stop_price   = None,
+                target_price = None,
+                risk_pts     = None,
+                outcome      = '',
+                r            = 0.0,
+                mae_pct      = None,
+                mfe_pct      = None,
             )
-            rows_pre.append(base_row)
-            pending.append(dict(
-                idx          = len(rows_pre) - 1,
-                entry_ts_ns  = entry_ts_ns,
-                entry_price  = entry_price,
-                stop_price   = stop_price,
-                target_price = target_price,
-                direction    = direction,
+            base_rows.append(base_row)
+            base_pending.append(dict(
+                idx           = len(base_rows) - 1,
+                entry_ts_ns   = entry_ts_ns,
+                entry_price   = entry_price,
+                sweep_extreme = float(sweep_extreme),
+                base_risk     = base_risk,
+                direction     = direction,
             ))
 
-    # ── Batch vectorised outcome resolution ───────────────────────────────────
-    print(f"      Resolving {len(pending):,} outcomes (vectorised) ...")
-    outcomes = resolve_outcomes_vectorised(m1_arrs, pending)
+    print(f"      {len(base_pending):,} entries detected across all filters")
+    return base_rows, base_pending
 
-    for po, (outcome, r, mae_pct, mfe_pct) in zip(pending, outcomes):
+
+# ── PROFILE OUTCOME RESOLVER ──────────────────────────────────────────────────
+def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
+                               stop_mult, target_mult):
+    """
+    For each detected setup compute stop / target from the profile multipliers
+    (relative to base_risk = |entry − sweep_extreme|), resolve outcomes, and
+    return a complete DataFrame ready for build_model_stats.
+
+    LONG:   stop  = entry − stop_mult  × base_risk
+            target= entry + target_mult × base_risk
+    SHORT:  stop  = entry + stop_mult  × base_risk
+            target= entry − target_mult × base_risk
+    """
+    rows = [dict(r) for r in base_rows]   # shallow copy per profile
+
+    profile_pending = []
+    for bp in base_pending:
+        idx           = bp['idx']
+        entry_price   = bp['entry_price']
+        base_risk     = bp['base_risk']
+        direction     = bp['direction']
+
+        risk_pts = stop_mult * base_risk
+
+        if direction == 'LONG':
+            stop_price   = entry_price - stop_mult  * base_risk
+            target_price = entry_price + target_mult * base_risk
+        else:
+            stop_price   = entry_price + stop_mult  * base_risk
+            target_price = entry_price - target_mult * base_risk
+
+        rows[idx]['stop_price']   = round(stop_price,   2)
+        rows[idx]['target_price'] = round(target_price, 2)
+        rows[idx]['risk_pts']     = round(risk_pts,     2)
+
+        if risk_pts < MIN_RISK_PTS:
+            rows[idx]['outcome']     = 'INVALID'
+            rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
+            continue
+
+        profile_pending.append(dict(
+            idx          = idx,
+            entry_ts_ns  = bp['entry_ts_ns'],
+            entry_price  = entry_price,
+            stop_price   = stop_price,
+            target_price = target_price,
+            direction    = direction,
+        ))
+
+    outcomes = resolve_outcomes_vectorised(m1_arrs, profile_pending)
+    for po, (outcome, r, mae_pct, mfe_pct) in zip(profile_pending, outcomes):
         idx = po['idx']
-        rows_pre[idx]['outcome']  = outcome
-        rows_pre[idx]['r']        = r
-        rows_pre[idx]['mae_pct']  = mae_pct
-        rows_pre[idx]['mfe_pct']  = mfe_pct
+        rows[idx]['outcome']  = outcome
+        rows[idx]['r']        = r
+        rows[idx]['mae_pct']  = mae_pct
+        rows[idx]['mfe_pct']  = mfe_pct
         if outcome == 'INVALID':
-            rows_pre[idx]['rejected_by'] = rows_pre[idx]['rejected_by'] or 'INVALID_RISK'
+            rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
 
-    df_s = pd.DataFrame(rows_pre) if rows_pre else pd.DataFrame()
-    if not df_s.empty:
-        passed = int((df_s['rejected_by'] == '').sum())
-        print(f"      {len(df_s):,} candidates  →  {passed:,} passed all filters")
-    return df_s
+    df = pd.DataFrame(rows) if rows else pd.DataFrame()
+    if not df.empty:
+        passed = int((df['rejected_by'] == '').sum())
+        wl_n   = int(df['outcome'].isin(['WIN','LOSS']).sum())
+        print(f"        [{stop_mult}:{target_mult}]  {passed:,} filtered setups  "
+              f"→  {wl_n:,} resolved (WIN/LOSS)")
+    return df
 
 
 # ── STATISTICS ────────────────────────────────────────────────────────────────
-def build_model_stats(df_raw, trading_days, model_key, model_cfg):
+def build_model_stats(df_raw, trading_days, model_key, model_cfg,
+                      stop_mult=1.0, target_mult=2.0, profile_key='1:2'):
     df   = df_raw[df_raw['rejected_by'] == ''].copy()
     wl   = df[df['outcome'].isin(['WIN','LOSS'])].copy()
     wl['win'] = (wl['outcome'] == 'WIN').astype(int)
@@ -680,12 +737,14 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg):
         s = agg(g); s.update(yr=int(yr))
         by_year.append(s)
 
+    target_r = target_mult / stop_mult if stop_mult > 0 else 2.0
+    h  = target_r / 2
     r_buckets = [
-        ('-2R (loss)',  lambda r: r <= -0.8),
-        ('0–0.5R',      lambda r: (-0.8 < r) & (r <= 0.5)),
-        ('0.5–1.5R',    lambda r: (0.5  < r) & (r <= 1.5)),
-        ('2R (target)', lambda r: (1.5  < r) & (r <= 2.2)),
-        ('3R+',         lambda r: r > 2.2),
+        ('Loss',                  lambda r: r <  0),
+        (f'0–{h:.2g}R',           lambda r: (0 <= r) & (r <  h)),
+        (f'{h:.2g}–{target_r:.2g}R', lambda r: (h <= r) & (r <  target_r * 1.05)),
+        (f'{target_r:.2g}R ✓',    lambda r: (target_r * 0.95 <= r) & (r <= target_r * 1.15)),
+        (f'>{target_r:.2g}R',     lambda r: r > target_r * 1.05),
     ]
     df_r   = df[df['outcome'] != 'INVALID'].copy()
     r_hist = [{'bucket': lbl, 'n': int(fn(df_r['r']).sum())} for lbl, fn in r_buckets]
@@ -773,11 +832,11 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg):
             overall=agg(grp), heatmap=hm, by_hour=bh, by_dow=bd, top_combos=tc[:10])
 
     # Most recent 25 resolved trades
-    recent_cols = ['date','direction','hr','session','dow','entry_price',
+    recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
                    'sweep_extreme','target_price','risk_pts','r','outcome']
     recent_rows = (wl[recent_cols]
                    .sort_values('date', ascending=False)
-                   .head(25)
+                   .head(40)
                    .copy())
     recent_rows['dow_name'] = recent_rows['dow'].map(lambda d: DOW_NAMES.get(int(d), '?'))
     recent_trades = recent_rows.to_dict('records')
@@ -785,15 +844,19 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg):
         t['date'] = str(t['date'])[:10]
         t['dow']  = int(t['dow'])
         t['hr']   = int(t['hr'])
+        t['mn']   = int(t['mn'])
         for k in ('entry_price','sweep_extreme','target_price','risk_pts','r'):
             if t[k] is not None:
                 t[k] = round(float(t[k]), 2)
 
-    full_key = f"{model_key}_PREV_CISD"
+    full_key    = f"{model_key}_PREV_CISD"
+    be_wr       = round(stop_mult / (stop_mult + target_mult), 4)
+    rr_actual   = round(target_mult / stop_mult, 4) if stop_mult > 0 else 2.0
     return {
         'meta': {
             'model_key':          model_key,
             'full_key':           full_key,
+            'profile_key':        profile_key,
             'model_label':        model_cfg['label'],
             'sweep_mode':         'PREV',
             'cisd_mode':          'CISD',
@@ -810,8 +873,10 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg):
             'profit_factor':      overall['pf'],
             'avg_risk_pts':       overall['avg_risk_pts'],
             'setups_per_day_ny':  spd,
-            'risk_breakeven_wr':  round(1 / (1 + RR), 4),
-            'rr_target':          RR,
+            'risk_breakeven_wr':  be_wr,
+            'rr_target':          rr_actual,
+            'stop_mult':          stop_mult,
+            'target_mult':        target_mult,
             **{f'risk_{k}': v for k, v in risk_dist.items()},
             **{f'mae_{k}':  v for k, v in mae_dist.items()},
             **{f'mfe_{k}':  v for k, v in mfe_dist.items()},
@@ -889,7 +954,8 @@ def main():
     CISD_FAST_BARS = args.cisd_fast_bars
 
     print("\n" + "═"*65)
-    print(f"  SWEEP MODEL ENGINE v5.4  ·  {TABLE.upper()}")
+    print(f"  SWEEP MODEL ENGINE v6.0  ·  {TABLE.upper()}")
+    print(f"  Profiles: {', '.join(pk for *_, pk in RR_PROFILES)}")
     print(f"  Models: {', '.join(args.models)}")
     print(f"  Sweep mode: PREV  ·  CISD fast bars: {CISD_FAST_BARS}")
     print("═"*65)
@@ -932,17 +998,32 @@ def main():
         print(f"  {full_key}  —  {cfg['label']}")
         print(f"{'─'*65}")
 
-        df_raw = detect_model(m1, s_arrs, c_arrs, mk, cfg,
-                              cisd_fast_bars=CISD_FAST_BARS)
-        if df_raw.empty:
+        base_rows, base_pending = detect_setups_base(
+            m1, s_arrs, c_arrs, mk, cfg, cisd_fast_bars=CISD_FAST_BARS)
+        if not base_rows:
             print(f"   ⚠  No setups found")
             continue
 
-        stats = build_model_stats(df_raw, trading_days, mk, cfg)
-        all_stats[full_key] = stats
+        print(f"      Resolving outcomes across {len(RR_PROFILES)} profiles ...")
+        model_profiles = {}
+        for stop_mult, target_mult, pk in RR_PROFILES:
+            df_p = apply_profile_and_resolve(
+                base_rows, base_pending, m1, stop_mult, target_mult)
+            if df_p.empty:
+                continue
+            stats = build_model_stats(
+                df_p, trading_days, mk, cfg, stop_mult, target_mult, pk)
+            model_profiles[pk] = stats
 
-        m_  = stats['meta']
-        fi  = stats['filter_impact']
+        if not model_profiles:
+            continue
+
+        all_stats[full_key] = {'profiles': model_profiles}
+
+        # Summary uses the default profile (1:2)
+        def_stats = model_profiles.get(DEFAULT_PROFILE, next(iter(model_profiles.values())))
+        m_  = def_stats['meta']
+        fi  = def_stats['filter_impact']
         summary_rows.append((
             full_key,
             fi[0].get('ev', 0) if fi else 0,
@@ -959,7 +1040,7 @@ def main():
 
     # ── Summary table ──────────────────────────────────────────────────────────
     print(f"\n{'═'*78}")
-    print(f"  SUMMARY  (Base = unfiltered, Refined = all filters applied)")
+    print(f"  SUMMARY  (profile = {DEFAULT_PROFILE}  ·  Base = unfiltered, Refined = all filters)")
     print(f"{'═'*78}")
     print(f"  {'Key':<24}  {'Base EV':>8}  {'Base PF':>7}  "
           f"{'→ WR':>7}  {'EV':>8}  {'PF':>7}  {'N':>6}  {'SPD':>5}")
