@@ -70,7 +70,7 @@ TABLE    = 'nq_1m'
 ### 2. Run the engine
 
 ```bash
-cd path/to/TradingHub/Fractal\ Sweep
+cd path/to/Statistic.ally/Fractal\ Sweep
 python3 model_stats.py
 ```
 

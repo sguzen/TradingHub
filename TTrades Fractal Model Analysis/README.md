@@ -48,17 +48,17 @@ Before using this, make sure you've:
 
 The dashboard already has pre-computed results included — you don't need to run anything to see it.
 
-1. Start the web server from the **root of the repo** (the main `TradingHub` folder, not this subfolder):
+1. Start the web server from the **root of the repo** (the main `Statistic.ally` folder, not this subfolder):
 
    **Mac:**
    ```
-   cd path/to/TradingHub
+   cd path/to/Statistic.ally
    python3 -m http.server 8001
    ```
 
    **Windows:**
    ```
-   cd C:\path\to\TradingHub
+   cd C:\path\to\Statistic.ally
    python -m http.server 8001
    ```
 
@@ -77,13 +77,13 @@ If you have the database file (`candle_science.duckdb`) and want to regenerate t
 
 **Mac:**
 ```
-cd "path/to/TradingHub/TTrades Fractal Model Analysis"
+cd "path/to/Statistic.ally/TTrades Fractal Model Analysis"
 python3 ttfm_backtest.py
 ```
 
 **Windows:**
 ```
-cd "C:\path\to\TradingHub\TTrades Fractal Model Analysis"
+cd "C:\path\to\Statistic.ally\TTrades Fractal Model Analysis"
 python ttfm_backtest.py
 ```
 

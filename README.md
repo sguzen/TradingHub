@@ -56,8 +56,8 @@ Python is a free programming language. These projects use it to process data and
 
 If you have Git installed:
 ```
-git clone https://github.com/abhinaynatraj/TradingHub.git
-cd TradingHub
+git clone https://github.com/abhinaynatraj/Statistic.ally.git
+cd Statistic.ally
 ```
 
 ---
@@ -70,13 +70,13 @@ These are free libraries Python needs to process the data.
 
 Open Terminal, navigate to the folder you downloaded, then run:
 ```
-cd path/to/TradingHub
+cd path/to/Statistic.ally
 pip3 install duckdb pandas numpy openpyxl
 ```
 
-Replace `path/to/TradingHub` with the actual location — for example if you put it on your Desktop:
+Replace `path/to/Statistic.ally` with the actual location — for example if you put it on your Desktop:
 ```
-cd ~/Desktop/TradingHub
+cd ~/Desktop/Statistic.ally
 pip3 install duckdb pandas numpy openpyxl
 ```
 
@@ -84,11 +84,11 @@ pip3 install duckdb pandas numpy openpyxl
 
 Open Command Prompt, then run:
 ```
-cd C:\Users\YourName\Desktop\TradingHub
+cd C:\Users\YourName\Desktop\Statistic.ally
 pip install duckdb pandas numpy openpyxl
 ```
 
-Replace `C:\Users\YourName\Desktop\TradingHub` with wherever you saved the folder.
+Replace `C:\Users\YourName\Desktop\Statistic.ally` with wherever you saved the folder.
 
 ---
 
@@ -101,14 +101,14 @@ This command starts a tiny built-in web server — it's completely local, nothin
 ### Mac
 
 ```
-cd path/to/TradingHub
+cd path/to/Statistic.ally
 python3 -m http.server 8001
 ```
 
 ### Windows
 
 ```
-cd C:\path\to\TradingHub
+cd C:\path\to\Statistic.ally
 python -m http.server 8001
 ```
 
@@ -141,7 +141,7 @@ If you want to re-run the backtests yourself (to update with newer data), see th
 ## Folder Structure
 
 ```
-TradingHub/
+Statistic.ally/
 ├── index.html                          ← Hub page (open this in browser)
 ├── mae_mfe_guide.html                  ← MAE/MFE reference guide
 ├── Fractal Sweep/

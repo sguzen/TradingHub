@@ -45,17 +45,17 @@ Before using this, make sure you've:
 
 The dashboard already has pre-computed results included — you don't need to run anything to see it.
 
-1. Start the web server from the **root of the repo** (the main `TradingHub` folder, not this subfolder):
+1. Start the web server from the **root of the repo** (the main `Statistic.ally` folder, not this subfolder):
 
    **Mac:**
    ```
-   cd path/to/TradingHub
+   cd path/to/Statistic.ally
    python3 -m http.server 8001
    ```
 
    **Windows:**
    ```
-   cd C:\path\to\TradingHub
+   cd C:\path\to\Statistic.ally
    python -m http.server 8001
    ```
 
@@ -74,13 +74,13 @@ If you have the database file (`candle_science.duckdb`) and want to regenerate t
 
 **Mac:**
 ```
-cd path/to/TradingHub/NY1 FPFVG
+cd path/to/Statistic.ally/NY1 FPFVG
 python3 ny1_backtest.py
 ```
 
 **Windows:**
 ```
-cd "C:\path\to\TradingHub\NY1 FPFVG"
+cd "C:\path\to\Statistic.ally\NY1 FPFVG"
 python ny1_backtest.py
 ```
 
@@ -96,13 +96,13 @@ To get a formatted Excel spreadsheet with all trades, one tab per risk profile:
 
 **Mac:**
 ```
-cd path/to/TradingHub/NY1 FPFVG
+cd path/to/Statistic.ally/NY1 FPFVG
 python3 export_trades.py
 ```
 
 **Windows:**
 ```
-cd "C:\path\to\TradingHub\NY1 FPFVG"
+cd "C:\path\to\Statistic.ally\NY1 FPFVG"
 python export_trades.py
 ```
 
