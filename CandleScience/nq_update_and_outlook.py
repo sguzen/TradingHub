@@ -11,6 +11,7 @@ Schedule it (runs every morning at 7am):
     Windows Task Scheduler: point to this script
 """
 
+import os
 import databento as db
 import duckdb
 import pandas as pd
@@ -24,7 +25,7 @@ from datetime import datetime, timedelta
 # ── Config ─────────────────────────────────────────────────
 DB_PATH     = "NQ_futures.duckdb"
 DBN_PATH    = "NQ_1m_latest.dbn"
-API_KEY     = "REDACTED_API_KEY"       # ← replace with your Databento API key
+API_KEY     = os.environ.get("DATABENTO_API_KEY", "")   # set via: export DATABENTO_API_KEY=your_key
 DATASET     = "GLBX.MDP3"
 SYMBOL      = "NQ.c.0"
 SCHEMA      = "ohlcv-1m"

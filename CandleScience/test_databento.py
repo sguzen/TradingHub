@@ -5,7 +5,8 @@ Run: python3 test_databento.py
 """
 import databento as db
 
-API_KEY = "REDACTED_API_KEY"   # <-- paste your key here
+import os
+API_KEY = os.environ.get("DATABENTO_API_KEY", "")  # set via: export DATABENTO_API_KEY=your_key
 
 client = db.Historical(API_KEY)
 
