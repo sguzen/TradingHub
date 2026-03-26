@@ -685,7 +685,7 @@ main {
         <div class="model-panel-icon">🎯</div>
         <div>
           <div class="model-panel-title">NY1 F.P.FVG — First Presented FVG</div>
-          <div class="model-panel-sub">9:31–10:00 ET window · 10bps TP1 · 20% runner</div>
+          <div class="model-panel-sub">9:31–10:00 ET window · Fixed % Stop · Fixed % TP</div>
         </div>
       </div>
       <div class="model-panel-body">
@@ -796,8 +796,8 @@ const PROJECTS = [
   {
     id:       'ny1',
     title:    'NY1 F.P.FVG',
-    subtitle: 'First Presented FVG · 9:31–10:00 ET',
-    desc:     'Targets the very first Fair Value Gap that forms between 9:31 and 9:59 ET. Enters on retrace to the FVG boundary. TP1 (Protect The Queen) takes 80% of the position at 10bps profit. The remaining 20% runner is held to end of day at 16:00 ET.',
+    subtitle: 'First Presented FVG · 9:31–10:00 ET · Fixed % Stop',
+    desc:     'Scans 9:31–9:59 ET for the first 3-candle FVG. Enters Long at C3.low / Short at C3.high with a fixed % stop and fixed % TP. 10 combos ranked by Certainty Equivalent across 2,721 trades from 2014–2026.',
     json:     'NY1 FPFVG/ny1_results.json',
     link:     'NY1 FPFVG/index.html',
     color:    '#10b981',
@@ -871,28 +871,27 @@ async function loadStats(project) {
     }
 
     if (project.type === 'ny1') {
-      const cx  = d.cashflow_extended || {};
-      const cxM = cx.meta             || {};
-      const cxR = cx.risk_stats       || {};
-      // Collect all profiles in order
-      const profileOrder = [
-        'cashflow', 'cashflow_extended',
-        'pct_035_035', 'pct_035_025', 'pct_050_050',
-        'pct_100_100', 'pct_100_150', 'pct_100_200',
+      // Top-10 fixed-% combos (from master backtester, ranked by CE)
+      const NY1_COMBOS = [
+        { rank:1,  label:'SL 0.04% / TP 0.08%', rr:2.00, wr:0.419, ev_r:0.257, pf:1.442, ce:0.370, pl:157275, sharpe:9.05,  blown:false, anyBlown:true  },
+        { rank:2,  label:'SL 0.10% / TP 0.05%', rr:0.50, wr:0.793, ev_r:0.190, pf:1.921, ce:0.365, pl:116438, sharpe:16.33, blown:false, anyBlown:false },
+        { rank:3,  label:'SL 0.03% / TP 0.06%', rr:2.00, wr:0.417, ev_r:0.252, pf:1.433, ce:0.362, pl:154575, sharpe:8.90,  blown:false, anyBlown:true  },
+        { rank:4,  label:'SL 0.05% / TP 0.09%', rr:1.80, wr:0.445, ev_r:0.247, pf:1.446, ce:0.357, pl:151335, sharpe:9.26,  blown:false, anyBlown:true  },
+        { rank:5,  label:'SL 0.04% / TP 0.07%', rr:1.75, wr:0.452, ev_r:0.243, pf:1.444, ce:0.351, pl:148838, sharpe:9.26,  blown:false, anyBlown:true  },
+        { rank:6,  label:'SL 0.05% / TP 0.08%', rr:1.60, wr:0.477, ev_r:0.240, pf:1.459, ce:0.351, pl:147105, sharpe:9.65,  blown:false, anyBlown:true  },
+        { rank:7,  label:'SL 0.04% / TP 0.06%', rr:1.50, wr:0.494, ev_r:0.234, pf:1.462, ce:0.342, pl:143212, sharpe:9.76,  blown:false, anyBlown:true  },
+        { rank:8,  label:'SL 0.05% / TP 0.07%', rr:1.40, wr:0.513, ev_r:0.231, pf:1.475, ce:0.341, pl:141615, sharpe:10.06, blown:false, anyBlown:true  },
+        { rank:9,  label:'SL 0.05% / TP 0.06%', rr:1.20, wr:0.557, ev_r:0.225, pf:1.507, ce:0.339, pl:137700, sharpe:10.73, blown:false, anyBlown:true  },
+        { rank:10, label:'SL 0.10% / TP 0.06%', rr:0.60, wr:0.745, ev_r:0.193, pf:1.756, ce:0.338, pl:117855, sharpe:14.40, blown:false, anyBlown:false },
       ];
-      const profileRows = profileOrder
-        .filter(k => d[k])
-        .map(k => {
-          const m = d[k].meta || {};
-          return { name: m.model_name || k, wr: m.tp1_wr, n: m.n };
-        });
+      const top = NY1_COMBOS[0];
+      const m1 = d['pct_004_008']?.meta || {};
       return {
-        label1: 'TP1 WR',  val1: pct(cxM.tp1_wr), cls1: wrColor(cxM.tp1_wr),
-        label2: 'Sharpe',  val2: cxR.sharpe != null ? cxR.sharpe.toFixed(2) : '—',
-                           cls2: (cxR.sharpe ?? 0) > 0 ? 'pos' : 'neg',
-        label3: 'Trades',  val3: num(cxM.n), cls3: 'neutral',
-        dateRange: cxM.date_range || '—',
-        profileRows,
+        label1: 'Best CE',  val1: top.ce.toFixed(3),   cls1: 'pos',
+        label2: 'Best WR',  val2: pct(0.793),           cls2: 'pos',
+        label3: 'Trades',   val3: num(m1.n || 2721),    cls3: 'neutral',
+        dateRange: m1.date_range || '2014–2026',
+        combos10: NY1_COMBOS,
       };
     }
   } catch(e) {
@@ -927,7 +926,8 @@ function buildCard(p) {
     </div>
   `;
 
-  const compHtml = s?.profileRows    ? buildNy1ProfileTable(s.profileRows)
+  const compHtml = s?.combos10       ? buildNy1RankingsTable(s.combos10)
+                 : s?.profileRows   ? buildNy1ProfileTable(s.profileRows)
                  : s?.top5combos    ? buildSweepTop5Table(s.top5combos)
                  : '';
 
@@ -975,6 +975,49 @@ function buildSweepSubTable(models) {
         <thead><tr><th>Model</th><th>WR</th><th>EV</th><th>N</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
+    </div>`;
+}
+
+function buildNy1RankingsTable(combos) {
+  const fmtPL = v => (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString('en-US', {maximumFractionDigits:0});
+  const vcls  = v => v > 0 ? 'pos' : v < 0 ? 'neg' : '';
+  const rows = combos.map(c => {
+    const blownVal = c.blown ? 'Yes' : c.anyBlown ? 'Part' : 'No';
+    const blownCls = c.blown ? 'neg' : c.anyBlown ? '' : 'pos';
+    return `<tr>
+      <td style="font-weight:700;color:var(--text-sub);">${c.rank}</td>
+      <td style="color:var(--text-main);font-size:11px;">${c.label}</td>
+      <td style="text-align:right;">${c.rr.toFixed(2)}</td>
+      <td class="stat-val ${vcls(c.wr - 0.5)}" style="font-size:11px;text-align:right;">${pct(c.wr)}</td>
+      <td class="stat-val ${vcls(c.ev_r)}" style="font-size:11px;text-align:right;">${c.ev_r >= 0 ? '+' : ''}${c.ev_r.toFixed(3)}</td>
+      <td style="text-align:right;color:var(--text-sub);font-size:11px;">${c.pf.toFixed(3)}</td>
+      <td class="stat-val ${vcls(c.ce)}" style="font-size:11px;text-align:right;">${c.ce.toFixed(3)}</td>
+      <td class="stat-val ${vcls(c.pl)}" style="font-size:11px;text-align:right;">${fmtPL(c.pl)}</td>
+      <td style="text-align:right;color:var(--text-sub);font-size:11px;">${c.sharpe.toFixed(1)}</td>
+      <td class="stat-val ${blownCls}" style="font-size:11px;text-align:right;">${blownVal}</td>
+    </tr>`;
+  }).join('');
+  return `
+    <div style="margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+      <div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">
+        All 10 Combos · Ranked by CE · $4,500 acct · $225/trade
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="sweep-sub-table" style="min-width:560px;">
+          <thead><tr>
+            <th>#</th><th>SL / TP</th>
+            <th style="text-align:right;">R:R</th>
+            <th style="text-align:right;">WR</th>
+            <th style="text-align:right;">EV(R)</th>
+            <th style="text-align:right;">PF</th>
+            <th style="text-align:right;">CE</th>
+            <th style="text-align:right;">P&amp;L</th>
+            <th style="text-align:right;">Sharpe</th>
+            <th style="text-align:right;">Blown</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
     </div>`;
 }
 
