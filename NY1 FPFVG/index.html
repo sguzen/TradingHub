@@ -1431,11 +1431,14 @@ function renderTradesTable(allTrades) {
 
   const cols = [
     { key: 'date',         label: 'Date' },
-    { key: 'time',         label: 'Entry' },
     { key: 'c2_ts',        label: 'FVG Time' },
+    { key: 'time',         label: 'Entry' },
+    { key: 'entry',        label: 'Entry $' },
     { key: 'direction',    label: 'Dir' },
+    { key: '_stop',        label: 'Stop $' },
     { key: 'mae_pct',      label: 'MAE (%)' },
     { key: 'mfe1_pct',     label: 'MFE (%)' },
+    { key: '_tp',          label: 'TP $' },
     { key: 'outcome_main', label: 'TP1' },
   ];
 
@@ -1463,15 +1466,21 @@ function renderTradesTable(allTrades) {
         : t.outcome_main === 'LOSS'
           ? '<span class="badge badge-loss">LOSS</span>'
           : '<span class="badge badge-open">—</span>';
-      const mae     = t.mae_pct != null ? t.mae_pct.toFixed(4) : '0.0000';
-      const fvgTime = t.c2_ts ? t.c2_ts.replace('T',' ').slice(-5) : '—';
+      const mae      = t.mae_pct != null ? t.mae_pct.toFixed(4) : '0.0000';
+      const fvgTime  = t.c2_ts ? t.c2_ts.replace('T',' ').slice(-5) : '—';
+      const fmtPx    = v => v != null ? Number(v).toFixed(2) : '—';
+      const stopPx   = fmtPx(t.pct_stop ?? t.stop);
+      const tpPx     = fmtPx(t.pct_tp   ?? t.tp1);
       return `<tr>
         <td>${t.date}</td>
-        <td>${t.time || (t.fill_hr != null ? String(t.fill_hr).padStart(2,'0') + ':' + String(t.fill_mn||0).padStart(2,'0') : '—')}</td>
         <td>${fvgTime}</td>
+        <td>${t.time || (t.fill_hr != null ? String(t.fill_hr).padStart(2,'0') + ':' + String(t.fill_mn||0).padStart(2,'0') : '—')}</td>
+        <td style="font-family:var(--font-data)">${fmtPx(t.entry)}</td>
         <td>${dirBadge}</td>
+        <td style="font-family:var(--font-data)">${stopPx}</td>
         <td>${mae}</td>
         <td>${mfeCell(t.mfe1_pct)}</td>
+        <td style="font-family:var(--font-data)">${tpPx}</td>
         <td>${tp1Badge}</td>
       </tr>`;
     }).join('');
