@@ -44,6 +44,7 @@ import pandas as pd
 import numpy as np
 import json
 from pathlib import Path
+import scipy.stats as _scipy_stats
 
 # ── PATHS ─────────────────────────────────────────────────────────────────────
 DB_PATH   = Path(__file__).parent / 'candle_science.duckdb'
@@ -117,6 +118,8 @@ RR_PROFILES = [
     (0.20, 0.19, 'sl_020_tp_019', 'pct'),
     (0.18, 0.19, 'sl_018_tp_019', 'pct'),
     (0.19, 0.19, 'sl_019_tp_019', 'pct'),
+    # --- Structural Dynamic: SL = sweep extreme (1×base_risk), TP1 = 1R, 50% exit; runner with BE stop ---
+    (1.0, 1.0, 'structural_dynamic', 'structural'),
 ]
 DEFAULT_PROFILE = 'sl_026_tp_018'
 
@@ -428,6 +431,345 @@ def resolve_outcomes_vectorised(m1_arrs, pending):
     return results
 
 
+# ── STRUCTURAL-DYNAMIC OUTCOME RESOLUTION ─────────────────────────────────────
+def resolve_outcomes_structural(m1_arrs, pending):
+    """
+    Structural Dynamic profile:
+      - Phase 1: scan for SL (stop_price) or TP1 (target_price = entry ± 1R)
+      - If SL first → LOSS, r = -1.0
+      - If TP1 first → 50% exits at +1R; runner holds with BE (entry) stop
+      - Phase 2 (runner): scan for BE stop or EOD; runner_exit_r in R units
+      - net_r = 0.5 × 1.0 + 0.5 × runner_exit_r
+
+    Returns list of (outcome, net_r, mae_pct, mfe_pct, tp1_hit, runner_exit_r)
+    """
+    ts_ns  = m1_arrs['ts_ns']
+    highs  = m1_arrs['high']
+    lows   = m1_arrs['low']
+    closes = m1_arrs['close']
+    N      = len(ts_ns)
+
+    results = []
+    for e in pending:
+        entry_ts_ns  = e['entry_ts_ns']
+        entry_price  = e['entry_price']
+        stop_price   = e['stop_price']
+        target_price = e['target_price']   # TP1 = entry ± 1R
+        direction    = e['direction']
+
+        risk = abs(entry_price - stop_price)
+        if risk < MIN_RISK_PTS:
+            results.append(('INVALID', 0.0, 0.0, 0.0, False, 0.0))
+            continue
+
+        start = int(np.searchsorted(ts_ns, entry_ts_ns, side='right'))
+        end   = min(start + OUTCOME_MAX_BARS, N)
+
+        if start >= N:
+            results.append(('EXPIRED', 0.0, 0.0, 0.0, False, 0.0))
+            continue
+
+        h = highs[start:end]
+        l = lows[start:end]
+
+        if direction == 'LONG':
+            tp1_hit_arr = h >= target_price
+            sl_hit_arr  = l <= stop_price
+        else:
+            tp1_hit_arr = l <= target_price
+            sl_hit_arr  = h >= stop_price
+
+        tp1_any = tp1_hit_arr.any()
+        sl_any  = sl_hit_arr.any()
+
+        tp1_idx = int(np.argmax(tp1_hit_arr)) if tp1_any else len(h)
+        sl_idx  = int(np.argmax(sl_hit_arr))  if sl_any  else len(h)
+
+        # ── Compute MAE/MFE over full trade window ────────────────────────────
+        if direction == 'LONG':
+            mae_pct = round(float(max(0.0, entry_price - l.min()) / entry_price * 100), 4)
+            mfe_pct = round(float(max(0.0, h.max() - entry_price) / entry_price * 100), 4)
+        else:
+            mae_pct = round(float(max(0.0, h.max() - entry_price) / entry_price * 100), 4)
+            mfe_pct = round(float(max(0.0, entry_price - l.min()) / entry_price * 100), 4)
+
+        # ── Outcome determination ─────────────────────────────────────────────
+        if not tp1_any and not sl_any:
+            # Expired — neither TP1 nor SL hit
+            last_r = ((closes[end - 1] - entry_price) / risk
+                      if direction == 'LONG'
+                      else (entry_price - closes[end - 1]) / risk)
+            results.append(('EXPIRED', round(float(last_r), 2), mae_pct, mfe_pct, False, 0.0))
+            continue
+
+        if sl_any and (not tp1_any or sl_idx < tp1_idx):
+            # SL hit before TP1 → full LOSS
+            results.append(('LOSS', -1.0, mae_pct, mfe_pct, False, 0.0))
+            continue
+
+        # ── TP1 hit first — run the runner with BE stop ───────────────────────
+        runner_start = tp1_idx + 1
+        runner_end   = len(h)
+        runner_exit_r = 0.0  # default: runner reaches BE
+
+        if runner_start < runner_end:
+            rh = h[runner_start:runner_end]
+            rl = l[runner_start:runner_end]
+            if direction == 'LONG':
+                be_hit = rl <= entry_price
+            else:
+                be_hit = rh >= entry_price
+
+            if not be_hit.any():
+                # Runner survived to EOD — mark to market at last close
+                last_close = closes[start + runner_end - 1]
+                if direction == 'LONG':
+                    runner_exit_r = (last_close - entry_price) / risk
+                else:
+                    runner_exit_r = (entry_price - last_close) / risk
+                runner_exit_r = max(0.0, round(float(runner_exit_r), 3))
+            # else: runner stopped at BE → runner_exit_r stays 0.0
+
+        net_r = round(0.5 * 1.0 + 0.5 * runner_exit_r, 3)
+        results.append(('WIN', net_r, mae_pct, mfe_pct, True, runner_exit_r))
+
+    return results
+
+
+# ── FULL DISTRIBUTION STATS HELPER ────────────────────────────────────────────
+def _dist_stats(vals_series, n_bins=30):
+    """Return full percentile stats + histogram for a pandas Series."""
+    vals = vals_series.dropna()
+    vals = vals[vals > 0]
+    if len(vals) == 0:
+        return {}
+    counts, edges = np.histogram(vals, bins=n_bins)
+    hist = [{'lo': round(float(edges[i]), 4),
+             'hi': round(float(edges[i+1]), 4),
+             'n':  int(counts[i])} for i in range(len(counts))]
+    # mode = midpoint of most-populated bucket
+    mode_bucket = max(hist, key=lambda x: x['n'])
+    mode_val = round((mode_bucket['lo'] + mode_bucket['hi']) / 2, 4)
+    return dict(
+        count = int(len(vals)),
+        min   = round(float(vals.min()), 4),
+        p10   = round(float(vals.quantile(.10)), 4),
+        p25   = round(float(vals.quantile(.25)), 4),
+        p50   = round(float(vals.quantile(.50)), 4),
+        p75   = round(float(vals.quantile(.75)), 4),
+        p90   = round(float(vals.quantile(.90)), 4),
+        p95   = round(float(vals.quantile(.95)), 4),
+        p99   = round(float(vals.quantile(.99)), 4),
+        max   = round(float(vals.max()), 4),
+        mean  = round(float(vals.mean()), 4),
+        std   = round(float(vals.std(ddof=1)), 4) if len(vals) > 1 else 0.0,
+        mode  = mode_val,
+        hist  = hist,
+    )
+
+
+def _lognorm_fit(vals_np):
+    """Return log-normal fit params for a positive numpy array."""
+    lv = np.log(vals_np[vals_np > 0])
+    if len(lv) < 5:
+        return {}
+    mu    = float(lv.mean())
+    sigma = float(lv.std(ddof=1))
+    n     = len(vals_np)
+    probs = (np.arange(1, n + 1) - 0.5) / n
+    theoretical = np.exp(mu + sigma * _scipy_stats.norm.ppf(probs))
+    empirical   = np.sort(vals_np)
+    r = float(np.corrcoef(empirical, theoretical)[0, 1]) if len(empirical) > 1 else 0.0
+    return dict(
+        mu             = round(mu, 4),
+        sigma          = round(sigma, 4),
+        implied_median = round(float(np.exp(mu)), 4),
+        implied_mean   = round(float(np.exp(mu + sigma**2 / 2)), 4),
+        implied_mode   = round(float(np.exp(mu - sigma**2)), 4),
+        goodness       = round(r, 4),
+    )
+
+
+def _clusters(vals, n):
+    """Return 3-tier cluster stats at p33 / p75 breakpoints."""
+    p33 = float(vals.quantile(0.33))
+    p75 = float(vals.quantile(0.75))
+    tiers = [
+        (0,   p33,          'Tight',    '0 → p33'),
+        (p33, p75,          'Moderate', 'p33 → p75'),
+        (p75, float('inf'), 'Wide',     'p75 → max'),
+    ]
+    out = []
+    for lo, hi, label, rng in tiers:
+        if hi < float('inf'):
+            mask = (vals >= lo) & (vals < hi)
+        else:
+            mask = vals >= lo
+        cv = vals[mask]
+        out.append(dict(
+            label        = label,
+            range        = rng,
+            n            = int(len(cv)),
+            pct_of_trades= round(len(cv) / max(n, 1) * 100, 1),
+            mean         = round(float(cv.mean()), 4)   if len(cv) else 0,
+            median       = round(float(cv.median()), 4) if len(cv) else 0,
+            max          = round(float(cv.max()), 4)    if len(cv) else 0,
+        ))
+    return out
+
+
+def _full_mae_stats(wl, ce=None, n_bins=50):
+    """Rich MAE distribution: log-normal fit, clusters, full percentiles, SL sweep."""
+    vals = wl['mae_pct'].dropna()
+    vals = vals[vals > 0]
+    n = len(vals)
+    if n < 20:
+        return None
+
+    p99_val  = float(vals.quantile(0.99))
+    clipped  = vals[vals <= p99_val]
+    counts_h, edges_h = np.histogram(clipped, bins=n_bins)
+    mode_idx = int(np.argmax(counts_h))
+    mode_v   = round((float(edges_h[mode_idx]) + float(edges_h[mode_idx + 1])) / 2, 4)
+
+    pct_levels = [5,10,15,20,25,30,35,40,50,60,65,70,75,80,85,90,95,99]
+    percentiles = {f'p{p}': round(float(vals.quantile(p / 100)), 4) for p in pct_levels}
+
+    # SL sweep: for each MAE threshold, compute touch%, P(false stop), P(genuine)
+    raw_thresholds = [float(vals.quantile(p / 100)) for p in [5,10,15,20,25,30,35,40,50,60,70,80,90,95]]
+    thresholds = sorted({round(t, 4) for t in raw_thresholds})
+    sl_sweep = []
+    best_opt = None; best_score = -1.0
+    for thr in thresholds:
+        touched = wl[wl['mae_pct'] >= thr]
+        if len(touched) == 0:
+            continue
+        nt = len(touched)
+        n_win  = int((touched['outcome'] == 'WIN').sum())
+        n_loss = int((touched['outcome'] == 'LOSS').sum())
+        p_rec = round(n_win  / nt, 4)
+        p_ko  = round(n_loss / nt, 4)
+        exc   = round(nt / n * 100, 1)
+        sl_sweep.append(dict(threshold=thr, exceed_pct=exc, p_recovered=p_rec, p_ko=p_ko))
+        score = p_ko * exc
+        if score > best_score:
+            best_score = score; best_opt = thr
+
+    return dict(
+        n          = n,
+        mean       = round(float(vals.mean()), 4),
+        median     = round(float(vals.median()), 4),
+        std        = round(float(vals.std(ddof=1)), 4),
+        mode       = mode_v,
+        skewness   = round(float(_scipy_stats.skew(vals)), 3),
+        kurtosis   = round(float(_scipy_stats.kurtosis(vals)), 3),
+        percentiles= percentiles,
+        lognorm    = _lognorm_fit(vals.values),
+        clusters   = _clusters(vals, n),
+        histogram  = dict(
+            edges  = [round(float(e), 4) for e in edges_h],
+            counts = [int(c) for c in counts_h],
+        ),
+        sl_sweep   = sl_sweep,
+        opt_sl     = best_opt,
+        ce         = ce,
+    )
+
+
+def _full_mfe_stats(wl, n_bins=50):
+    """Rich MFE distribution: log-normal fit, clusters, full percentiles, BE triggers, PTQ."""
+    vals = wl['mfe_pct'].dropna()
+    vals = vals[vals > 0]
+    n = len(vals)
+    if n < 20:
+        return None
+
+    p99_val  = float(vals.quantile(0.99))
+    clipped  = vals[vals <= p99_val]
+    counts_h, edges_h = np.histogram(clipped, bins=n_bins)
+    mode_idx = int(np.argmax(counts_h))
+    mode_v   = round((float(edges_h[mode_idx]) + float(edges_h[mode_idx + 1])) / 2, 4)
+
+    pct_levels = [5,10,15,20,25,30,35,40,50,60,65,70,75,80,85,90,95,99]
+    percentiles = {f'p{p}': round(float(vals.quantile(p / 100)), 4) for p in pct_levels}
+
+    # Clusters for MFE use Small / Moderate / Large labels
+    p33 = float(vals.quantile(0.33))
+    p75 = float(vals.quantile(0.75))
+    mfe_tiers = [
+        (0,   p33,          'Small',    '0 → p33'),
+        (p33, p75,          'Moderate', 'p33 → p75'),
+        (p75, float('inf'), 'Large',    'p75 → max'),
+    ]
+    clusters = []
+    for lo, hi, label, rng in mfe_tiers:
+        mask = (vals >= lo) & (vals < hi) if hi < float('inf') else (vals >= lo)
+        cv = vals[mask]
+        clusters.append(dict(
+            label=label, range=rng, n=int(len(cv)),
+            pct_of_trades=round(len(cv) / max(n, 1) * 100, 1),
+            mean=round(float(cv.mean()), 4) if len(cv) else 0,
+            median=round(float(cv.median()), 4) if len(cv) else 0,
+            max=round(float(cv.max()), 4) if len(cv) else 0,
+        ))
+
+    # BE trigger analysis
+    net_r_col = 'net_r' if 'net_r' in wl.columns else None
+    ev_base   = round(float(wl[net_r_col].mean()), 4) if net_r_col else None
+    avg_loss  = float(wl.loc[wl[net_r_col] < 0, net_r_col].mean()) if net_r_col and (wl[net_r_col] < 0).any() else -1.0
+
+    raw_trigs = [float(vals.quantile(p / 100)) for p in [5,10,15,20,25,30,35,40,50,60,70,80,90]]
+    triggers  = sorted({round(t, 4) for t in raw_trigs})
+    be_triggers = []
+    ptq_level = None; ptq_reach_rate = None
+    for thr in triggers:
+        reached = wl[wl['mfe_pct'] >= thr]
+        if len(reached) == 0:
+            continue
+        nr = len(reached)
+        reach_rate = round(nr / n * 100, 1)
+        if net_r_col:
+            n_pos = int((reached[net_r_col] > 0).sum())
+            n_neg = int((reached[net_r_col] <= 0).sum())
+        else:
+            n_pos = int((reached['outcome'] == 'WIN').sum())
+            n_neg = int((reached['outcome'] == 'LOSS').sum())
+        p_pos = round(n_pos / nr, 4)
+        n_rescued = n_neg
+        ev_delta  = round(n_rescued / n * abs(avg_loss), 4)
+        new_ev    = round((ev_base or 0) + ev_delta, 4)
+        be_triggers.append(dict(
+            trigger_pct = thr,
+            reach_rate  = reach_rate,
+            p_pos_given = p_pos,
+            n_rescued   = n_rescued,
+            ev_delta    = ev_delta,
+            new_ev      = new_ev,
+        ))
+        if ptq_level is None and p_pos >= 0.50:
+            ptq_level = thr; ptq_reach_rate = reach_rate
+
+    return dict(
+        n           = n,
+        mean        = round(float(vals.mean()), 4),
+        median      = round(float(vals.median()), 4),
+        std         = round(float(vals.std(ddof=1)), 4),
+        mode        = mode_v,
+        skewness    = round(float(_scipy_stats.skew(vals)), 3),
+        kurtosis    = round(float(_scipy_stats.kurtosis(vals)), 3),
+        percentiles = percentiles,
+        lognorm     = _lognorm_fit(vals.values),
+        clusters    = clusters,
+        histogram   = dict(
+            edges  = [round(float(e), 4) for e in edges_h],
+            counts = [int(c) for c in counts_h],
+        ),
+        be_triggers    = be_triggers,
+        ptq_level      = ptq_level,
+        ptq_reach_rate = ptq_reach_rate,
+    )
+
+
 # ── SETUP DETECTOR  (profile-agnostic — no stop/target computed here) ─────────
 def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                        cisd_fast_bars=CISD_FAST_BARS):
@@ -694,15 +1036,32 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
             direction    = direction,
         ))
 
-    outcomes = resolve_outcomes_vectorised(m1_arrs, profile_pending)
-    for po, (outcome, r, mae_pct, mfe_pct) in zip(profile_pending, outcomes):
-        idx = po['idx']
-        rows[idx]['outcome']  = outcome
-        rows[idx]['r']        = r
-        rows[idx]['mae_pct']  = mae_pct
-        rows[idx]['mfe_pct']  = mfe_pct
-        if outcome == 'INVALID':
-            rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
+    if profile_type == 'structural':
+        # Initialise structural columns so DataFrame always has them
+        for r in rows:
+            r.setdefault('tp1_hit', False)
+            r.setdefault('runner_exit_r', 0.0)
+        outcomes = resolve_outcomes_structural(m1_arrs, profile_pending)
+        for po, (outcome, r_val, mae_pct, mfe_pct, tp1_hit, runner_exit_r) in zip(profile_pending, outcomes):
+            idx = po['idx']
+            rows[idx]['outcome']       = outcome
+            rows[idx]['r']             = r_val
+            rows[idx]['mae_pct']       = mae_pct
+            rows[idx]['mfe_pct']       = mfe_pct
+            rows[idx]['tp1_hit']       = tp1_hit
+            rows[idx]['runner_exit_r'] = runner_exit_r
+            if outcome == 'INVALID':
+                rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
+    else:
+        outcomes = resolve_outcomes_vectorised(m1_arrs, profile_pending)
+        for po, (outcome, r_val, mae_pct, mfe_pct) in zip(profile_pending, outcomes):
+            idx = po['idx']
+            rows[idx]['outcome']  = outcome
+            rows[idx]['r']        = r_val
+            rows[idx]['mae_pct']  = mae_pct
+            rows[idx]['mfe_pct']  = mfe_pct
+            if outcome == 'INVALID':
+                rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
 
     df = pd.DataFrame(rows) if rows else pd.DataFrame()
     if not df.empty:
@@ -715,7 +1074,8 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
 
 # ── STATISTICS ────────────────────────────────────────────────────────────────
 def build_model_stats(df_raw, trading_days, model_key, model_cfg,
-                      stop_mult=1.0, target_mult=2.0, profile_key='1:2'):
+                      stop_mult=1.0, target_mult=2.0, profile_key='1:2',
+                      profile_type='mult'):
     df   = df_raw[df_raw['rejected_by'] == ''].copy()
     wl   = df[df['outcome'].isin(['WIN','LOSS'])].copy()
     wl['win'] = (wl['outcome'] == 'WIN').astype(int)
@@ -813,18 +1173,28 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
 
     mae = wl['mae_pct'].dropna()
     mfe = wl['mfe_pct'].dropna()
-    mae_dist = dict(
+    wins_wl2 = wl[wl['win'] == 1]
+    loss_wl2 = wl[wl['win'] == 0]
+    # Compact legacy fields (kept for meta tile compatibility)
+    mae_dist_legacy = dict(
         median = round(float(mae.median()), 4) if len(mae) else 0,
         p80    = round(float(mae.quantile(.80)), 4) if len(mae) else 0,
         p90    = round(float(mae.quantile(.90)), 4) if len(mae) else 0,
         mean   = round(float(mae.mean()), 4) if len(mae) else 0,
+        **{f'ext_{k}': v for k, v in _dist_stats(mae).items()},
     )
-    mfe_dist = dict(
+    mfe_dist_legacy = dict(
         median = round(float(mfe.median()), 4) if len(mfe) else 0,
         p80    = round(float(mfe.quantile(.80)), 4) if len(mfe) else 0,
         p90    = round(float(mfe.quantile(.90)), 4) if len(mfe) else 0,
         mean   = round(float(mfe.mean()), 4) if len(mfe) else 0,
+        **{f'ext_{k}': v for k, v in _dist_stats(mfe).items()},
     )
+    # Win-only and loss-only MAE/MFE
+    mae_wins_dist = _dist_stats(wins_wl2['mae_pct'].dropna())
+    mfe_wins_dist = _dist_stats(wins_wl2['mfe_pct'].dropna())
+    mae_loss_dist = _dist_stats(loss_wl2['mae_pct'].dropna())
+    mfe_loss_dist = _dist_stats(loss_wl2['mfe_pct'].dropna())
 
     rp = wl['risk_pts'].dropna()
     risk_dist = dict(
@@ -1004,6 +1374,10 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         ce = None
     risk_stats['ce'] = ce
 
+    # Rich MAE / MFE distribution studies (FPFVG-style)
+    rich_mae = _full_mae_stats(wl, ce=ce)
+    rich_mfe = _full_mfe_stats(wl)
+
     # Bell curve of actual MAE distribution
     mae_vals = wl_sorted['mae_pct'].dropna()
     mae_vals = mae_vals[mae_vals > 0]
@@ -1027,13 +1401,34 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
     else:
         risk_stats['mae_bell'] = None
 
-    full_key    = f"{model_key}_PREV_CISD"
-    be_wr       = round(stop_mult / (stop_mult + target_mult), 4)
+    full_key = f"{model_key}_PREV_CISD"
+    # For structural_dynamic, breakeven WR assumes runner always stops at BE (worst case)
+    # BE: wr × 0.5R = (1-wr) × 1R  →  wr = 2/3
+    if profile_type == 'structural':
+        be_wr = round(2.0 / 3.0, 4)
+    else:
+        be_wr = round(stop_mult / (stop_mult + target_mult), 4)
+
+    # ── Structural-dynamic extra stats ────────────────────────────────────────
+    structural_stats = None
+    if profile_type == 'structural' and 'tp1_hit' in wl.columns:
+        tp1_rate   = round(float(wl['tp1_hit'].mean()), 4)
+        tp1_trades = wl[wl['tp1_hit'] == True]
+        runner_col = tp1_trades['runner_exit_r'].dropna()
+        runner_ran = runner_col[runner_col > 0]
+        structural_stats = {
+            'tp1_hit_rate':        tp1_rate,
+            'runner_ran_further_rate': round(float(len(runner_ran) / max(len(runner_col), 1)), 4),
+            'runner_stats':        _dist_stats(runner_col),
+            'runner_ran_stats':    _dist_stats(runner_ran),
+        }
+
     return {
         'meta': {
             'model_key':          model_key,
             'full_key':           full_key,
             'profile_key':        profile_key,
+            'profile_type':       profile_type,
             'model_label':        model_cfg['label'],
             'sweep_mode':         'PREV',
             'cisd_mode':          'CISD',
@@ -1055,8 +1450,8 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
             'stop_mult':          stop_mult,
             'target_mult':        target_mult,
             **{f'risk_{k}': v for k, v in risk_dist.items()},
-            **{f'mae_{k}':  v for k, v in mae_dist.items()},
-            **{f'mfe_{k}':  v for k, v in mfe_dist.items()},
+            **{f'mae_{k}':  v for k, v in mae_dist_legacy.items()},
+            **{f'mfe_{k}':  v for k, v in mfe_dist_legacy.items()},
         },
         'by_hour':       by_hour,
         'by_session':    by_session,
@@ -1070,11 +1465,18 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         'risk_dist':     risk_dist,
         'filter_impact': filter_impact,
         'lookback_dist':    [],
-        'mae_dist':         mae_dist,
-        'mfe_dist':         mfe_dist,
+        'mae_dist':         mae_dist_legacy,
+        'mfe_dist':         mfe_dist_legacy,
+        'rich_mae':         rich_mae,
+        'rich_mfe':         rich_mfe,
+        'mae_wins_dist':    mae_wins_dist,
+        'mfe_wins_dist':    mfe_wins_dist,
+        'mae_loss_dist':    mae_loss_dist,
+        'mfe_loss_dist':    mfe_loss_dist,
         'tspot_breakdown':  tspot_breakdown,
         'recent_trades':    recent_trades,
         'risk_stats':       risk_stats,
+        'structural_stats': structural_stats,
         'by_classification': _compute_by_classification(wl_sorted),
         'by_tf':            _compute_by_tf(wl, wl_sorted, stop_mult, target_mult,
                                            sl_pct_val, tp_pct_val, agg,
@@ -1424,7 +1826,7 @@ def main():
             if df_p.empty:
                 continue
             stats = build_model_stats(
-                df_p, trading_days, mk, cfg, stop_val, target_val, pk)
+                df_p, trading_days, mk, cfg, stop_val, target_val, pk, ptype)
             model_profiles[pk] = stats
 
         if not model_profiles:

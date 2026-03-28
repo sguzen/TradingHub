@@ -104,6 +104,14 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .delta-chip.neg{background:var(--red-tint);border:1px solid var(--red-border);color:var(--red)}
 .delta-chip.neu{background:var(--bg-raised);border:1px solid var(--border-mid);color:var(--text-muted)}
 
+/* PAGE-LEVEL NAV TABS */
+.page-nav{background:var(--bg);border-bottom:2px solid var(--border);padding:0 28px;display:flex;gap:2px;overflow-x:auto}
+.page-tab{font-family:var(--font-body);font-size:13px;font-weight:500;padding:11px 16px 10px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap;user-select:none;background:none;border-top:none;border-left:none;border-right:none}
+.page-tab:hover{color:var(--text-secondary)}
+.page-tab.active{color:var(--text-primary);border-bottom-color:var(--blue)}
+.page-pane{display:none}
+.page-pane.active{display:block}
+
 /* MAIN */
 .main{max-width:1440px;margin:0 auto;padding:24px 28px 100px}
 .infobar{background:var(--amber-tint);border:1px solid var(--amber-border);border-radius:8px;padding:12px 16px;font-family:var(--font-body);font-size:12.5px;color:var(--amber);line-height:1.7;margin-bottom:20px}
@@ -275,6 +283,16 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 <div id="mode-pills" style="display:none;"></div>
 <div id="cisd-pills" style="display:none;"></div>
 
+<div class="page-nav">
+  <button class="page-tab active" onclick="switchPageTab('overview')">Overview</button>
+  <button class="page-tab" onclick="switchPageTab('edge')">Edge</button>
+  <button class="page-tab" onclick="switchPageTab('risk')">Risk</button>
+  <button class="page-tab" onclick="switchPageTab('mae')">MAE Study</button>
+  <button class="page-tab" onclick="switchPageTab('mfe')">MFE Study</button>
+  <button class="page-tab" onclick="switchPageTab('trades')">Trades</button>
+  <button class="page-tab" onclick="switchPageTab('profiles')">Profiles</button>
+</div>
+
 <main class="main">
   <div class="infobar" id="infobar">
     Demo data shown. Run <code>python3 model_stats.py</code> to generate all 4 variants (4 models × PREV sweep × CISD), then load the JSON.<br/>
@@ -282,132 +300,156 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
     <strong>CISD</strong> = close beyond the <em>open of the first candle</em> of the opposing delivery leg
   </div>
 
+  <!-- ══ TAB: OVERVIEW ══════════════════════════════════════════════════════ -->
+  <div class="page-pane active" id="pane-overview">
+    <div class="meta-row" id="meta-row"></div>
 
-  <div class="meta-row" id="meta-row"></div>
+    <div class="sec-label">Classification Breakdown</div>
+    <div id="classification-breakdown"></div>
 
-  <div class="sec-label">Classification Breakdown</div>
-  <div id="classification-breakdown"></div>
-
-  <div class="sec-label">Trade Setup Anatomy</div>
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-title">Entry / Stop / Target · Sweep + CISD Structure</span>
-    </div>
-    <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div>
-        <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--green);margin-bottom:6px;">▲ LONG</div>
-        <canvas id="setup-canvas-bull" style="display:block;width:100%" height="340"></canvas>
+    <div class="sec-label">Trade Setup Anatomy</div>
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Entry / Stop / Target · Sweep + CISD Structure</span>
       </div>
-      <div>
-        <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--red);margin-bottom:6px;">▼ SHORT</div>
-        <canvas id="setup-canvas-bear" style="display:block;width:100%" height="340"></canvas>
-      </div>
-    </div>
-  </div>
-
-  <div class="sec-label">Win Rate by Hour</div>
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-title">Win Rate % · Hour of Day</span>
-      <div class="legend">
-        <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Long</div>
-        <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Short</div>
-        <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Breakeven 33.3%</div>
+      <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--green);margin-bottom:6px;">▲ LONG</div>
+          <canvas id="setup-canvas-bull" style="display:block;width:100%" height="340"></canvas>
+        </div>
+        <div>
+          <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--red);margin-bottom:6px;">▼ SHORT</div>
+          <canvas id="setup-canvas-bear" style="display:block;width:100%" height="340"></canvas>
+        </div>
       </div>
     </div>
-    <div class="pb"><div id="hour-chart"></div></div>
-  </div>
 
-  <div class="sec-label">Session & Day Breakdown</div>
-  <div class="grid2">
     <div class="panel">
-      <div class="ph"><span class="ph-title">By Session</span><span class="ph-note">NY1 08:30–11:30 · NY2 11:30–16:00</span></div>
-      <div class="pb"><div id="sess-chart"></div></div>
+      <div class="ph"><span class="ph-title">Direction Summary · Long vs Short</span></div>
+      <div class="pb"><div class="dir-cards" id="dir-cards"></div></div>
     </div>
+  </div>
+
+  <!-- ══ TAB: EDGE ══════════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-edge">
+    <div class="sec-label">Win Rate by Hour</div>
     <div class="panel">
-      <div class="ph"><span class="ph-title">By Day of Week</span></div>
-      <div class="pb"><div id="dow-chart"></div></div>
+      <div class="ph">
+        <span class="ph-title">Win Rate % · Hour of Day</span>
+        <div class="legend">
+          <div class="leg-item"><div class="leg-dot" style="background:var(--green)"></div>Long</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--red)"></div>Short</div>
+          <div class="leg-item"><div class="leg-dot" style="background:var(--amber)"></div>Breakeven 33.3%</div>
+        </div>
+      </div>
+      <div class="pb"><div id="hour-chart"></div></div>
     </div>
-  </div>
 
-  <div class="panel">
-    <div class="ph"><span class="ph-title">Direction Summary · Long vs Short</span></div>
-    <div class="pb"><div class="dir-cards" id="dir-cards"></div></div>
-  </div>
+    <div class="sec-label">Session & Day Breakdown</div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">By Session</span><span class="ph-note">NY1 08:30–11:30 · NY2 11:30–16:00</span></div>
+        <div class="pb"><div id="sess-chart"></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">By Day of Week</span></div>
+        <div class="pb"><div id="dow-chart"></div></div>
+      </div>
+    </div>
 
-  <div class="sec-label">Hour × Day Heatmap</div>
-  <div class="panel">
-    <div class="ph"><span class="ph-title">Win Rate % · Hour × Day · All Directions</span><span class="ph-note">Darker green = stronger edge</span></div>
-    <div class="pb"><div id="heatmap"></div></div>
-  </div>
-
-  <div class="sec-label">Best & Worst Setups</div>
-  <div class="grid2">
+    <div class="sec-label">Hour × Day Heatmap</div>
     <div class="panel">
-      <div class="ph"><span class="ph-title">Top Setups by EV</span><span class="ph-note">Min 6 occurrences</span></div>
-      <div class="pb"><div id="top-combos"></div></div>
+      <div class="ph"><span class="ph-title">Win Rate % · Hour × Day · All Directions</span><span class="ph-note">Darker green = stronger edge</span></div>
+      <div class="pb"><div id="heatmap"></div></div>
     </div>
+
+    <div class="sec-label">Best & Worst Setups</div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Top Setups by EV</span><span class="ph-note">Min 6 occurrences</span></div>
+        <div class="pb"><div id="top-combos"></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Setups to Avoid</span><span class="ph-note">Lowest EV</span></div>
+        <div class="pb"><div id="worst-combos"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TAB: RISK ══════════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-risk">
+    <div class="sec-label">Filter Impact · EV Waterfall</div>
     <div class="panel">
-      <div class="ph"><span class="ph-title">Setups to Avoid</span><span class="ph-note">Lowest EV</span></div>
-      <div class="pb"><div id="worst-combos"></div></div>
+      <div class="ph"><span class="ph-title">EV Improvement Through Each Filter</span><span class="ph-note">Baseline → Refined · hover for detail</span></div>
+      <div class="pb"><div id="filter-waterfall"></div></div>
     </div>
-  </div>
 
-  <div class="sec-label">Filter Impact · EV Waterfall</div>
-  <div class="panel">
-    <div class="ph"><span class="ph-title">EV Improvement Through Each Filter</span><span class="ph-note">Baseline → Refined · hover for detail</span></div>
-    <div class="pb"><div id="filter-waterfall"></div></div>
-  </div>
+    <div class="sec-label">Outcome Distribution & History</div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="ph"><span class="ph-title">R Distribution</span></div>
+        <div class="pb"><div id="rdist-chart"></div></div>
+      </div>
+      <div class="panel">
+        <div class="ph"><span class="ph-title">Win Rate by Year · Regime Check</span></div>
+        <div class="pb"><div id="year-chart"></div></div>
+      </div>
+    </div>
 
-  <div class="sec-label">Outcome Distribution & History</div>
-  <div class="grid2">
     <div class="panel">
-      <div class="ph"><span class="ph-title">R Distribution</span></div>
-      <div class="pb"><div id="rdist-chart"></div></div>
+      <div class="ph">
+        <span class="ph-title">Equity Curve · Cumulative P&amp;L</span>
+        <span class="ph-note">$<span id="eq-acct-size">4,500</span> account · $<span id="eq-risk-per-trade">225</span>/trade · yearly resolution · drawdown shaded</span>
+      </div>
+      <div class="pb"><div id="equity-curve-chart"></div></div>
     </div>
+
     <div class="panel">
-      <div class="ph"><span class="ph-title">Win Rate by Year · Regime Check</span></div>
-      <div class="pb"><div id="year-chart"></div></div>
+      <div class="ph"><span class="ph-title">Stop Size Distribution</span><span class="ph-note">Points</span></div>
+      <div class="pb">
+        <div class="risk-grid" id="risk-grid"></div>
+        <div class="risk-note" id="risk-note"></div>
+      </div>
     </div>
   </div>
 
-  <div class="panel">
-    <div class="ph">
-      <span class="ph-title">Equity Curve · Cumulative P&amp;L</span>
-      <span class="ph-note">$<span id="eq-acct-size">4,500</span> account · $<span id="eq-risk-per-trade">225</span>/trade · yearly resolution · drawdown shaded</span>
-    </div>
-    <div class="pb"><div id="equity-curve-chart"></div></div>
+  <!-- ══ TAB: MAE STUDY ════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-mae">
+    <div id="mae-study-panel"></div>
   </div>
 
-  <div class="panel">
-    <div class="ph"><span class="ph-title">Stop Size Distribution</span><span class="ph-note">Points</span></div>
-    <div class="pb">
-      <div class="risk-grid" id="risk-grid"></div>
-      <div class="risk-note" id="risk-note"></div>
-    </div>
-  </div>
-
-  <!-- MAE / MFE -->
-  <div class="panel full">
-    <div class="ph"><span class="ph-title">MAE / MFE Distribution</span><span class="ph-note">% of entry price · across all WIN + LOSS trades</span></div>
-    <div class="pb">
-      <div class="risk-grid" id="mae-mfe-grid"></div>
-      <div class="risk-note" id="mae-mfe-note"></div>
+  <!-- ══ TAB: MFE STUDY ════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-mfe">
+    <div id="mfe-study-panel"></div>
+    <!-- Structural Dynamic panel (shown only when structural_dynamic profile active) -->
+    <div id="structural-panel" style="display:none;margin-top:0">
+      <div class="sec-label">Structural Dynamic · Runner Analysis</div>
+      <div class="panel">
+        <div class="ph">
+          <span class="ph-title">TP1 Hit Rate · Runner Distribution · Net R Breakdown</span>
+          <span class="ph-note">50% exits at 1R (TP1) · Runner holds with BE stop · Remaining 50% tracks free</span>
+        </div>
+        <div class="pb"><div id="structural-runner-body"></div></div>
+      </div>
     </div>
   </div>
 
-  <!-- Recent Trades -->
-  <div class="sec-label">Most Recent Trades</div>
-  <div class="panel">
-    <div class="ph"><span class="ph-title">Last 40 Resolved Trades</span><span class="ph-note">WIN / LOSS only · newest first · active profile</span></div>
-    <div class="pb"><div id="recent-trades-table"></div></div>
+  <!-- ══ TAB: TRADES ════════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-trades">
+    <div class="sec-label">Most Recent Trades</div>
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Last 40 Resolved Trades</span><span class="ph-note">WIN / LOSS only · newest first · active profile</span></div>
+      <div class="pb"><div id="recent-trades-table"></div></div>
+    </div>
   </div>
 
-  <!-- Profile Compare -->
-  <div class="sec-label">Profile Comparison</div>
-  <div class="panel full">
-    <div class="ph"><span class="ph-title">All Risk Profiles — Side by Side</span><span class="ph-note">Click any row to switch active profile · same setup universe, different stop &amp; target distances</span></div>
-    <div class="pb"><div id="profile-compare"></div></div>
+  <!-- ══ TAB: PROFILES ══════════════════════════════════════════════════════ -->
+  <div class="page-pane" id="pane-profiles">
+    <div class="sec-label">Profile Comparison</div>
+    <div class="panel full">
+      <div class="ph"><span class="ph-title">All Risk Profiles — Side by Side</span><span class="ph-note">Click any row to switch active profile · same setup universe, different stop &amp; target distances</span></div>
+      <div class="pb"><div id="profile-compare"></div></div>
+    </div>
   </div>
 </main>
 
@@ -425,6 +467,43 @@ function applyTheme(dark){
 }
 themeBtn.addEventListener('click', () => applyTheme(!isDark));
 if (localStorage.getItem('hub-theme') === 'light') applyTheme(false);
+
+// ── PAGE TAB NAVIGATION ────────────────────────────────────────────────────
+let activePageTab = 'overview';
+function switchPageTab(tab){
+  activePageTab = tab;
+  document.querySelectorAll('.page-pane').forEach(p => p.classList.remove('active'));
+  const pane = document.getElementById('pane-' + tab);
+  if(pane) pane.classList.add('active');
+  document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.page-tab')].find(b => b.textContent.toLowerCase().replace(/\s+/g,'').includes(tab.replace('-','')));
+  if(btn) btn.classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+  // Re-render canvases that need sizing when tab becomes visible
+  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
+  const baseD = getProfileData(fullKey, activeProfile);
+  if(!baseD) return;
+  const D = getActiveTFData(baseD);
+  if(tab === 'edge'){
+    barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),260,25,75);
+    barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,30,70);
+    barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,35,70);
+  }
+  if(tab === 'risk'){
+    filterWaterfall(document.getElementById('filter-waterfall'),D.filter_impact||[]);
+    rDistChart(document.getElementById('rdist-chart'),D.r_hist||[]);
+    lineChart(document.getElementById('year-chart'),D.by_year||[],200,40,75,'wr','yr');
+    renderEquityCurveFS(D);
+  }
+  if(tab === 'mae'){
+    renderMAEStudy(D);
+  }
+  if(tab === 'mfe'){
+    renderMFEStudy(D);
+    renderStructuralPanel(D);
+  }
+  if(tab === 'overview') drawSetupViz();
+}
 
 // ── CHART COLOR HELPERS ────────────────────────────────────────────────────
 const C = () => ({
@@ -513,9 +592,31 @@ function makeDemoModel(key, label, mode, cisd, wrBase, evBase, pfBase, riskMed, 
     });
     tspot_breakdown[key]={overall:{n:tkN,wins:tkW,wr:tkWr,ev:mkEv(tkWr),pf:mkPf(tkWr),avg_risk_pts:riskMed},heatmap:hm,by_hour:bh,by_dow:bd,top_combos:tc};
   });
+  // Demo MAE/MFE distribution stats
+  const _mkHist = (mu, sd, n, bins=20) => Array.from({length:bins},(_, i)=>{const lo=+(mu-2*sd+i*(4*sd/bins)).toFixed(4),hi=+(lo+4*sd/bins).toFixed(4);const v=(lo+hi)/2,z=(v-mu)/sd,cnt=Math.max(0,Math.round(n*Math.exp(-0.5*z*z)*0.25));return{lo,hi,n:cnt};});
+  const mae_all_dist = {count:wl,min:0.02,p10:0.03,p25:0.05,p50:+(riskMed*0.35/18).toFixed(4),p75:+(riskMed*0.65/18).toFixed(4),p90:+(riskMed*0.90/18).toFixed(4),p95:+(riskMed*1.05/18).toFixed(4),p99:+(riskMed*1.4/18).toFixed(4),max:+(riskMed*2.2/18).toFixed(4),mean:+(riskMed*0.42/18).toFixed(4),std:+(riskMed*0.25/18).toFixed(4),mode:+(riskMed*0.30/18).toFixed(4),hist:_mkHist(riskMed*0.42/18,riskMed*0.25/18,wl)};
+  const mfe_all_dist = {count:wl,min:0.01,p10:0.04,p25:0.08,p50:+(riskMed*0.55/18).toFixed(4),p75:+(riskMed*1.10/18).toFixed(4),p90:+(riskMed*1.80/18).toFixed(4),p95:+(riskMed*2.20/18).toFixed(4),p99:+(riskMed*3.0/18).toFixed(4),max:+(riskMed*4.5/18).toFixed(4),mean:+(riskMed*0.80/18).toFixed(4),std:+(riskMed*0.60/18).toFixed(4),mode:+(riskMed*0.45/18).toFixed(4),hist:_mkHist(riskMed*0.80/18,riskMed*0.50/18,wl)};
+  const nW=Math.round(wl*wrBase), nL=wl-nW;
+  const mae_wins_dist={...mae_all_dist,count:nW,p50:+(mae_all_dist.p50*0.7).toFixed(4),mean:+(mae_all_dist.mean*0.7).toFixed(4)};
+  const mfe_wins_dist={...mfe_all_dist,count:nW,p50:+(mfe_all_dist.p50*1.4).toFixed(4),mean:+(mfe_all_dist.mean*1.4).toFixed(4)};
+  const mae_loss_dist={...mae_all_dist,count:nL,p50:+(mae_all_dist.p50*1.5).toFixed(4),mean:+(mae_all_dist.mean*1.5).toFixed(4)};
+  const mfe_loss_dist={...mfe_all_dist,count:nL,p50:+(mfe_all_dist.p50*0.5).toFixed(4),mean:+(mfe_all_dist.mean*0.5).toFixed(4)};
+  // Structural demo stats
+  const tp1Rate = +(wrBase + 0.06).toFixed(3); // TP1 hit rate slightly higher than 2R win rate
+  const runnerHist = _mkHist(1.2, 0.9, Math.round(wl*tp1Rate));
+  const structural_stats = {
+    tp1_hit_rate: tp1Rate,
+    runner_ran_further_rate: 0.58,
+    runner_stats: {count:Math.round(wl*tp1Rate),min:0,p10:0,p25:0,p50:0.8,p75:1.9,p90:3.2,p95:4.1,p99:6.5,max:9.8,mean:1.2,std:0.9,mode:0.4,hist:runnerHist},
+    runner_ran_stats: {count:Math.round(wl*tp1Rate*0.58),min:0.1,p10:0.2,p25:0.5,p50:1.2,p75:2.4,p90:3.8,p95:5.0,p99:7.2,max:9.8,mean:1.8,std:1.1,mode:0.8},
+  };
   return {
     meta:{model_key:key,full_key:`${key}_${mode}_${cisd}`,model_label:label,sweep_mode:mode,cisd_mode:cisd,cisd_mode_label:'ICT Body Open (True CISD)',instrument:'NQ',date_range:'2010-01-04 – 2025-03-07',trading_days:3782,total_raw:Math.round(8000*(riskMed/18)),total_wl:wl,total_expired:Math.round(wl*0.12),win_rate:wrBase,ev_per_trade:evBase,profit_factor:pfBase,avg_risk_pts:riskMed+2,risk_median:riskMed,risk_p25:Math.round(riskMed*0.6),risk_p75:Math.round(riskMed*1.55),risk_p90:Math.round(riskMed*2.3),setups_per_day_ny:spd,risk_breakeven_wr:0.333,rr_target:2},
     by_hour,by_session,by_dow,heatmap,top_combos,worst_combos,by_year,r_hist,dir_summary,filter_impact:fi,tspot_breakdown,
+    mae_dist:{ext_count:wl,...Object.fromEntries(Object.entries(mae_all_dist).map(([k,v])=>[`ext_${k}`,v]))},
+    mfe_dist:{ext_count:wl,...Object.fromEntries(Object.entries(mfe_all_dist).map(([k,v])=>[`ext_${k}`,v]))},
+    mae_wins_dist, mfe_wins_dist, mae_loss_dist, mfe_loss_dist,
+    structural_stats,
   };
 }
 
@@ -534,27 +635,29 @@ let isDemo        = true;
 let activeModel   = '1H_5M';
 let activeMode    = 'PREV';
 let activeCisd    = 'CISD';
-let activeProfile = 'sl_026_tp_018';
+let activeProfile = 'structural_dynamic';
 let activeTF      = 'all';  // 'all' | '2y' | '1y' | '6m' | '3m' | '1m'
 
 const RR_PROFILES = [
   'sl_026_tp_018','sl_026_tp_019','sl_021_tp_018','sl_020_tp_018','sl_018_tp_018',
   'sl_019_tp_018','sl_020_tp_021','sl_020_tp_019','sl_018_tp_019','sl_019_tp_019',
+  'structural_dynamic',
 ];
 const PROFILE_LABELS = {
-  'sl_026_tp_018': 'SL 0.26% / TP 0.18%  (R:R 0.69)',
-  'sl_026_tp_019': 'SL 0.26% / TP 0.19%  (R:R 0.73)',
-  'sl_021_tp_018': 'SL 0.21% / TP 0.18%  (R:R 0.86)',
-  'sl_020_tp_018': 'SL 0.20% / TP 0.18%  (R:R 0.90)',
-  'sl_018_tp_018': 'SL 0.18% / TP 0.18%  (R:R 1.00)',
-  'sl_019_tp_018': 'SL 0.19% / TP 0.18%  (R:R 0.95)',
-  'sl_020_tp_021': 'SL 0.20% / TP 0.21%  (R:R 1.05)',
-  'sl_020_tp_019': 'SL 0.20% / TP 0.19%  (R:R 0.95)',
-  'sl_018_tp_019': 'SL 0.18% / TP 0.19%  (R:R 1.06)',
-  'sl_019_tp_019': 'SL 0.19% / TP 0.19%  (R:R 1.00)',
+  'sl_026_tp_018':      'SL 0.26% / TP 0.18%  (R:R 0.69)',
+  'sl_026_tp_019':      'SL 0.26% / TP 0.19%  (R:R 0.73)',
+  'sl_021_tp_018':      'SL 0.21% / TP 0.18%  (R:R 0.86)',
+  'sl_020_tp_018':      'SL 0.20% / TP 0.18%  (R:R 0.90)',
+  'sl_018_tp_018':      'SL 0.18% / TP 0.18%  (R:R 1.00)',
+  'sl_019_tp_018':      'SL 0.19% / TP 0.18%  (R:R 0.95)',
+  'sl_020_tp_021':      'SL 0.20% / TP 0.21%  (R:R 1.05)',
+  'sl_020_tp_019':      'SL 0.20% / TP 0.19%  (R:R 0.95)',
+  'sl_018_tp_019':      'SL 0.18% / TP 0.19%  (R:R 1.06)',
+  'sl_019_tp_019':      'SL 0.19% / TP 0.19%  (R:R 1.00)',
+  'structural_dynamic': 'Structural Dynamic — TP1 @ 1R · 50% exit · Runner Free',
 };
-// All profiles are percentage-based
-const PCT_PROFILES = new Set(RR_PROFILES);
+const PCT_PROFILES = new Set(RR_PROFILES.filter(k => k !== 'structural_dynamic'));
+const STRUCTURAL_PROFILE = 'structural_dynamic';
 
 // Helper — resolve active profile data (handles both flat DEMO and {profiles:{}} real JSON)
 function getProfileData(fullKey, profile) {
@@ -666,7 +769,11 @@ const CLS_META = {
 function getAvailableProfiles(fullKey) {
   const base = DATA[fullKey];
   if (!base) return RR_PROFILES;
-  if (base.profiles) return Object.keys(base.profiles);
+  if (base.profiles) {
+    // Merge JSON profiles with full list so structural_dynamic always appears
+    const fromJson = new Set(Object.keys(base.profiles));
+    return RR_PROFILES.filter(pk => fromJson.has(pk) || pk === STRUCTURAL_PROFILE);
+  }
   return RR_PROFILES; // demo data — all profiles point to same data
 }
 
@@ -1063,8 +1170,11 @@ function renderModel(D){
   ].map(i=>`<div class="rg-cell"><div class="rg-lbl">${i.l}</div><div class="rg-val" style="color:${i.c}">${i.v}<span class="rg-unit">${i.u}</span></div></div>`).join('');
   rn.textContent=`Stop = |entry – sweep extreme|. Median stop = ${m.risk_median||'—'}pt → ~${(m.risk_median||0)*2}pt target at 1:2. Breakeven WR = ${pct(be)}.`;
 
-  renderSweepMAEAnalysis(D);
-  renderEquityCurveFS(D);
+  // MAE / MFE tabs — only render if active (saves work on other tabs)
+  if(activePageTab === 'mae') renderMAEStudy(D);
+  if(activePageTab === 'mfe'){ renderMFEStudy(D); renderStructuralPanel(D); }
+  // Risk tab
+  if(activePageTab === 'risk') renderEquityCurveFS(D);
 
   renderClassificationBreakdown();
   renderRecentTrades();
@@ -1781,11 +1891,702 @@ function drawSetupScene(cvs, dir, slPct, tpPct){
   }
 }
 
+// ── DISTRIBUTION STUDY (MAE + MFE histograms + full stats tables) ───────────
+function renderDistributionStudy(D){
+  _renderDistSection('mae', D);
+  _renderDistSection('mfe', D);
+}
+
+function _renderDistSection(which, D){
+  const allKey  = which + '_dist';
+  const winsKey = which + '_wins_dist';
+  const lossKey = which + '_loss_dist';
+  const statsEl = document.getElementById(which + '-dist-stats');
+  const canvasEl= document.getElementById(which + '-hist-canvas');
+  if(!statsEl || !canvasEl) return;
+
+  const allD  = D?.[allKey]  || {};
+  const winsD = D?.[winsKey] || {};
+  const lossD = D?.[lossKey] || {};
+
+  // Prefer ext_* keys (from Python _dist_stats) with fallback to direct
+  const get = (obj, k) => obj['ext_'+k] ?? obj[k] ?? null;
+  const fp4 = v => v != null ? (+v).toFixed(4)+'%' : '—';
+  const fp2 = v => v != null ? (+v).toFixed(2) : '—';
+  const label = which === 'mae' ? 'MAE' : 'MFE';
+  const accentColor = which === 'mae' ? 'var(--red)' : 'var(--blue)';
+  const accentColorWins = 'var(--green)';
+  const accentColorLoss = 'var(--red)';
+
+  const ROWS = [
+    {k:'min',  label:'Min'},
+    {k:'p10',  label:'P10'},
+    {k:'p25',  label:'P25'},
+    {k:'p50',  label:'Median (P50)'},
+    {k:'p75',  label:'P75'},
+    {k:'p90',  label:'P90'},
+    {k:'p95',  label:'P95'},
+    {k:'p99',  label:'P99'},
+    {k:'max',  label:'Max'},
+    {k:'mean', label:'Mean (μ)'},
+    {k:'std',  label:'Std Dev (σ)'},
+    {k:'mode', label:'Mode'},
+  ];
+
+  const cell = (val, col) => `<td style="padding:6px 10px;text-align:right;font-family:var(--font-data);font-size:11px;color:${col||'var(--text-primary)'};font-weight:500">${fp4(val)}</td>`;
+
+  let tBody = '';
+  ROWS.forEach(r => {
+    const vAll  = get(allD,  r.k);
+    const vWins = get(winsD, r.k);
+    const vLoss = get(lossD, r.k);
+    tBody += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 10px;font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${r.label}</td>
+      ${cell(vAll, accentColor)}
+      ${cell(vWins, accentColorWins)}
+      ${cell(vLoss, accentColorLoss)}
+    </tr>`;
+  });
+  const nAll  = get(allD,'count') ?? '—';
+  const nWins = get(winsD,'count') ?? '—';
+  const nLoss = get(lossD,'count') ?? '—';
+
+  statsEl.innerHTML = `<div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;font-family:var(--font-data);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);font-weight:600">Stat</th>
+        <th style="padding:8px 10px;text-align:right;font-family:var(--font-data);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:${accentColor};font-weight:600">${label} All (n=${nAll})</th>
+        <th style="padding:8px 10px;text-align:right;font-family:var(--font-data);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:${accentColorWins};font-weight:600">Wins (n=${nWins})</th>
+        <th style="padding:8px 10px;text-align:right;font-family:var(--font-data);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:${accentColorLoss};font-weight:600">Losses (n=${nLoss})</th>
+      </tr></thead>
+      <tbody>${tBody}</tbody>
+    </table>
+  </div>`;
+
+  // Draw histogram
+  const hist = get(allD, 'hist') ?? allD['ext_hist'] ?? [];
+  _drawDistHist(canvasEl, hist, which, label, accentColor);
+}
+
+function _drawDistHist(canvas, hist, which, label, color){
+  if(!canvas || !hist || hist.length === 0){ canvas.style.display='none'; return; }
+  canvas.style.display = 'block';
+  const DPR = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth || 700;
+  const H = 160;
+  canvas.width  = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+
+  const c = C();
+  const ml=44, mr=12, mt=14, mb=32, cw=W-ml-mr, ch=H-mt-mb;
+  ctx.clearRect(0,0,W,H);
+
+  const maxN = Math.max(...hist.map(b=>b.n));
+  if(maxN === 0) return;
+
+  const bw = cw / hist.length;
+  const gap = Math.max(1, bw * 0.12);
+
+  // Hex color from CSS var
+  const barCol = which === 'mae'
+    ? (isDark ? 'rgba(239,68,68,0.75)' : 'rgba(220,38,38,0.75)')
+    : (isDark ? 'rgba(59,130,246,0.75)' : 'rgba(37,99,235,0.75)');
+
+  hist.forEach((b, i) => {
+    const bh = (b.n / maxN) * ch;
+    const x  = ml + i * bw + gap/2;
+    const y  = mt + ch - bh;
+    ctx.fillStyle = barCol;
+    ctx.fillRect(x, y, bw - gap, bh);
+  });
+
+  // Y-axis ticks
+  ctx.font = `9px "IBM Plex Mono",monospace`;
+  ctx.fillStyle = c.axisText;
+  ctx.textAlign = 'right';
+  [0.25, 0.5, 0.75, 1.0].forEach(frac => {
+    const n = Math.round(frac * maxN);
+    const y = mt + ch - frac * ch;
+    ctx.fillText(n.toLocaleString(), ml - 4, y + 3);
+    ctx.strokeStyle = c.gridLine;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2,4]);
+    ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml+cw, y); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // X-axis labels (every ~5 bins)
+  ctx.textAlign = 'center';
+  ctx.fillStyle = c.axisText;
+  const step = Math.max(1, Math.floor(hist.length / 8));
+  hist.forEach((b, i) => {
+    if(i % step !== 0 && i !== hist.length-1) return;
+    const x = ml + i * bw + bw/2;
+    ctx.fillText((+b.lo).toFixed(3)+'%', x, H - 6);
+  });
+
+  // Label
+  ctx.font = `600 10px "IBM Plex Mono",monospace`;
+  ctx.textAlign = 'left';
+  ctx.fillStyle = c.axisText;
+  ctx.fillText(`${label} distribution — count per bucket`, ml, mt - 2);
+}
+
+
+// ── MAE STUDY (FPFVG-style) ───────────────────────────────────────────────────
+function renderMAEStudy(D) {
+  const el = document.getElementById('mae-study-panel');
+  if (!el) return;
+  const dist = D?.rich_mae;
+  const ce   = dist?.ce ?? D?.risk_stats?.ce;
+  if (!dist) {
+    el.innerHTML = `<div style="padding:24px;font-family:var(--font-data);font-size:12px;color:var(--text-muted)">No MAE study data — run <code>python3 model_stats.py</code> first.</div>`;
+    return;
+  }
+  const p   = dist.percentiles || {};
+  const ln  = dist.lognorm || {};
+  const clus = dist.clusters || [];
+  const sweep = dist.sl_sweep || [];
+  const hist  = dist.histogram || {};
+  const optSl = dist.opt_sl;
+  const clusterColors = ['#60a5fa','#fbbf24','#f87171'];
+  const fmt    = (v, d=4) => v != null ? (+v).toFixed(d) : '—';
+  const fmtPct = v => v != null ? (+v).toFixed(4) + '%' : '—';
+
+  const statTiles = [
+    { lbl:'Mean MAE',   v:fmtPct(dist.mean),                 c:'#fbbf24', note:'arithmetic avg' },
+    { lbl:'Median MAE', v:fmtPct(dist.median),               c:'#fb923c', note:'50th pct' },
+    { lbl:'Mode MAE',   v:fmtPct(dist.mode),                 c:'#60a5fa', note:'most common heat' },
+    { lbl:'Std Dev',    v:fmtPct(dist.std),                  c:'#94a3b8', note:'dispersion' },
+    { lbl:'Skewness',   v:fmt(dist.skewness,1),              c: dist.skewness > 2 ? '#f87171':'#94a3b8', note: dist.skewness > 2 ? 'heavy right tail' : 'mild' },
+    { lbl:'CE Score',   v: ce != null ? ce.toFixed(2) : '—', c: ce >= 3 ? '#10b981' : ce >= 1.5 ? '#fbbf24' : '#f87171', note: ce >= 3 ? 'strong entries' : ce >= 1.5 ? 'decent' : ce != null ? 'marginal' : 'n/a' },
+  ];
+
+  const pctRows = [
+    {lbl:'p5',  v:p.p5,  exceed:95, color:'#94a3b8'},
+    {lbl:'p10', v:p.p10, exceed:90, color:'#94a3b8'},
+    {lbl:'p15', v:p.p15, exceed:85, color:'#64748b'},
+    {lbl:'p20', v:p.p20, exceed:80, color:'#64748b'},
+    {lbl:'p25', v:p.p25, exceed:75, color:'#60a5fa'},
+    {lbl:'p30', v:p.p30, exceed:70, color:'#60a5fa'},
+    {lbl:'p35', v:p.p35, exceed:65, color:'#60a5fa'},
+    {lbl:'p40', v:p.p40, exceed:60, color:'#fb923c'},
+    {lbl:'p50 (Median)', v:dist.median, exceed:50, color:'#fb923c', bold:true},
+    {lbl:'p60', v:p.p60, exceed:40, color:'#fb923c'},
+    {lbl:'p65', v:p.p65, exceed:35, color:'#fbbf24'},
+    {lbl:'p70', v:p.p70, exceed:30, color:'#fbbf24'},
+    {lbl:'p75', v:p.p75, exceed:25, color:'#10b981'},
+    {lbl:'p80', v:p.p80, exceed:20, color:'#10b981'},
+    {lbl:'p85', v:p.p85, exceed:15, color:'#10b981'},
+    {lbl:'p90', v:p.p90, exceed:10, color:'#a78bfa'},
+    {lbl:'p95', v:p.p95, exceed:5,  color:'#c084fc'},
+    {lbl:'p99', v:p.p99, exceed:1,  color:'#f87171'},
+  ];
+
+  el.innerHTML = `
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="ph-title">MAE Distribution Analysis</span><span class="ph-note">Max Adverse Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
+        ${statTiles.map(s=>`
+        <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:8px;padding:12px 10px">
+          <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:${s.c};line-height:1.1">${s.v}</div>
+          <div style="font-size:9px;color:var(--text-muted);margin-top:3px">${s.note}</div>
+        </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start">
+        <div>
+          <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">MAE Frequency Distribution (0 → p99)</div>
+          <canvas id="mae-study-hist" height="140" style="width:100%;display:block;border-radius:6px;background:var(--bg-raised)"></canvas>
+        </div>
+        <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:10px;padding:14px">
+          <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Log-Normal Fit</div>
+          ${[
+            {lbl:'μ (log space)',  v:fmt(ln.mu,4)},
+            {lbl:'σ (log space)',  v:fmt(ln.sigma,4)},
+            {lbl:'Implied Median', v:fmtPct(ln.implied_median)},
+            {lbl:'Implied Mean',   v:fmtPct(ln.implied_mean)},
+            {lbl:'Implied Mode',   v:fmtPct(ln.implied_mode)},
+            {lbl:'Goodness (r)',   v:fmt(ln.goodness,4)},
+          ].map(r=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:11px;color:var(--text-secondary)">${r.lbl}</span>
+            <span style="font-family:var(--font-data);font-size:11px;color:var(--text-primary);font-weight:500">${r.v}</span>
+          </div>`).join('')}
+          <div style="margin-top:10px;font-size:10px;color:var(--text-muted);line-height:1.6">MAE is right-skewed — most trades absorb small heat, but outliers run deep.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="ph-title">MAE Natural Clusters</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        ${clus.map((c,i)=>`
+        <div style="background:var(--bg-raised);border:1px solid ${clusterColors[i]}44;border-radius:10px;padding:16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${clusterColors[i]};opacity:.6"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${clusterColors[i]}"></div>
+            <span style="font-family:var(--font-data);font-size:13px;font-weight:700;color:${clusterColors[i]}">${c.label}</span>
+            <span style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">${c.range}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            ${[{lbl:'Trades',v:c.n},{lbl:'Share',v:c.pct_of_trades+'%'},{lbl:'Mean',v:fmtPct(c.mean)},{lbl:'Median',v:fmtPct(c.median)},{lbl:'Max',v:fmtPct(c.max)}].map(s=>`
+            <div>
+              <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em">${s.lbl}</div>
+              <div style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);font-weight:600">${s.v}</div>
+            </div>`).join('')}
+          </div>
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text-secondary);line-height:1.7">
+        <strong style="color:var(--text-primary)">Tight</strong> (bottom 33%) — minimal heat before resolution.
+        <strong style="color:var(--text-primary)">Moderate</strong> (middle 42%) — typical adversity before direction confirms.
+        <strong style="color:var(--text-primary)">Wide</strong> (top 25%) — deep pullbacks; many still recover (see SL sweep below).
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Full Percentile Table</span><span class="ph-note">X% of trades exceed this MAE level</span></div>
+      <div class="pb" style="padding:0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:400">Pct</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:right;font-weight:400">MAE %</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:400">Exceeded by</th>
+          </tr></thead>
+          <tbody>
+            ${pctRows.map(r=>`<tr style="border-bottom:1px solid var(--border)">
+              <td style="font-family:var(--font-data);font-size:11px;color:${r.color};padding:5px 14px;font-weight:${r.bold?700:500}">${r.lbl}</td>
+              <td style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);padding:5px 14px;font-weight:600;text-align:right">${r.v!=null?(+r.v).toFixed(4)+'%':'—'}</td>
+              <td style="padding:5px 14px">
+                <div style="display:flex;align-items:center;gap:7px">
+                  <div style="flex:1;height:4px;background:var(--border);border-radius:3px;max-width:100px">
+                    <div style="width:${r.exceed}%;height:100%;background:${r.color};border-radius:3px;opacity:.7"></div>
+                  </div>
+                  <span style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);min-width:30px">${r.exceed}%</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Optimum Stop Loss · SL Sweep Analysis</span><span class="ph-note">If SL = X → P(false stop — would recover) · P(genuine loss)</span></div>
+      <div class="pb" style="padding:0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">Touch%</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">SL Level</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">P(false)</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">P(genuine)</th>
+          </tr></thead>
+          <tbody>
+            ${sweep.map(t=>{
+              const isOpt = t.threshold === optSl;
+              const koColor = t.p_ko >= 0.5 ? '#10b981' : t.p_ko >= 0.35 ? '#fbbf24' : '#f87171';
+              return `<tr style="border-bottom:1px solid var(--border);${isOpt?'background:var(--green-tint)':''}">
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:5px 10px;text-align:right">${t.exceed_pct}%</td>
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--text-primary);padding:5px 10px;text-align:right;font-weight:${isOpt?700:500}">${(+t.threshold).toFixed(4)}%${isOpt?' ✦':''}</td>
+                <td style="font-family:var(--font-data);font-size:11px;color:#f87171;padding:5px 10px;text-align:right">${(t.p_recovered*100).toFixed(1)}%</td>
+                <td style="padding:5px 10px;text-align:right"><span style="font-family:var(--font-data);font-size:11px;color:${koColor};font-weight:700">${(t.p_ko*100).toFixed(1)}%</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:var(--red-tint);border:1.5px solid var(--red-border);border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-size:28px;flex-shrink:0">🛡</div>
+    <div style="flex:1">
+      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:#f87171;margin-bottom:6px">Stop Loss Insight</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+        Across all SL levels tested, <strong style="color:var(--text-primary)">P(false stop)</strong> never drops below
+        <strong style="color:#f87171">${sweep.length?(Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%':'—'}</strong>.
+        Even at the widest level tested (<strong style="color:var(--text-primary)">${sweep.length?sweep[0].threshold.toFixed(4)+'%':'—'}</strong>),
+        <strong style="color:var(--red)">${sweep.length?(sweep[0].p_recovered*100).toFixed(1)+'%':'—'}</strong> of touched trades still recover.
+        This confirms the <strong style="color:var(--text-primary)">structural stop (sweep extreme) is the natural boundary</strong> — any tighter fixed-% stop cuts legitimate winners.
+        MAE is tightly clustered (σ=${fmt(dist.std,4)}%) relative to MFE, confirming clean directional entries.
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0">
+      ${[
+        {lbl:'Median MAE', v:fmtPct(dist.median),  c:'#fb923c'},
+        {lbl:'Mean MAE',   v:fmtPct(dist.mean),    c:'#fbbf24'},
+        {lbl:'Min False%', v:sweep.length?(Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%':'—', c:'#f87171'},
+        {lbl:'CE Score',   v:ce!=null?ce.toFixed(2):'—', c:ce>=1.5?'#10b981':'#fbbf24'},
+      ].map(s=>`
+      <div style="background:var(--bg-card);border:1px solid var(--red-border);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
+        <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:${s.c}">${s.v}</div>
+      </div>`).join('')}
+    </div>
+  </div>
+  `;
+
+  // Draw histogram
+  const canvas = document.getElementById('mae-study-hist');
+  if (!canvas || !hist.edges || !hist.counts) return;
+  const W = canvas.offsetWidth || 600, H = 140;
+  canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+  const ctx = canvas.getContext('2d'); ctx.scale(devicePixelRatio, devicePixelRatio);
+  const padL=36,padR=12,padT=14,padB=28, cW=W-padL-padR, cH=H-padT-padB;
+  const counts=hist.counts, edges=hist.edges, maxC=Math.max(...counts,1), nBins=counts.length, xMax=edges[edges.length-1];
+  const cc=C(); ctx.fillStyle=cc.bgCard; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=cc.gridLine; ctx.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{const y=padT+cH*(1-f);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+cW,y);ctx.stroke();});
+  const bW=cW/nBins;
+  counts.forEach((c,i)=>{
+    const barH=(c/maxC)*cH, x=padL+i*bW, y=padT+cH-barH, t=i/nBins;
+    const r=Math.round(96+(248-96)*t), g=Math.round(165+(113-165)*t), b=Math.round(250+(113-250)*t);
+    ctx.fillStyle=`rgba(${r},${g},${b},.75)`; ctx.fillRect(x+1,y,Math.max(bW-2,1),barH);
+  });
+  if(dist.median!=null){const mx=padL+(dist.median/xMax)*cW;ctx.strokeStyle='rgba(251,146,60,.8)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(mx,padT);ctx.lineTo(mx,padT+cH);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#fb923c';ctx.font='10px IBM Plex Mono,monospace';ctx.fillText('Med',mx+3,padT+cH-4);}
+  ctx.fillStyle='#64748b';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  [0,.25,.5,.75,1].forEach(f=>{const xVal=edges[0]+f*(xMax-edges[0]);ctx.fillText(xVal.toFixed(2)+'%',padL+f*cW,padT+cH+16);});
+  ctx.textAlign='right';ctx.fillText(maxC,padL-4,padT+4);ctx.fillText('0',padL-4,padT+cH+4);
+}
+
+
+// ── MFE STUDY (FPFVG-style) ───────────────────────────────────────────────────
+function renderMFEStudy(D) {
+  const el = document.getElementById('mfe-study-panel');
+  if (!el) return;
+  const dist = D?.rich_mfe;
+  if (!dist) {
+    el.innerHTML = `<div style="padding:24px;font-family:var(--font-data);font-size:12px;color:var(--text-muted)">No MFE study data — run <code>python3 model_stats.py</code> first.</div>`;
+    return;
+  }
+  const p       = dist.percentiles || {};
+  const ln      = dist.lognorm || {};
+  const clus    = dist.clusters || [];
+  const triggers= dist.be_triggers || [];
+  const hist    = dist.histogram || {};
+  const ptq     = dist.ptq_level;
+  const ptqRR   = dist.ptq_reach_rate;
+  const clusterColors = ['#60a5fa','#fb923c','#10b981'];
+  const fmt    = (v,d=4) => v!=null?(+v).toFixed(d):'—';
+  const fmtPct = v => v!=null?(+v).toFixed(4)+'%':'—';
+
+  const statTiles = [
+    {lbl:'Mean MFE',   v:fmtPct(dist.mean),    c:'#fbbf24', note:'arithmetic avg'},
+    {lbl:'Median MFE', v:fmtPct(dist.median),  c:'#fb923c', note:'50th pct — 50% reach this'},
+    {lbl:'Mode MFE',   v:fmtPct(dist.mode),    c:'#60a5fa', note:'most common run'},
+    {lbl:'Std Dev',    v:fmtPct(dist.std),      c:'#94a3b8', note:'dispersion'},
+    {lbl:'Skewness',   v:fmt(dist.skewness,1),  c:dist.skewness>2?'#f87171':'#94a3b8', note:dist.skewness>2?'heavy right tail':'mild skew'},
+    {lbl:'Kurtosis',   v:fmt(dist.kurtosis,1),  c:dist.kurtosis>10?'#f87171':'#94a3b8', note:dist.kurtosis>10?'fat tails / outliers':'moderate tails'},
+  ];
+
+  const pctRows = [
+    {lbl:'p5',  v:p.p5,  rr:95, color:'#94a3b8'},
+    {lbl:'p10', v:p.p10, rr:90, color:'#94a3b8'},
+    {lbl:'p15', v:p.p15, rr:85, color:'#64748b'},
+    {lbl:'p20', v:p.p20, rr:80, color:'#64748b'},
+    {lbl:'p25', v:p.p25, rr:75, color:'#60a5fa'},
+    {lbl:'p30', v:p.p30, rr:70, color:'#60a5fa'},
+    {lbl:'p35', v:p.p35, rr:65, color:'#60a5fa'},
+    {lbl:'p40', v:p.p40, rr:60, color:'#fb923c'},
+    {lbl:'p50 (Median)', v:dist.median, rr:50, color:'#fb923c', bold:true},
+    {lbl:'p60', v:p.p60, rr:40, color:'#fb923c'},
+    {lbl:'p65', v:p.p65, rr:35, color:'#fbbf24'},
+    {lbl:'p70', v:p.p70, rr:30, color:'#fbbf24'},
+    {lbl:'p75', v:p.p75, rr:25, color:'#10b981'},
+    {lbl:'p80', v:p.p80, rr:20, color:'#10b981'},
+    {lbl:'p85', v:p.p85, rr:15, color:'#10b981'},
+    {lbl:'p90', v:p.p90, rr:10, color:'#a78bfa'},
+    {lbl:'p95', v:p.p95, rr:5,  color:'#c084fc'},
+    {lbl:'p99', v:p.p99, rr:1,  color:'#f87171'},
+  ];
+
+  el.innerHTML = `
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="ph-title">MFE Distribution Analysis</span><span class="ph-note">Max Favorable Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
+        ${statTiles.map(s=>`
+        <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:8px;padding:12px 10px">
+          <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
+          <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:${s.c};line-height:1.1">${s.v}</div>
+          <div style="font-size:9px;color:var(--text-muted);margin-top:3px">${s.note}</div>
+        </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 260px;gap:20px;align-items:start">
+        <div>
+          <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">MFE Frequency Distribution (0 → p99)${ptq!=null?' · PTQ marked':''}</div>
+          <canvas id="mfe-study-hist" height="140" style="width:100%;display:block;border-radius:6px;background:var(--bg-raised)"></canvas>
+        </div>
+        <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:10px;padding:14px">
+          <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px">Log-Normal Fit</div>
+          ${[
+            {lbl:'μ (log space)',  v:fmt(ln.mu,4)},
+            {lbl:'σ (log space)',  v:fmt(ln.sigma,4)},
+            {lbl:'Implied Median', v:fmtPct(ln.implied_median)},
+            {lbl:'Implied Mean',   v:fmtPct(ln.implied_mean)},
+            {lbl:'Implied Mode',   v:fmtPct(ln.implied_mode)},
+            {lbl:'Goodness (r)',   v:fmt(ln.goodness,4)},
+          ].map(r=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border)">
+            <span style="font-size:11px;color:var(--text-secondary)">${r.lbl}</span>
+            <span style="font-family:var(--font-data);font-size:11px;color:var(--text-primary);font-weight:500">${r.v}</span>
+          </div>`).join('')}
+          <div style="margin-top:10px;font-size:10px;color:var(--text-muted);line-height:1.6">MFE is strongly right-skewed. Most trades run short, but outliers drive positive EV.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:14px">
+    <div class="ph"><span class="ph-title">MFE Natural Clusters</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
+    <div class="pb">
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+        ${clus.map((c,i)=>`
+        <div style="background:var(--bg-raised);border:1px solid ${clusterColors[i]}44;border-radius:10px;padding:16px;position:relative;overflow:hidden">
+          <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${clusterColors[i]};opacity:.6"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${clusterColors[i]}"></div>
+            <span style="font-family:var(--font-data);font-size:13px;font-weight:700;color:${clusterColors[i]}">${c.label}</span>
+            <span style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">${c.range}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            ${[{lbl:'Trades',v:c.n},{lbl:'Share',v:c.pct_of_trades+'%'},{lbl:'Mean',v:fmtPct(c.mean)},{lbl:'Median',v:fmtPct(c.median)},{lbl:'Max',v:fmtPct(c.max)}].map(s=>`
+            <div>
+              <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.03em">${s.lbl}</div>
+              <div style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);font-weight:600">${s.v}</div>
+            </div>`).join('')}
+          </div>
+        </div>`).join('')}
+      </div>
+      <div style="margin-top:12px;font-size:11px;color:var(--text-secondary);line-height:1.7">
+        <strong style="color:var(--text-primary)">Small</strong> (bottom 33%) — trades that barely moved before stopping or closing flat.
+        <strong style="color:var(--text-primary)">Moderate</strong> (middle 42%) — clean directional runs with meaningful excursion.
+        <strong style="color:var(--text-primary)">Large</strong> (top 25%) — momentum breakouts; the outliers that drive positive EV.
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Full Percentile Table</span><span class="ph-note">TP at this level would hit on X% of trades</span></div>
+      <div class="pb" style="padding:0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:400">Pct</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:right;font-weight:400">MFE %</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:400">TP Hit Rate</th>
+          </tr></thead>
+          <tbody>
+            ${pctRows.map(r=>{
+              const isPTQ = ptq!=null && Math.abs((r.v||0)-ptq)<0.0005;
+              return `<tr style="border-bottom:1px solid var(--border);${isPTQ?'background:var(--green-tint)':''}">
+                <td style="font-family:var(--font-data);font-size:11px;color:${r.color};padding:5px 14px;font-weight:${r.bold?700:500}">${r.lbl}${isPTQ?' ♛':''}</td>
+                <td style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);padding:5px 14px;font-weight:600;text-align:right">${r.v!=null?(+r.v).toFixed(4)+'%':'—'}</td>
+                <td style="padding:5px 14px">
+                  <div style="display:flex;align-items:center;gap:7px">
+                    <div style="flex:1;height:4px;background:var(--border);border-radius:3px;max-width:100px">
+                      <div style="width:${r.rr}%;height:100%;background:${r.color};border-radius:3px;opacity:.7"></div>
+                    </div>
+                    <span style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);min-width:30px">${r.rr}%</span>
+                  </div>
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Protect the Queen · Breakeven Trigger Analysis</span><span class="ph-note">If MFE ≥ X → move stop to entry · P(positive exit | MFE ≥ X)</span></div>
+      <div class="pb" style="padding:0">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="border-bottom:1px solid var(--border);background:var(--bg-raised)">
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">Reach%</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">Trigger</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">P(pos)</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">Rescued</th>
+            <th style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;padding:7px 10px;text-align:right;font-weight:400">ΔEV</th>
+          </tr></thead>
+          <tbody>
+            ${triggers.map(t=>{
+              const isPTQ = t.trigger_pct === ptq;
+              const pPos  = t.p_pos_given;
+              const pColor= pPos>=0.5?'#10b981':pPos>=0.35?'#fbbf24':'#f87171';
+              return `<tr style="border-bottom:1px solid var(--border);${isPTQ?'background:var(--green-tint)':''}">
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:5px 10px;text-align:right">${t.reach_rate}%</td>
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--text-primary);padding:5px 10px;text-align:right;font-weight:${isPTQ?700:500}">${(+t.trigger_pct).toFixed(4)}%</td>
+                <td style="padding:5px 10px;text-align:right"><span style="font-family:var(--font-data);font-size:11px;color:${pColor};font-weight:700">${(pPos*100).toFixed(1)}%</span></td>
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:5px 10px;text-align:right">${t.n_rescued}</td>
+                <td style="font-family:var(--font-data);font-size:11px;color:var(--green);padding:5px 10px;text-align:right">+${(+t.ev_delta).toFixed(4)}R</td>
+              </tr>
+              ${isPTQ?`<tr><td colspan="5" style="padding:2px 10px 6px;font-size:10px;color:#10b981;font-style:italic">← Protect the Queen recommendation</td></tr>`:''}`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  ${ptq!=null?`
+  <div style="background:var(--green-tint);border:1.5px solid var(--green-border);border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-size:28px;flex-shrink:0">♛</div>
+    <div style="flex:1">
+      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:#10b981;margin-bottom:6px">Protect the Queen — Recommended BE Trigger: ${fmtPct(ptq)}</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
+        When MFE reaches <strong style="color:#10b981">${fmtPct(ptq)}</strong>, move your stop to breakeven (entry price).
+        This level is reached by <strong style="color:var(--text-primary)">${ptqRR}%</strong> of all trades.
+        Once reached, <strong style="color:#10b981">${((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)}%</strong> of those trades exit positively — the first level where odds flip in your favour.
+        Moving to BE saves approximately <strong style="color:var(--text-primary)">${triggers.find(t=>t.trigger_pct===ptq)?.n_rescued||'—'} trades</strong> from negative exits
+        and improves EV by <strong style="color:#10b981">+${(+(triggers.find(t=>t.trigger_pct===ptq)||{}).ev_delta||0).toFixed(4)}R per trade</strong>.
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0">
+      ${[
+        {lbl:'Trigger',    v:fmtPct(ptq),                                                                                             c:'#10b981'},
+        {lbl:'Reach Rate', v:(ptqRR||'—')+'%',                                                                                        c:'#fbbf24'},
+        {lbl:'P(+exit)',   v:((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)+'%',                         c:'#10b981'},
+        {lbl:'New EV',     v:'+'+((triggers.find(t=>t.trigger_pct===ptq)||{}).new_ev||0).toFixed(4)+'R',                              c:'#10b981'},
+      ].map(s=>`
+      <div style="background:var(--bg-card);border:1px solid var(--green-border);border-radius:8px;padding:10px 14px;text-align:center">
+        <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
+        <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:${s.c}">${s.v}</div>
+      </div>`).join('')}
+    </div>
+  </div>`:''}
+  `;
+
+  // Draw MFE histogram
+  const canvas = document.getElementById('mfe-study-hist');
+  if (!canvas || !hist.edges || !hist.counts) return;
+  const W = canvas.offsetWidth || 600, H = 140;
+  canvas.width = W * devicePixelRatio; canvas.height = H * devicePixelRatio;
+  const ctx = canvas.getContext('2d'); ctx.scale(devicePixelRatio, devicePixelRatio);
+  const padL=36,padR=12,padT=14,padB=28, cW=W-padL-padR, cH=H-padT-padB;
+  const counts=hist.counts, edges=hist.edges, maxC=Math.max(...counts,1), nBins=counts.length, xMax=edges[edges.length-1];
+  const cc=C(); ctx.fillStyle=cc.bgCard; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=cc.gridLine; ctx.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{const y=padT+cH*(1-f);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+cW,y);ctx.stroke();});
+  if(ptq!=null){const ptqX=padL+(ptq/xMax)*cW;ctx.strokeStyle='rgba(16,185,129,.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(ptqX,padT);ctx.lineTo(ptqX,padT+cH);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#10b981';ctx.font='bold 10px IBM Plex Mono,monospace';ctx.fillText('PTQ',ptqX+4,padT+11);}
+  const bW=cW/nBins;
+  counts.forEach((c,i)=>{
+    const barH=(c/maxC)*cH, x=padL+i*bW, y=padT+cH-barH, t=i/nBins;
+    const r=Math.round(96+(251-96)*Math.min(t*2,1)), g=Math.round(165+(146-165)*Math.min(t*2,1)+(185-146)*Math.max(t*2-1,0)), b=Math.round(250+(60-250)*Math.min(t*2,1));
+    ctx.fillStyle=`rgba(${r},${g},${b},.75)`; ctx.fillRect(x+1,y,Math.max(bW-2,1),barH);
+  });
+  if(dist.median!=null){const medX=padL+(dist.median/xMax)*cW;ctx.strokeStyle='rgba(251,146,60,.8)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(medX,padT);ctx.lineTo(medX,padT+cH);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#fb923c';ctx.font='10px IBM Plex Mono,monospace';ctx.fillText('Med',medX+3,padT+cH-4);}
+  ctx.fillStyle='#64748b';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  [0,.25,.5,.75,1].forEach(f=>{const xVal=edges[0]+f*(xMax-edges[0]);ctx.fillText(xVal.toFixed(2)+'%',padL+f*cW,padT+cH+16);});
+  ctx.textAlign='right';ctx.fillText(maxC,padL-4,padT+4);ctx.fillText('0',padL-4,padT+cH+4);
+}
+
+
+// ── STRUCTURAL DYNAMIC PANEL ─────────────────────────────────────────────────
+function renderStructuralPanel(D){
+  const panelEl  = document.getElementById('structural-panel');
+  const bodyEl   = document.getElementById('structural-runner-body');
+  if(!panelEl || !bodyEl) return;
+
+  const isStructural = activeProfile === STRUCTURAL_PROFILE;
+  panelEl.style.display = isStructural ? '' : 'none';
+  if(!isStructural) return;
+
+  const ss = D?.structural_stats;
+  if(!ss){
+    bodyEl.innerHTML = `<p style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">Run <code>python3 model_stats.py</code> to generate structural_dynamic stats.</p>`;
+    return;
+  }
+
+  const pct = v => v != null ? (v*100).toFixed(1)+'%' : '—';
+  const fp3 = v => v != null ? (+v).toFixed(3)+'R' : '—';
+  const fp4 = v => v != null ? (+v).toFixed(4)+'%' : '—';
+  const tp1 = ss.tp1_hit_rate;
+  const ranFurther = ss.runner_ran_further_rate;
+  const rs  = ss.runner_stats || {};
+  const rrs = ss.runner_ran_stats || {};
+  const m = D?.meta || {};
+
+  // Net EV estimate: WR=tp1 (partial always positive), runner adds bonus
+  const netEV = tp1 != null && rs.mean != null
+    ? (+(tp1 * (0.5 + 0.5 * rs.mean) + (1 - tp1) * (-1.0)).toFixed(3)) : null;
+  const beWR = 2/3;
+
+  bodyEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
+      <div class="rg-cell">
+        <div class="rg-lbl">TP1 Hit Rate</div>
+        <div class="rg-val" style="color:${tp1>=beWR?'var(--green)':'var(--red)'}">${pct(tp1)}</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">BE = ${pct(beWR)} (runner→BE worst case)</div>
+      </div>
+      <div class="rg-cell">
+        <div class="rg-lbl">Runner Ran Further</div>
+        <div class="rg-val" style="color:var(--blue)">${pct(ranFurther)}</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">of TP1 hits where runner > BE</div>
+      </div>
+      <div class="rg-cell">
+        <div class="rg-lbl">Runner Avg Exit</div>
+        <div class="rg-val" style="color:var(--purple)">${fp3(rs.mean)}</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">across all TP1-hit trades</div>
+      </div>
+      <div class="rg-cell">
+        <div class="rg-lbl">Est. Net EV</div>
+        <div class="rg-val" style="color:${netEV>0?'var(--green)':'var(--red)'}">${netEV!=null?(netEV>0?'+':'')+netEV.toFixed(3)+'R':'—'}</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">TP1×(0.5+0.5×runner) − loss×1R</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <!-- Runner distribution table -->
+      <div>
+        <div style="font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Runner Exit Distribution (R) · All TP1 Hits</div>
+        <table style="width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:11px">
+          ${[['Min','min'],['P10','p10'],['P25','p25'],['Median','p50'],['Mean (μ)','mean'],['P75','p75'],['P90','p90'],['P95','p95'],['Std Dev (σ)','std'],['Max','max']].map(([lbl,k])=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px;color:var(--text-muted)">${lbl}</td>
+            <td style="padding:5px 8px;text-align:right;color:var(--purple);font-weight:600">${rs[k]!=null?(+rs[k]).toFixed(3)+'R':'—'}</td>
+          </tr>`).join('')}
+        </table>
+      </div>
+      <!-- Runner-only-when-ran stats -->
+      <div>
+        <div style="font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px">Runner When It Ran Further (> BE)</div>
+        <table style="width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:11px">
+          ${[['Min','min'],['P10','p10'],['P25','p25'],['Median','p50'],['Mean (μ)','mean'],['P75','p75'],['P90','p90'],['P95','p95'],['Std Dev (σ)','std'],['Max','max']].map(([lbl,k])=>`
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:5px 8px;color:var(--text-muted)">${lbl}</td>
+            <td style="padding:5px 8px;text-align:right;color:var(--green);font-weight:600">${rrs[k]!=null?(+rrs[k]).toFixed(3)+'R':'—'}</td>
+          </tr>`).join('')}
+        </table>
+        <div style="margin-top:12px;padding:10px 12px;background:var(--bg-raised);border:1px solid var(--border);border-radius:6px;font-family:var(--font-data);font-size:10px;color:var(--text-muted);line-height:1.7">
+          <strong style="color:var(--text-secondary)">Net R formula:</strong><br>
+          50% exits at <span style="color:var(--green)">+1R</span> when TP1 hit<br>
+          50% runner exits at <span style="color:var(--purple)">runner_exit_r</span> (≥ 0)<br>
+          <span style="color:var(--amber)">Net = 0.5 + 0.5 × runner_exit_r</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+
 function drawSetupViz(){
   // Parse sl/tp from active profile key: 'sl_026_tp_018' → sl=0.26%, tp=0.18%
   let slPct=0.26, tpPct=0.18;
-  const m=activeProfile.match(/sl_(\d+)_tp_(\d+)/);
-  if(m){ slPct=parseInt(m[1],10)/100; tpPct=parseInt(m[2],10)/100; }
+  if(activeProfile === STRUCTURAL_PROFILE){
+    slPct=0.20; tpPct=0.20; // Show 1:1 for structural dynamic
+  } else {
+    const m=activeProfile.match(/sl_(\d+)_tp_(\d+)/);
+    if(m){ slPct=parseInt(m[1],10)/100; tpPct=parseInt(m[2],10)/100; }
+  }
   drawSetupScene(document.getElementById('setup-canvas-bull'), 'bull', slPct, tpPct);
   drawSetupScene(document.getElementById('setup-canvas-bear'), 'bear', slPct, tpPct);
 }
