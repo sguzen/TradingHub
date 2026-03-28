@@ -684,7 +684,7 @@ main {
       <div class="model-panel-hd">
         <div class="model-panel-icon">🎯</div>
         <div>
-          <div class="model-panel-title">NY1 F.P.FVG — First Presented FVG</div>
+          <div class="model-panel-title">NY1 F.P.FVG — First Presented Fair Value Gap</div>
           <div class="model-panel-sub">9:31–10:00 ET window · Fixed % Stop · Fixed % TP</div>
         </div>
       </div>
@@ -693,11 +693,11 @@ main {
           <li><strong>FVG Detection:</strong> First 3-candle fair value gap forming between 9:31–9:59 ET (9:30 excluded — institutional open noise)</li>
           <li><strong>Direction:</strong> C2 bullish body → LONG FVG · C2 bearish body → SHORT FVG</li>
           <li><strong>Entry:</strong> Limit at FVG boundary on retrace (C3.low LONG / C3.high SHORT) · <strong>Stop:</strong> C1 extreme</li>
-          <li><strong>TP1 (POTQ):</strong> +10 basis points (0.10%) from entry — 80% of position. Runner (20%) held to 16:00 EOD</li>
+          <li><strong>TP1 (PTQ):</strong> +10 basis points (0.10%) from entry — 50% of position exits. Runner (50%) moves to breakeven, held to 16:00 EOD</li>
         </ul>
         <div class="kv-grid">
           <div class="kv-item"><div class="kv-key">TP1 Target</div><div class="kv-val green">10 bps</div></div>
-          <div class="kv-item"><div class="kv-key">Position Split</div><div class="kv-val">80 / 20</div></div>
+          <div class="kv-item"><div class="kv-key">Position Split</div><div class="kv-val">50 / 50</div></div>
           <div class="kv-item"><div class="kv-key">Window</div><div class="kv-val amber">9:31–10:00</div></div>
           <div class="kv-item"><div class="kv-key">Instrument</div><div class="kv-val">NQ</div></div>
         </div>
@@ -796,7 +796,7 @@ const PROJECTS = [
   {
     id:       'ny1',
     title:    'NY1 F.P.FVG',
-    subtitle: 'First Presented FVG · 9:31–10:00 ET · Fixed % Stop',
+    subtitle: 'First Presented Fair Value Gap · 9:31–10:00 ET · Structural Stop',
     desc:     'Scans 9:31–9:59 ET for the first 3-candle FVG. Enters Long at C3.low / Short at C3.high with a fixed % stop and fixed % TP. 10 combos ranked by Certainty Equivalent across 2,721 trades from 2014–2026.',
     json:     'NY1 FPFVG/ny1_results.json',
     link:     'NY1 FPFVG/index.html',
