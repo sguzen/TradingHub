@@ -368,6 +368,8 @@ canvas{display:block;width:100%;}
 @media(max-width:900px){#classGrid [style*="grid-template-columns:repeat(5"]{grid-template-columns:repeat(3,1fr)!important;}}
 @media(max-width:560px){#classGrid [style*="grid-template-columns:repeat(5"]{grid-template-columns:repeat(2,1fr)!important;}}
 
+.tab-pane{display:block;}
+
 /* FOOTER */
 footer{
   border-top:1px solid var(--border);
@@ -387,10 +389,11 @@ footer{
   <div class="nav-divider"></div>
   <div class="nav-logo">NY1<span>°</span></div>
   <div class="nav-links">
-    <a class="nav-link active" href="#overview" onclick="smoothNav(event,'overview')">Overview</a>
-    <a class="nav-link" href="#performance" onclick="smoothNav(event,'performance')">Performance</a>
-    <a class="nav-link" href="#trades" onclick="smoothNav(event,'trades')">Trades</a>
-    <a class="nav-link" href="#comparison" onclick="smoothNav(event,'comparison')">Rankings</a>
+    <button class="nav-link active" onclick="switchTab('overview')">Overview</button>
+    <button class="nav-link" onclick="switchTab('performance')">Performance</button>
+    <button class="nav-link" onclick="switchTab('mfe')">MFE Study</button>
+    <button class="nav-link" onclick="switchTab('mae')">MAE Study</button>
+    <button class="nav-link" onclick="switchTab('trades')">Trades</button>
   </div>
   <button class="theme-btn" id="themeBtn" onclick="toggleTheme()" title="Toggle theme">☀</button>
 </nav>
@@ -412,6 +415,9 @@ footer{
 <main>
   <div id="loading">Loading ny1_results.json…</div>
   <div id="app" style="display:none">
+
+    <!-- TAB: OVERVIEW -->
+    <div class="tab-pane" id="tab-overview">
 
     <!-- HERO -->
     <section class="hero" id="overview">
@@ -465,6 +471,11 @@ footer{
         <span class="how-tag amber">Structural Stop · TP1 0.10% (50%) · Runner BE to EOD</span>
       </div>
     </div>
+
+    </div><!-- #tab-overview -->
+
+    <!-- TAB: PERFORMANCE -->
+    <div class="tab-pane" id="tab-performance" style="display:none">
 
     <!-- PERFORMANCE -->
     <div class="sec-head" id="performance">
@@ -542,6 +553,11 @@ footer{
       <div class="panel-body tight"><div id="ny1EquityCurve"></div></div>
     </div>
 
+    </div><!-- #tab-performance -->
+
+    <!-- TAB: MFE -->
+    <div class="tab-pane" id="tab-mfe" style="display:none">
+
     <!-- MFE DISTRIBUTION -->
     <div class="sec-head">
       <span class="sec-label">MFE Distribution</span>
@@ -550,6 +566,11 @@ footer{
     </div>
     <div id="mfe-dist-panel"></div>
 
+    </div><!-- #tab-mfe -->
+
+    <!-- TAB: MAE -->
+    <div class="tab-pane" id="tab-mae" style="display:none">
+
     <!-- MAE ANALYSIS -->
     <div class="sec-head">
       <span class="sec-label">MAE Analysis</span>
@@ -557,6 +578,11 @@ footer{
       <span class="sec-pill">PhD-level analysis · log-normal fit · clusters · SL sweep</span>
     </div>
     <div id="mae-analysis-panel"></div>
+
+    </div><!-- #tab-mae -->
+
+    <!-- TAB: TRADES -->
+    <div class="tab-pane" id="tab-trades" style="display:none">
 
     <!-- TRADES TABLE -->
     <div class="sec-head" id="trades">
@@ -575,6 +601,8 @@ footer{
         </div>
       </div>
     </div>
+
+    </div><!-- #tab-trades -->
 
 
   </div><!-- #app -->
@@ -605,13 +633,21 @@ const themeObserver = new MutationObserver(() => {
 });
 themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 
-// ─── SMOOTH NAV ──────────────────────────────────────────────────────────────
-function smoothNav(e, id) {
-  e.preventDefault();
+// ─── TAB NAVIGATION ───────────────────────────────────────────────────────────
+let _activeTab = 'overview';
+function switchTab(tab) {
+  _activeTab = tab;
+  document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+  const pane = document.getElementById('tab-' + tab);
+  if (pane) pane.style.display = 'block';
   document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-  e.currentTarget.classList.add('active');
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const btn = [...document.querySelectorAll('.nav-link')].find(b => b.textContent.toLowerCase().includes(tab === 'mfe' ? 'mfe' : tab === 'mae' ? 'mae' : tab));
+  if (btn) btn.classList.add('active');
+  window.scrollTo({top: 0, behavior: 'smooth'});
+  // Re-render canvases that need sizing when their tab becomes visible
+  if (tab === 'performance') renderCharts(_data?.[_activeTF]?.['open_run'] || null);
+  if (tab === 'mfe') renderMFEDistribution(_data?.[_activeTF]?.['open_run']?.risk_stats || null);
+  if (tab === 'mae') renderMAEAnalysis(_data?.[_activeTF]?.['open_run']?.risk_stats || null);
 }
 
 // ─── CANVAS SETUP ────────────────────────────────────────────────────────────
