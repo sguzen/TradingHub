@@ -1482,6 +1482,7 @@ function renderTradesTable(allTrades) {
     { key: '_stop',        label: 'Stop $' },
     { key: 'mae_pct',      label: 'MAE (%)' },
     { key: 'mfe_pct',      label: 'MFE (%)' },
+    { key: 'tp1_price',    label: 'TP1 $' },
     { key: 'exit_price',   label: 'Exit $' },
     { key: 'outcome_main', label: 'Result' },
   ];
@@ -1516,6 +1517,17 @@ function renderTradesTable(allTrades) {
       const fmtPx    = v => v != null ? Number(v).toFixed(2) : '—';
       const stopPx = fmtPx(t.stop);
       const exitPx = fmtPx(t.exit_price);
+      const tp1Px  = fmtPx(t.tp1_price);
+      const tp1Hit = t.exit_type === 'TP1+EOD' || t.exit_type === 'TP1+STOP';
+      const mfePct = t.mfe_pct != null ? t.mfe_pct : 0;
+      const progPct = Math.min(100, Math.round(mfePct / 0.10 * 100));
+      const progColor = tp1Hit ? 'var(--green)' : (progPct >= 70 ? '#f5a623' : 'var(--faint)');
+      const tp1Cell = tp1Hit
+        ? `<span style="font-family:var(--font-data);color:var(--green)">${tp1Px}</span>`
+        : `<span style="font-family:var(--font-data);color:var(--faint)">${tp1Px}</span>
+           <div style="margin-top:3px;height:3px;background:var(--border);border-radius:2px;width:56px">
+             <div style="height:3px;border-radius:2px;background:${progColor};width:${progPct}%"></div>
+           </div>`;
       return `<tr>
         <td>${t.date}</td>
         <td style="font-family:var(--font-data);color:var(--faint)">${contract}</td>
@@ -1526,6 +1538,7 @@ function renderTradesTable(allTrades) {
         <td style="font-family:var(--font-data)">${stopPx}</td>
         <td>${mae}</td>
         <td>${mfeCell(t.mfe_pct)}</td>
+        <td>${tp1Cell}</td>
         <td style="font-family:var(--font-data)">${exitPx}</td>
         <td>${tp1Badge}</td>
       </tr>`;
