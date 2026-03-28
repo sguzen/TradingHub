@@ -161,10 +161,48 @@ def notify(title, message):
         pass
 
 
+BACKTESTS = [
+    {
+        "name": "Fractal Sweep",
+        "script": Path(__file__).parent / "model_stats.py",
+    },
+    {
+        "name": "NY1 F.P.FVG",
+        "script": Path(__file__).parent.parent / "NY1 FPFVG" / "ny1_backtest.py",
+    },
+    {
+        "name": "TTrades Fractal Model",
+        "script": Path(__file__).parent.parent / "TTrades Fractal Model Analysis" / "ttfm_backtest.py",
+    },
+]
+
+
+def run_backtests():
+    for bt in BACKTESTS:
+        script = bt["script"]
+        if not script.exists():
+            log(f"[backtest] SKIP {bt['name']} — script not found: {script}")
+            continue
+        log(f"[backtest] Running {bt['name']} …")
+        result = subprocess.run(
+            [sys.executable, str(script)],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            log(f"[backtest] {bt['name']} — OK")
+        else:
+            log(f"[backtest] {bt['name']} — FAILED (exit {result.returncode})")
+            if result.stderr:
+                for line in result.stderr.strip().splitlines()[-5:]:
+                    log(f"           {line}")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--symbol", choices=list(INSTRUMENTS.keys()),
                         help="Update only this instrument (default: all)")
+    parser.add_argument("--no-backtest", action="store_true",
+                        help="Skip backtest refresh after fetching bars")
     args  = parser.parse_args()
     keys  = [args.symbol] if args.symbol else list(INSTRUMENTS.keys())
 
@@ -180,6 +218,14 @@ def main():
     msg   = f"{total:,} new bars · {ts}" if total else f"No new data · {ts}"
     notify("Candle Science Updated", msg)
     log(f"Done. {msg}")
+
+    if total > 0 and not args.no_backtest:
+        log("-" * 60)
+        log("Refreshing backtests …")
+        run_backtests()
+        notify("Backtests Refreshed", f"JSON outputs updated · {ts}")
+        log("Backtests complete.")
+
     log("=" * 60)
 
 
