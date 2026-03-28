@@ -77,3 +77,4 @@ RUNNER_SIZE = 0.50     # 50% runner at BE
 - **Trades table**: WIN (green) / LOSS (red) badges based on TP1 hit
 - **Equity curve**: uses `tp1_count` for P&L calculation
 - **Section pills**: MFE and MAE sections updated to reflect PhD-level analysis
+- **Tab navigation**: single long-scroll page replaced with 5-tab layout (Overview · Performance · MFE Study · MAE Study · Trades); tabs in sticky nav, canvas re-renders on tab switch

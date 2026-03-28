@@ -101,3 +101,21 @@ For each MAE level tested, the sweep measures P(false stop) — trades that touc
 - **Trades table** — WIN / LOSS badges based on TP1 hit
 - **MFE section** rebuilt: stat tiles · histogram · log-normal fit · cluster cards · full percentile table · BE trigger table · Protect the Queen box (♛)
 - **MAE section** rebuilt: stat tiles · histogram · log-normal fit · cluster cards · full percentile table · SL sweep table · Stop Loss Insight box (🛡)
+
+---
+
+### 5. Tab Navigation
+
+The single long-scroll page has been replaced with a **5-tab layout**:
+
+| Tab | Content |
+|---|---|
+| Overview | Hero stats · How It Works |
+| Performance | Direction split · DOW/Hour charts · Quarter · Year table · Month chart · Equity curve |
+| MFE Study | Full MFE distribution analysis |
+| MAE Study | Full MAE distribution analysis |
+| Trades | Last 40 trades log |
+
+- Tab buttons sit in the sticky nav bar — no page scrolling required
+- Switching tabs scrolls to top and re-renders any canvases that need sizing
+- Timeframe selector stays visible across all tabs
