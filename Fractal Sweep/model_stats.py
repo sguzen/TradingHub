@@ -805,7 +805,26 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
     m1_dow  = m1_arrs['dow']
     m1_date = m1_arrs['trade_date']
 
-    print(f"   [{label}] Scanning {s_n:,} sweep bars ...")
+    # ── Precompute hourly range lookup: (date, hr) → high-low pts ──────────
+    # Groups all 1m bars by (trade_date, hr) and computes max(high)-min(low)
+    _hr_range = {}
+    _prev_date_hr = (None, None)
+    _hr_hi = _hr_lo = 0.0
+    for _k in range(len(m1_ts)):
+        _dh = (m1_date[_k], m1_hr[_k])
+        if _dh != _prev_date_hr:
+            if _prev_date_hr[0] is not None:
+                _hr_range[_prev_date_hr] = _hr_hi - _hr_lo
+            _prev_date_hr = _dh
+            _hr_hi = m1_high[_k]
+            _hr_lo = m1_low[_k]
+        else:
+            if m1_high[_k] > _hr_hi: _hr_hi = m1_high[_k]
+            if m1_low[_k]  < _hr_lo: _hr_lo = m1_low[_k]
+    if _prev_date_hr[0] is not None:
+        _hr_range[_prev_date_hr] = _hr_hi - _hr_lo
+
+    print(f"   [{label}] Scanning {s_n:,} sweep bars ... ({len(_hr_range):,} hourly ranges precomputed)")
 
     base_rows    = []
     base_pending = []
@@ -915,6 +934,7 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                     stop_price=None, target_price=None, risk_pts=None,
                     outcome='SKIP', rejected_by=rejected_by or 'NO_CISD',
                     r=0.0, mae_pct=None, mfe_pct=None,
+                    mae_pct_hr=None, mfe_pct_hr=None, hour_range_pts=None,
                 )
                 base_rows.append(base_row)
                 continue
@@ -943,9 +963,11 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
 
             hr_val = int(m1_hr[entry_start])
             mn_val = int(m1_mn[entry_start])
+            _entry_date = m1_date[entry_start]
+            _hr_rng = _hr_range.get((_entry_date, hr_val), 0.0)
 
             base_row.update(
-                date         = str(m1_date[entry_start]),
+                date         = str(_entry_date),
                 dow          = int(m1_dow[entry_start]),
                 hr           = hr_val,
                 mn           = mn_val,
@@ -953,6 +975,7 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 entry_price  = round(entry_price, 2),
                 base_risk    = round(base_risk, 2),
                 cisd_level   = round(cisd_level, 2) if cisd_level is not None else None,
+                hour_range_pts = round(_hr_rng, 2),
                 rejected_by  = rejected_by,
                 # profile-dependent fields — filled by apply_profile_and_resolve
                 stop_price   = None,
@@ -962,15 +985,18 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 r            = 0.0,
                 mae_pct      = None,
                 mfe_pct      = None,
+                mae_pct_hr   = None,
+                mfe_pct_hr   = None,
             )
             base_rows.append(base_row)
             base_pending.append(dict(
-                idx           = len(base_rows) - 1,
-                entry_ts_ns   = entry_ts_ns,
-                entry_price   = entry_price,
-                sweep_extreme = float(sweep_extreme),
-                base_risk     = base_risk,
-                direction     = direction,
+                idx              = len(base_rows) - 1,
+                entry_ts_ns      = entry_ts_ns,
+                entry_price      = entry_price,
+                sweep_extreme    = float(sweep_extreme),
+                base_risk        = base_risk,
+                direction        = direction,
+                hour_range_pts   = _hr_rng,
             ))
 
     print(f"      {len(base_pending):,} entries detected across all filters")
@@ -1028,12 +1054,13 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
             continue
 
         profile_pending.append(dict(
-            idx          = idx,
-            entry_ts_ns  = bp['entry_ts_ns'],
-            entry_price  = entry_price,
-            stop_price   = stop_price,
-            target_price = target_price,
-            direction    = direction,
+            idx              = idx,
+            entry_ts_ns      = bp['entry_ts_ns'],
+            entry_price      = entry_price,
+            stop_price       = stop_price,
+            target_price     = target_price,
+            direction        = direction,
+            hour_range_pts   = bp.get('hour_range_pts', 0.0),
         ))
 
     if profile_type == 'structural':
@@ -1050,6 +1077,12 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
             rows[idx]['mfe_pct']       = mfe_pct
             rows[idx]['tp1_hit']       = tp1_hit
             rows[idx]['runner_exit_r'] = runner_exit_r
+            hr_rng = po.get('hour_range_pts', 0.0)
+            if hr_rng > 0 and mae_pct is not None:
+                mae_pts = mae_pct / 100.0 * po['entry_price']
+                mfe_pts = mfe_pct / 100.0 * po['entry_price']
+                rows[idx]['mae_pct_hr'] = round(mae_pts / hr_rng * 100, 4)
+                rows[idx]['mfe_pct_hr'] = round(mfe_pts / hr_rng * 100, 4)
             if outcome == 'INVALID':
                 rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
     else:
@@ -1060,6 +1093,12 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
             rows[idx]['r']        = r_val
             rows[idx]['mae_pct']  = mae_pct
             rows[idx]['mfe_pct']  = mfe_pct
+            hr_rng = po.get('hour_range_pts', 0.0)
+            if hr_rng > 0 and mae_pct is not None:
+                mae_pts = mae_pct / 100.0 * po['entry_price']
+                mfe_pts = mfe_pct / 100.0 * po['entry_price']
+                rows[idx]['mae_pct_hr'] = round(mae_pts / hr_rng * 100, 4)
+                rows[idx]['mfe_pct_hr'] = round(mfe_pts / hr_rng * 100, 4)
             if outcome == 'INVALID':
                 rows[idx]['rejected_by'] = rows[idx]['rejected_by'] or 'INVALID_RISK'
 
@@ -1098,7 +1137,8 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
     def agg(g):
         n = len(g)
         if n == 0:
-            return dict(n=0, wins=0, wr=0, ev=0, pf=0, avg_risk_pts=0, avg_rr=0)
+            return dict(n=0, wins=0, wr=0, ev=0, pf=0, avg_risk_pts=0, avg_rr=0,
+                        avg_mae=None, avg_mfe=None, avg_mae_hr=None, avg_mfe_hr=None)
         wins    = int(g['win'].sum())
         wr      = round(wins / n, 4)
         # EV and PF from actual per-trade R (WIN r = actual_rr, LOSS r = -1.0)
@@ -1109,7 +1149,17 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         avg_rr  = round(win_r / max(wins, 1), 2)
         ar      = round(float(g['risk_pts'].mean()), 1) \
                   if 'risk_pts' in g.columns and g['risk_pts'].notna().any() else 0
-        return dict(n=n, wins=wins, wr=wr, ev=ev, pf=pf, avg_risk_pts=ar, avg_rr=avg_rr)
+        # MAE/MFE averages — entry-price-normalized and hour-range-normalized
+        _mae = g['mae_pct'].dropna() if 'mae_pct' in g.columns else None
+        _mfe = g['mfe_pct'].dropna() if 'mfe_pct' in g.columns else None
+        avg_mae = round(float(_mae.mean()), 4) if _mae is not None and len(_mae) > 0 else None
+        avg_mfe = round(float(_mfe.mean()), 4) if _mfe is not None and len(_mfe) > 0 else None
+        _mae_hr = g['mae_pct_hr'].dropna() if 'mae_pct_hr' in g.columns else None
+        _mfe_hr = g['mfe_pct_hr'].dropna() if 'mfe_pct_hr' in g.columns else None
+        avg_mae_hr = round(float(_mae_hr.mean()), 4) if _mae_hr is not None and len(_mae_hr) > 0 else None
+        avg_mfe_hr = round(float(_mfe_hr.mean()), 4) if _mfe_hr is not None and len(_mfe_hr) > 0 else None
+        return dict(n=n, wins=wins, wr=wr, ev=ev, pf=pf, avg_risk_pts=ar, avg_rr=avg_rr,
+                    avg_mae=avg_mae, avg_mfe=avg_mfe, avg_mae_hr=avg_mae_hr, avg_mfe_hr=avg_mfe_hr)
 
     by_hour = []
     for (hr, direction), g in wl.groupby(['hr', 'direction']):

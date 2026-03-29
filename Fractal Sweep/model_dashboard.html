@@ -485,9 +485,9 @@ function switchPageTab(tab){
   if(!baseD) return;
   const D = getActiveTFData(baseD);
   if(tab === 'edge'){
-    barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),260,25,75);
-    barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,30,70);
-    barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,35,70);
+    barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),260,25,75);
+    barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,30,70);
+    barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,35,70);
   }
   if(tab === 'risk'){
     filterWaterfall(document.getElementById('filter-waterfall'),D.filter_impact||[]);
@@ -846,7 +846,9 @@ function barChart(container,data,H,yMin,yMax){
       const alpha=d.val>=60?0.92:d.val>=50?0.78:d.val>=40?0.58:0.42;
       const gId=`bcg${gi}_${ki}`;
       defs+=`<linearGradient id="${gId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${baseCol}" stop-opacity="${alpha}"/><stop offset="100%" stop-color="${baseCol}" stop-opacity="${Math.max(alpha-0.22,0.18)}"/></linearGradient>`;
-      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="url(#${gId})" rx="3" onmouseenter="showTip(event,[['${g} ${k}','${d.val.toFixed(1)}%','g'],['EV','${d.ev!=null?(d.ev>0?'+':'')+d.ev.toFixed(3)+'R':'—'}','g'],['PF','${d.pf!=null?d.pf.toFixed(2):'—'}','a'],['n','${d.n||0}','']])" onmouseleave="hideTip()" style="cursor:default"/>`;
+      const maeHr=d.avg_mae_hr!=null?d.avg_mae_hr.toFixed(2)+'%':'—';
+      const mfeHr=d.avg_mfe_hr!=null?d.avg_mfe_hr.toFixed(2)+'%':'—';
+      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="url(#${gId})" rx="3" onmouseenter="showTip(event,[['${g} ${k}','${d.val.toFixed(1)}%','g'],['EV','${d.ev!=null?(d.ev>0?'+':'')+d.ev.toFixed(3)+'R':'—'}','g'],['PF','${d.pf!=null?d.pf.toFixed(2):'—'}','a'],['n','${d.n||0}',''],'---',['Avg MAE (hr)','${maeHr}','r'],['Avg MFE (hr)','${mfeHr}','p']])" onmouseleave="hideTip()" style="cursor:default"/>`;
       if(bh>20) vlbls+=`<text x="${x+bw/2}" y="${y-5}" text-anchor="middle" font-size="8" font-weight="600" fill="${baseCol}" font-family="${SVG_FONT}">${d.val.toFixed(0)}%</text>`;
     });
     xl+=`<text x="${gx}" y="${ch+26}" text-anchor="middle" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${g}</text>`;
@@ -1164,9 +1166,9 @@ function renderModel(D){
   });
 
   drawSetupViz();
-  barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),260,25,75);
-  barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,30,70);
-  barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf})),200,35,70);
+  barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),260,25,75);
+  barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,30,70);
+  barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,35,70);
   dirCards(document.getElementById('dir-cards'),D.dir_summary||[]);
   renderHeatmap(document.getElementById('heatmap'),D.heatmap||[]);
   comboTable(document.getElementById('top-combos'),(D.top_combos||[]).slice(0,12));
