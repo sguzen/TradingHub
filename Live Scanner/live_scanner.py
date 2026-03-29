@@ -463,16 +463,18 @@ def check_model(
         fired.add(dedup)
         new_setups.append(setup)
         log.info(
-            'Setup found:  %s  %s  %s  entry=%.2f  struct_stop=%.2f  tp1=%.2f  fixed_sl=%.2f  fixed_tp=%.2f',
+            'Setup found:  %s  %s  %s  entry=%.2f  stop=%.2f  tp1=%.2f  risk=%.1f pts',
             symbol, direction, cfg['label'],
-            setup['entry_price'], setup['stop_price'], setup['tp1_price'],
-            setup['fixed_sl'], setup['fixed_tp'],
+            setup['entry_price'], setup['stop_price'], setup['tp1_price'], setup['base_risk'],
         )
 
     return new_setups
 
 
 # ── MAIN SCANNER ──────────────────────────────────────────────────────────────
+
+_STATUS_PATH = Path(__file__).parent.parent / 'Fractal Sweep' / 'scanner_status.json'
+
 
 class LiveScanner:
     def __init__(self):
@@ -482,6 +484,8 @@ class LiveScanner:
         self.buffers : dict[str, deque] = {s: deque(maxlen=maxlen) for s in INSTRUMENTS}
         self.fired   : set              = set()   # dedup set, cleared each RTH open
         self._handles: dict             = {}      # symbol → BarDataList (keeps subscription alive)
+        self._alerts_today: list        = []      # accumulated today's setups for status JSON
+        self._start_time: float         = time.time()
 
     # ── IB connection ─────────────────────────────────────────────────────────
 
@@ -553,6 +557,57 @@ class LiveScanner:
         ]
         return df if len(df) >= 10 else None
 
+    # ── Status writer ─────────────────────────────────────────────────────────
+
+    def _write_status(self) -> None:
+        """Write scanner_status.json to the Fractal Sweep directory for dashboard polling."""
+        try:
+            # Collect last 10 bars across all symbols (most recent first)
+            recent_bars = []
+            for sym, buf in self.buffers.items():
+                rows = list(buf)[-10:]
+                for r in reversed(rows):
+                    ts = r['ts']
+                    ts_str = ts.strftime('%H:%M ET') if hasattr(ts, 'strftime') else str(ts)
+                    recent_bars.append({
+                        'symbol': sym,
+                        'ts':     ts_str,
+                        'open':   round(r['open'],  2),
+                        'high':   round(r['high'],  2),
+                        'low':    round(r['low'],   2),
+                        'close':  round(r['close'], 2),
+                    })
+            recent_bars = recent_bars[:20]  # cap at 20
+
+            # Last bar time across all symbols
+            last_bar_et = None
+            for buf in self.buffers.values():
+                if buf:
+                    ts = list(buf)[-1]['ts']
+                    ts_str = ts.strftime('%H:%M ET') if hasattr(ts, 'strftime') else str(ts)
+                    if last_bar_et is None or ts_str > last_bar_et:
+                        last_bar_et = ts_str
+
+            status = {
+                'connected':       self.ib.isConnected(),
+                'uptime_seconds':  int(time.time() - self._start_time),
+                'instruments':     INSTRUMENTS,
+                'active_models':   ACTIVE_MODELS,
+                'alerts_today':    self._alerts_today,
+                'recent_bars':     recent_bars,
+                'last_bar_et':     last_bar_et or '—',
+                'updated_at':      datetime.now(timezone.utc).isoformat(),
+            }
+            _STATUS_PATH.write_text(json.dumps(status, indent=2))
+        except Exception as exc:
+            log.debug('Status write failed: %s', exc)
+
+    def _status_writer_loop(self) -> None:
+        """Periodically write scanner_status.json every 15 seconds."""
+        while True:
+            time.sleep(15)
+            self._write_status()
+
     # ── Detection loop ────────────────────────────────────────────────────────
 
     def _scan(self, symbol: str) -> None:
@@ -562,7 +617,9 @@ class LiveScanner:
         for model_key in ACTIVE_MODELS:
             setups = check_model(df, model_key, MODELS[model_key], symbol, self.fired)
             for setup in setups:
+                self._alerts_today.append(setup)
                 fire_alerts(setup)
+        self._write_status()  # immediate write after each scan that found setups
 
     # ── Daily reset ───────────────────────────────────────────────────────────
 
@@ -575,6 +632,7 @@ class LiveScanner:
                 next_reset += timedelta(days=1)
             time.sleep((next_reset - now).total_seconds())
             self.fired.clear()
+            self._alerts_today.clear()
             log.info('Dedup set cleared for new trading day (%s)', next_reset.strftime('%Y-%m-%d'))
 
     # ── Entry point ───────────────────────────────────────────────────────────
@@ -586,6 +644,8 @@ class LiveScanner:
             self.subscribe(sym)
 
         threading.Thread(target=self._daily_reset_loop, daemon=True, name='daily-reset').start()
+        threading.Thread(target=self._status_writer_loop, daemon=True, name='status-writer').start()
+        self._write_status()  # write immediately on startup so dashboard shows connected state
 
         log.info(
             'Scanner running  —  instruments: %s  |  models: %s',
