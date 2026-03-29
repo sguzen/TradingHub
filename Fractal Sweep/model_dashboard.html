@@ -2315,7 +2315,7 @@ function renderMAEStudy(D) {
   `);
   requestAnimationFrame(()=>{
     _drawMAEProbCurve(document.getElementById('mae-prob-canvas'), dist.sl_sweep||[], dist);
-    _drawMAEMFEHeatmap(document.getElementById('mae-mfe-heatmap'), D.recent_trades||[], dist, D.rich_mfe);
+    _drawMAEMFEHeatmap(document.getElementById('mae-mfe-heatmap'), D.mae_mfe_heatmap, dist, D.rich_mfe);
   });
 }
 
@@ -2562,7 +2562,7 @@ function renderMFEStudy(D) {
   `);
   requestAnimationFrame(()=>{
     _drawMFEProbCurve(document.getElementById('mfe-prob-canvas'), dist.be_triggers||[], dist);
-    _drawMAEMFEHeatmap(document.getElementById('mfe-mfe-heatmap'), D.recent_trades||[], D.rich_mae, dist);
+    _drawMAEMFEHeatmap(document.getElementById('mfe-mfe-heatmap'), D.mae_mfe_heatmap, D.rich_mae, dist);
   });
 }
 
@@ -2658,30 +2658,22 @@ function _drawMFEProbCurve(canvas, triggers, dist) {
   });
 }
 
-function _drawMAEMFEHeatmap(canvas, trades, maeDist, mfeDist) {
+function _drawMAEMFEHeatmap(canvas, hm, maeDist, mfeDist) {
+  // hm = D.mae_mfe_heatmap — pre-binned {grid, mae_max, mfe_max, n} from model_stats.py
   if (!canvas) return;
   const W=canvas.offsetWidth||600, H=240;
   canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
   const ctx=canvas.getContext('2d'); ctx.scale(devicePixelRatio,devicePixelRatio);
   const cc=C();
   const padL=48,padR=24,padT=14,padB=34,cW=W-padL-padR,cH=H-padT-padB;
-  const filtered=(trades||[]).filter(t=>t.mae_pct!=null&&t.mfe_pct!=null&&t.mae_pct>=0&&t.mfe_pct>=0);
   ctx.fillStyle=cc.bgCard; ctx.fillRect(0,0,W,H);
-  if(filtered.length<5){
+  if(!hm||!hm.grid||hm.grid.length===0||hm.n<5){
     ctx.fillStyle=cc.axisText;ctx.font='11px JetBrains Mono,monospace';ctx.textAlign='center';
     ctx.fillText('No MAE/MFE data — regenerate model_stats.json',W/2,H/2);
     return;
   }
-  const BINS=20;
-  const maeP95=maeDist?.percentiles?.p95||Math.max(...filtered.map(t=>t.mae_pct))*0.95;
-  const mfeP95=mfeDist?.percentiles?.p95||Math.max(...filtered.map(t=>t.mfe_pct))*0.95;
-  const maeMax=maeP95||0.5, mfeMax=mfeP95||0.5;
-  const grid=Array.from({length:BINS},()=>Array(BINS).fill(0));
-  filtered.forEach(t=>{
-    const xi=Math.min(Math.floor(t.mae_pct/maeMax*BINS),BINS-1);
-    const yi=Math.min(Math.floor(t.mfe_pct/mfeMax*BINS),BINS-1);
-    if(xi>=0&&yi>=0) grid[yi][xi]++;
-  });
+  const grid=hm.grid, maeMax=hm.mae_max, mfeMax=hm.mfe_max;
+  const BINS=grid.length;
   const maxCount=Math.max(...grid.flat(),1);
   const cellW=cW/BINS, cellH=cH/BINS;
   for(let yi=0;yi<BINS;yi++){
@@ -2692,9 +2684,7 @@ function _drawMAEMFEHeatmap(canvas, trades, maeDist, mfeDist) {
       if(col){ctx.fillStyle=col;ctx.fillRect(padL+xi*cellW,padT+(BINS-1-yi)*cellH,cellW,cellH);}
     }
   }
-  // grid border
   ctx.strokeStyle=cc.gridLine;ctx.lineWidth=0.5;ctx.strokeRect(padL,padT,cW,cH);
-  // Median lines
   const maeMed=maeDist?.median, mfeMed=mfeDist?.median;
   if(maeMed!=null&&maeMed<=maeMax){
     const mx=padL+(maeMed/maeMax)*cW;
@@ -2708,16 +2698,14 @@ function _drawMAEMFEHeatmap(canvas, trades, maeDist, mfeDist) {
     ctx.beginPath();ctx.moveTo(padL,my);ctx.lineTo(padL+cW,my);ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle='#10b981';ctx.font='9px JetBrains Mono,monospace';ctx.textAlign='left';ctx.fillText('MFE med',padL+3,my-3);
   }
-  // Axes
   ctx.fillStyle=cc.axisText;ctx.font='9px JetBrains Mono,monospace';
   ctx.textAlign='center';
   [0,.25,.5,.75,1].forEach(f=>ctx.fillText((maeMax*f).toFixed(3)+'%',padL+f*cW,padT+cH+14));
-  ctx.fillText('MAE %',padL+cW/2,padT+cH+26);
+  ctx.fillText(`MAE %  (${hm.n.toLocaleString()} trades)`,padL+cW/2,padT+cH+26);
   ctx.textAlign='right';
   [0,.5,1].forEach(f=>ctx.fillText((mfeMax*f).toFixed(3)+'%',padL-4,padT+cH*(1-f)+4));
   ctx.save();ctx.translate(14,padT+cH/2);ctx.rotate(-Math.PI/2);
   ctx.textAlign='center';ctx.fillText('MFE %',0,0);ctx.restore();
-  // Color scale bar
   const bx=padL+cW+4,bw=10;
   for(let i=0;i<100;i++){const c=_heatColor((i+1)/100);if(c){ctx.fillStyle=c;ctx.fillRect(bx,padT+(99-i)/100*cH,bw,cH/100+1);}}
   ctx.fillStyle=cc.axisText;ctx.font='8px JetBrains Mono,monospace';ctx.textAlign='left';

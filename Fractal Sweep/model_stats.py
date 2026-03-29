@@ -618,6 +618,26 @@ def _clusters(vals, n):
     return out
 
 
+def _build_heatmap(wl, n_bins=20):
+    """Pre-bin all trades into a MAE×MFE density grid for the dashboard heatmap.
+    Returns a compact dict: {grid, mae_max, mfe_max, n} — only ~400 integers."""
+    mae = wl['mae_pct'].dropna()
+    mfe = wl['mfe_pct'].dropna()
+    valid = wl[['mae_pct','mfe_pct']].dropna()
+    valid = valid[(valid['mae_pct'] >= 0) & (valid['mfe_pct'] >= 0)]
+    if len(valid) < 5:
+        return {'grid': [], 'mae_max': 0.5, 'mfe_max': 0.5, 'n': 0}
+    mae_max = float(valid['mae_pct'].quantile(0.95)) or 0.5
+    mfe_max = float(valid['mfe_pct'].quantile(0.95)) or 0.5
+    grid = [[0] * n_bins for _ in range(n_bins)]
+    for row in valid.itertuples():
+        xi = min(int(row.mae_pct / mae_max * n_bins), n_bins - 1)
+        yi = min(int(row.mfe_pct / mfe_max * n_bins), n_bins - 1)
+        if xi >= 0 and yi >= 0:
+            grid[yi][xi] += 1
+    return {'grid': grid, 'mae_max': round(mae_max, 4), 'mfe_max': round(mfe_max, 4), 'n': len(valid)}
+
+
 def _full_mae_stats(wl, ce=None, n_bins=50):
     """Rich MAE distribution: log-normal fit, clusters, full percentiles, SL sweep."""
     vals = wl['mae_pct'].dropna()
@@ -1528,6 +1548,7 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         'mae_loss_dist':    mae_loss_dist,
         'mfe_loss_dist':    mfe_loss_dist,
         'tspot_breakdown':  tspot_breakdown,
+        'mae_mfe_heatmap':  _build_heatmap(wl),
         'recent_trades':    recent_trades,
         'risk_stats':       risk_stats,
         'structural_stats': structural_stats,
@@ -1760,6 +1781,7 @@ def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
             'by_year':         by_yr,
             'r_hist':          r_hist,
             'by_classification': _compute_by_classification(ws_sorted),
+            'mae_mfe_heatmap':   _build_heatmap(wl_sub),
             'recent_trades':   recent_trades,
         }
 
