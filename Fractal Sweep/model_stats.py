@@ -1310,7 +1310,8 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
 
     # All resolved trades (capped at 500 for JSON size; sub-TF slices are uncapped)
     recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
-                   'sweep_extreme','target_price','risk_pts','r','outcome']
+                   'sweep_extreme','target_price','risk_pts','r','outcome',
+                   'mae_pct','mfe_pct']
     recent_rows = (wl[recent_cols]
                    .sort_values('date', ascending=False)
                    .head(500)
@@ -1325,6 +1326,9 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         for k in ('entry_price','sweep_extreme','target_price','risk_pts','r'):
             if t[k] is not None:
                 t[k] = round(float(t[k]), 2)
+        for k in ('mae_pct','mfe_pct'):
+            if k in t and t[k] is not None:
+                t[k] = round(float(t[k]), 4)
 
     # ── Risk stats for hero tiles ─────────────────────────────────────────────
     wl_sorted   = wl.sort_values('date')
@@ -1719,7 +1723,8 @@ def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
         ]
         # All trades in this TF slice (sub-TF windows are naturally bounded)
         recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
-                       'sweep_extreme','target_price','risk_pts','r','outcome']
+                       'sweep_extreme','target_price','risk_pts','r','outcome',
+                       'mae_pct','mfe_pct']
         available = [c for c in recent_cols if c in wl_sub.columns]
         rt = wl_sub[available].sort_values('date', ascending=False).copy()
         rt['dow_name'] = rt['dow'].map(lambda d: dow_names.get(int(d), '?'))

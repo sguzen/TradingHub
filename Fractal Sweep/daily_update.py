@@ -46,7 +46,7 @@ def log(msg):
     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
 
 
-def fetch_new_bars(con, key: str) -> int:
+def fetch_new_bars(con, key: str, force: bool = False) -> int:
     try:
         import databento as db
     except ImportError:
@@ -61,7 +61,7 @@ def fetch_new_bars(con, key: str) -> int:
     tz     = pytz.timezone(TIMEZONE)
     now    = datetime.now(tz)
 
-    if now.weekday() >= 5:
+    if now.weekday() >= 5 and not force:
         log(f"[{key}] Weekend — skipping fetch"); return 0
 
     result  = con.execute(f"SELECT MAX(timestamp) FROM {table}").fetchone()
@@ -203,6 +203,8 @@ def main():
                         help="Update only this instrument (default: all)")
     parser.add_argument("--no-backtest", action="store_true",
                         help="Skip backtest refresh after fetching bars")
+    parser.add_argument("--force", action="store_true",
+                        help="Run even on weekends")
     args  = parser.parse_args()
     keys  = [args.symbol] if args.symbol else list(INSTRUMENTS.keys())
 
@@ -210,7 +212,7 @@ def main():
     log(f"Daily Update — {', '.join(keys)}")
 
     con      = duckdb.connect(str(DB_PATH))
-    new_rows = {k: fetch_new_bars(con, k) for k in keys}
+    new_rows = {k: fetch_new_bars(con, k, force=args.force) for k in keys}
     con.close()
 
     total = sum(new_rows.values())

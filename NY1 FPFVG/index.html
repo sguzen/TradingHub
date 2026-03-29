@@ -1060,6 +1060,23 @@ function renderMAEAnalysis(rs) {
   ctx.textAlign = 'right';
   ctx.fillText(maxC, padL-4, padT+4);
   ctx.fillText('0', padL-4, padT+cH+4);
+
+  // ── Probability Curve + Heatmap ──────────────────────────────────────────
+  el.insertAdjacentHTML('beforeend', `
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-hd"><span class="panel-title">MAE Probability Curve</span><span class="panel-note">CDF · P(false stop | MAE≥X) · P(genuine loss | MAE≥X) vs SL level</span></div>
+      <div class="panel-body" style="padding:12px 12px 6px"><canvas id="ny1-mae-prob-canvas" height="140" style="width:100%;display:block;border-radius:6px;background:var(--canvas-bg)"></canvas></div>
+    </div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-hd"><span class="panel-title">MAE × MFE Joint Heatmap</span><span class="panel-note">trade density by excursion bucket · orange = MAE median · teal = MFE median</span></div>
+      <div class="panel-body" style="padding:12px 12px 6px"><canvas id="ny1-mae-heat" height="240" style="width:100%;display:block;border-radius:6px;background:var(--canvas-bg)"></canvas></div>
+    </div>
+  `);
+  requestAnimationFrame(() => {
+    _ny1DrawMAEProbCurve(document.getElementById('ny1-mae-prob-canvas'), dist.sl_sweep || [], dist);
+    const prof = _data?.[_activeTF]?.profiles?.[_activeProfile];
+    _ny1DrawHeatmap(document.getElementById('ny1-mae-heat'), prof?.trades || [], dist, rs.mfe_dist);
+  });
 }
 
 // ─── HERO STATS ──────────────────────────────────────────────────────────────
@@ -1978,6 +1995,186 @@ function renderMFEDistribution(rs) {
   ctx.textAlign = 'right';
   ctx.fillText(maxC, padL - 4, padT + 4);
   ctx.fillText('0', padL - 4, padT + cH + 4);
+
+  // ── Probability Curve + Heatmap ──────────────────────────────────────────
+  el.insertAdjacentHTML('beforeend', `
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-hd"><span class="panel-title">MFE Probability Curve</span><span class="panel-note">P(MFE≥X) reach rate · P(+exit | MFE≥X) · PTQ recommendation</span></div>
+      <div class="panel-body" style="padding:12px 12px 6px"><canvas id="ny1-mfe-prob-canvas" height="140" style="width:100%;display:block;border-radius:6px;background:var(--canvas-bg)"></canvas></div>
+    </div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-hd"><span class="panel-title">MAE × MFE Joint Heatmap</span><span class="panel-note">trade density by excursion bucket · orange = MAE median · teal = MFE median</span></div>
+      <div class="panel-body" style="padding:12px 12px 6px"><canvas id="ny1-mfe-heat" height="240" style="width:100%;display:block;border-radius:6px;background:var(--canvas-bg)"></canvas></div>
+    </div>
+  `);
+  requestAnimationFrame(() => {
+    _ny1DrawMFEProbCurve(document.getElementById('ny1-mfe-prob-canvas'), dist.be_triggers || [], dist);
+    const prof = _data?.[_activeTF]?.profiles?.[_activeProfile];
+    _ny1DrawHeatmap(document.getElementById('ny1-mfe-heat'), prof?.trades || [], rs.mae_dist, dist);
+  });
+}
+
+// ─── MAE/MFE SHARED CHART HELPERS ────────────────────────────────────────────
+
+function _ny1Dark() { return document.documentElement.getAttribute('data-theme') !== 'light'; }
+function _ny1CC() {
+  const dk=_ny1Dark();
+  return {
+    bg:   dk?'#111827':'#ffffff',
+    grid: dk?'rgba(255,255,255,.04)':'rgba(0,0,0,.06)',
+    text: dk?'#64748b':'#475569',
+  };
+}
+
+function _ny1HeatColor(t) {
+  if(t<=0)return null;
+  const stops=[[0,[17,24,39]],[0.25,[67,20,99]],[0.55,[185,28,28]],[0.8,[194,65,12]],[1,[253,224,71]]];
+  let s0=stops[0],s1=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++){if(t>=stops[i][0]&&t<=stops[i+1][0]){s0=stops[i];s1=stops[i+1];break;}}
+  const f=s0[0]===s1[0]?1:(t-s0[0])/(s1[0]-s0[0]);
+  const lr=(a,b)=>Math.round(a+(b-a)*f);
+  return `rgb(${lr(s0[1][0],s1[1][0])},${lr(s0[1][1],s1[1][1])},${lr(s0[1][2],s1[1][2])})`;
+}
+
+function _ny1DrawMAEProbCurve(canvas, sweep, dist) {
+  if(!canvas||!sweep||sweep.length<2)return;
+  const W=canvas.offsetWidth||700, H=140;
+  canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
+  const ctx=canvas.getContext('2d'); ctx.scale(devicePixelRatio,devicePixelRatio);
+  const cc=_ny1CC();
+  const padL=40,padR=14,padT=18,padB=28,cW=W-padL-padR,cH=H-padT-padB;
+  const data=[...sweep].sort((a,b)=>a.threshold-b.threshold);
+  const xMax=data[data.length-1].threshold*1.08;
+  const xS=v=>padL+(v/xMax)*cW, yS=v=>padT+cH*(1-v);
+  ctx.fillStyle=cc.bg; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=cc.grid; ctx.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{const y=padT+cH*(1-f);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+cW,y);ctx.stroke();});
+  ctx.strokeStyle='rgba(148,163,184,.12)';ctx.setLineDash([3,3]);
+  ctx.beginPath();ctx.moveTo(padL,yS(.5));ctx.lineTo(padL+cW,yS(.5));ctx.stroke();ctx.setLineDash([]);
+  const line=(pts,color,dash=[],lw=1.8)=>{
+    if(pts.length<2)return;
+    ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+    pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1]));
+    ctx.stroke();ctx.setLineDash([]);
+  };
+  line(data.map(d=>[xS(d.threshold),yS(1-d.exceed_pct/100)]),'#60a5fa',[4,2]);
+  line(data.map(d=>[xS(d.threshold),yS(d.p_recovered)]),'#fb923c');
+  line(data.map(d=>[xS(d.threshold),yS(d.p_ko)]),'#f87171');
+  ctx.fillStyle=cc.text;ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  [0,.25,.5,.75,1].forEach(f=>ctx.fillText((xMax*f).toFixed(3)+'%',padL+f*cW,padT+cH+16));
+  ctx.textAlign='right';
+  [0,.25,.5,.75,1].forEach(f=>ctx.fillText((f*100).toFixed(0)+'%',padL-4,yS(f)+4));
+  [[padL+4,'#60a5fa','P(MAE≤X) CDF',[4,2]],[padL+116,'#fb923c','P(false stop|≥X)'],[padL+236,'#f87171','P(genuine|≥X)']].forEach(([x,c,lbl,dash=[]])=>{
+    ctx.strokeStyle=c;ctx.lineWidth=1.5;ctx.setLineDash(dash);
+    ctx.beginPath();ctx.moveTo(x,padT+6);ctx.lineTo(x+18,padT+6);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle=cc.text;ctx.textAlign='left';ctx.fillText(lbl,x+21,padT+10);
+  });
+}
+
+function _ny1DrawMFEProbCurve(canvas, triggers, dist) {
+  if(!canvas||!triggers||triggers.length<2)return;
+  const W=canvas.offsetWidth||700, H=140;
+  canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
+  const ctx=canvas.getContext('2d'); ctx.scale(devicePixelRatio,devicePixelRatio);
+  const cc=_ny1CC();
+  const padL=40,padR=14,padT=18,padB=28,cW=W-padL-padR,cH=H-padT-padB;
+  const data=[...triggers].sort((a,b)=>a.trigger_pct-b.trigger_pct);
+  const xMax=data[data.length-1].trigger_pct*1.08;
+  const ptq=dist.ptq_level;
+  const xS=v=>padL+(v/xMax)*cW, yS=v=>padT+cH*(1-v);
+  ctx.fillStyle=cc.bg; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle=cc.grid; ctx.lineWidth=1;
+  [.25,.5,.75,1].forEach(f=>{const y=padT+cH*(1-f);ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(padL+cW,y);ctx.stroke();});
+  const line=(pts,color,dash=[],lw=1.8)=>{
+    if(pts.length<2)return;
+    ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+    pts.slice(1).forEach(p=>ctx.lineTo(p[0],p[1]));
+    ctx.stroke();ctx.setLineDash([]);
+  };
+  line(data.map(d=>[xS(d.trigger_pct),yS(d.reach_rate/100)]),'#10b981');
+  line(data.map(d=>[xS(d.trigger_pct),yS(d.p_pos_given)]),'#fbbf24');
+  if(ptq!=null){
+    const px=xS(ptq);
+    ctx.strokeStyle='rgba(16,185,129,.6)';ctx.lineWidth=1.5;ctx.setLineDash([4,3]);
+    ctx.beginPath();ctx.moveTo(px,padT);ctx.lineTo(px,padT+cH);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#10b981';ctx.font='bold 9px IBM Plex Mono,monospace';ctx.textAlign='center';
+    ctx.fillText('PTQ',px,padT+9);
+  }
+  ctx.fillStyle=cc.text;ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='center';
+  [0,.25,.5,.75,1].forEach(f=>ctx.fillText((xMax*f).toFixed(3)+'%',padL+f*cW,padT+cH+16));
+  ctx.textAlign='right';
+  [0,.25,.5,.75,1].forEach(f=>ctx.fillText((f*100).toFixed(0)+'%',padL-4,yS(f)+4));
+  [[padL+4,'#10b981','P(MFE≥X) reach'],[padL+120,'#fbbf24','P(+exit | MFE≥X)']].forEach(([x,c,lbl])=>{
+    ctx.strokeStyle=c;ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(x,padT+6);ctx.lineTo(x+18,padT+6);ctx.stroke();
+    ctx.fillStyle=cc.text;ctx.textAlign='left';ctx.fillText(lbl,x+21,padT+10);
+  });
+}
+
+function _ny1DrawHeatmap(canvas, trades, maeDist, mfeDist) {
+  if(!canvas)return;
+  const W=canvas.offsetWidth||700, H=240;
+  canvas.width=W*devicePixelRatio; canvas.height=H*devicePixelRatio;
+  const ctx=canvas.getContext('2d'); ctx.scale(devicePixelRatio,devicePixelRatio);
+  const cc=_ny1CC();
+  const padL=48,padR=24,padT=14,padB=34,cW=W-padL-padR,cH=H-padT-padB;
+  const filtered=(trades||[]).filter(t=>t.mae_pct!=null&&t.mfe_pct!=null&&t.mae_pct>=0&&t.mfe_pct>=0);
+  ctx.fillStyle=cc.bg; ctx.fillRect(0,0,W,H);
+  if(filtered.length<5){
+    ctx.fillStyle=cc.text;ctx.font='11px IBM Plex Mono,monospace';ctx.textAlign='center';
+    ctx.fillText('No trade data available',W/2,H/2);return;
+  }
+  const BINS=20;
+  const maeP95=maeDist?.percentiles?.p95||null;
+  const mfeP95=mfeDist?.percentiles?.p95||null;
+  const maeSorted=[...filtered.map(t=>t.mae_pct)].sort((a,b)=>a-b);
+  const mfeSorted=[...filtered.map(t=>t.mfe_pct)].sort((a,b)=>a-b);
+  const maeMax=maeP95||maeSorted[Math.floor(maeSorted.length*0.95)]||0.5;
+  const mfeMax=mfeP95||mfeSorted[Math.floor(mfeSorted.length*0.95)]||0.5;
+  const grid=Array.from({length:BINS},()=>Array(BINS).fill(0));
+  filtered.forEach(t=>{
+    const xi=Math.min(Math.floor(t.mae_pct/maeMax*BINS),BINS-1);
+    const yi=Math.min(Math.floor(t.mfe_pct/mfeMax*BINS),BINS-1);
+    if(xi>=0&&yi>=0)grid[yi][xi]++;
+  });
+  const maxCount=Math.max(...grid.flat(),1);
+  const cellW=cW/BINS, cellH=cH/BINS;
+  for(let yi=0;yi<BINS;yi++){
+    for(let xi=0;xi<BINS;xi++){
+      const c=grid[yi][xi];
+      if(c===0){ctx.fillStyle=_ny1Dark()?'rgba(17,24,39,0.5)':'rgba(241,245,249,0.5)';ctx.fillRect(padL+xi*cellW,padT+(BINS-1-yi)*cellH,cellW,cellH);continue;}
+      const col=_ny1HeatColor(c/maxCount);
+      if(col){ctx.fillStyle=col;ctx.fillRect(padL+xi*cellW,padT+(BINS-1-yi)*cellH,cellW,cellH);}
+    }
+  }
+  ctx.strokeStyle=cc.grid;ctx.lineWidth=0.5;ctx.strokeRect(padL,padT,cW,cH);
+  const maeMed=maeDist?.median, mfeMed=mfeDist?.median;
+  if(maeMed!=null&&maeMed<=maeMax){
+    const mx=padL+(maeMed/maeMax)*cW;
+    ctx.strokeStyle='rgba(251,146,60,.7)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(mx,padT);ctx.lineTo(mx,padT+cH);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#fb923c';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='left';ctx.fillText('MAE med',mx+3,padT+cH-4);
+  }
+  if(mfeMed!=null&&mfeMed<=mfeMax){
+    const my=padT+cH-(mfeMed/mfeMax)*cH;
+    ctx.strokeStyle='rgba(16,185,129,.7)';ctx.lineWidth=1.5;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(padL,my);ctx.lineTo(padL+cW,my);ctx.stroke();ctx.setLineDash([]);
+    ctx.fillStyle='#10b981';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='left';ctx.fillText('MFE med',padL+3,my-3);
+  }
+  ctx.fillStyle=cc.text;ctx.font='9px IBM Plex Mono,monospace';
+  ctx.textAlign='center';
+  [0,.25,.5,.75,1].forEach(f=>ctx.fillText((maeMax*f).toFixed(3)+'%',padL+f*cW,padT+cH+14));
+  ctx.fillText('MAE %',padL+cW/2,padT+cH+26);
+  ctx.textAlign='right';
+  [0,.5,1].forEach(f=>ctx.fillText((mfeMax*f).toFixed(3)+'%',padL-4,padT+cH*(1-f)+4));
+  ctx.save();ctx.translate(14,padT+cH/2);ctx.rotate(-Math.PI/2);
+  ctx.textAlign='center';ctx.fillText('MFE %',0,0);ctx.restore();
+  const bx=padL+cW+4,bw=10;
+  for(let i=0;i<100;i++){const c=_ny1HeatColor((i+1)/100);if(c){ctx.fillStyle=c;ctx.fillRect(bx,padT+(99-i)/100*cH,bw,cH/100+1);}}
+  ctx.fillStyle=cc.text;ctx.font='8px IBM Plex Mono,monospace';ctx.textAlign='left';
+  ctx.fillText('Hi',bx,padT+8);ctx.fillText('Lo',bx,padT+cH+3);
 }
 
 // ─── EQUITY CURVE ────────────────────────────────────────────────────────────
