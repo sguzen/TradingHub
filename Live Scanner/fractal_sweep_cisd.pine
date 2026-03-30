@@ -1,0 +1,214 @@
+//@version=5
+indicator("Fractal Sweep + CISD", overlay=true, max_labels_count=100, max_lines_count=100)
+
+// ── INPUTS ────────────────────────────────────────────────────────────────────
+var string G1 = "Model"
+sweep_tf   = input.timeframe("30",  "Sweep Timeframe",  group=G1,
+                 tooltip="Match to model: 30=30M_3M, 60=1H_3M or 1H_5M, 240=4H_15M")
+q1_bars    = input.int(8,           "Q1 Bars (sweep TF ÷ chart TF)", group=G1,
+                 tooltip="30M_3M on 3M chart=8 | 1H_3M on 3M=20 | 1H_5M on 5M=12 | 4H_15M on 15M=16")
+cisd_lookback = input.int(8,        "CISD Lookback Bars",            group=G1)
+
+var string G2 = "Filters"
+sweep_min  = input.float(0.10,  "Sweep Min % of Range", group=G2, step=0.05) / 100
+sweep_max  = input.float(1.50,  "Sweep Max % of Range", group=G2, step=0.05) / 100
+min_risk   = input.float(3.0,   "Min Risk (pts)",        group=G2)
+rth_only   = input.bool(true,   "RTH Only (07:00–16:00 ET)", group=G2)
+
+var string G3 = "Display"
+show_sweep = input.bool(true,  "Show Sweep Markers",  group=G3)
+show_entry = input.bool(true,  "Show Entry Labels",   group=G3)
+show_sl    = input.bool(true,  "Show SL/TP Lines",    group=G3)
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+is_rth() =>
+    h = hour(time, "America/New_York")
+    h >= 7 and h < 16
+
+// ── PRIOR ANCHOR CANDLE (fully closed — lookahead safe) ───────────────────────
+prior_high = request.security(syminfo.tickerid, sweep_tf, high[1],  lookahead=barmerge.lookahead_on)
+prior_low  = request.security(syminfo.tickerid, sweep_tf, low[1],   lookahead=barmerge.lookahead_on)
+
+// Detect new anchor period
+anchor_time    = request.security(syminfo.tickerid, sweep_tf, time, lookahead=barmerge.lookahead_on)
+is_new_anchor  = ta.change(anchor_time) != 0
+
+// ── STATE VARIABLES ───────────────────────────────────────────────────────────
+var float  anc_hi          = na    // prior anchor high
+var float  anc_lo          = na    // prior anchor low
+var int    q1_elapsed      = 0
+var bool   in_q1           = false
+
+var bool   swept_long      = false
+var bool   swept_short     = false
+var float  sweep_ext_long  = na    // sweep extreme (low for LONG)
+var float  sweep_ext_short = na    // sweep extreme (high for SHORT)
+
+var bool   ret_long        = false // returned to range after long sweep
+var bool   ret_short       = false
+
+var bool   alerted_long    = false // fired once per anchor period
+var bool   alerted_short   = false
+
+// ── ANCHOR PERIOD RESET ───────────────────────────────────────────────────────
+if is_new_anchor
+    anc_hi         := prior_high
+    anc_lo         := prior_low
+    q1_elapsed     := 0
+    in_q1          := true
+    swept_long     := false
+    swept_short    := false
+    sweep_ext_long := na
+    sweep_ext_short:= na
+    ret_long       := false
+    ret_short      := false
+    alerted_long   := false
+    alerted_short  := false
+
+// ── Q1 COUNTER ────────────────────────────────────────────────────────────────
+if in_q1
+    q1_elapsed += 1
+    if q1_elapsed >= q1_bars
+        in_q1 := false
+
+// ── PHASE 1: SWEEP ────────────────────────────────────────────────────────────
+if in_q1 and not na(anc_hi) and not na(anc_lo)
+    ref_range = anc_hi - anc_lo
+    if ref_range > 0
+        // LONG: price sweeps below prior low
+        if not swept_long
+            ext = anc_lo - low
+            if low < anc_lo and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
+                swept_long     := true
+                sweep_ext_long := low
+
+        // SHORT: price sweeps above prior high
+        if not swept_short
+            ext = high - anc_hi
+            if high > anc_hi and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
+                swept_short     := true
+                sweep_ext_short := high
+
+// ── PHASE 2: RETURN TO RANGE ──────────────────────────────────────────────────
+if in_q1
+    if swept_long  and not ret_long  and close >= anc_lo
+        ret_long  := true
+    if swept_short and not ret_short and close <= anc_hi
+        ret_short := true
+
+// ── PHASE 3: CISD ─────────────────────────────────────────────────────────────
+// LONG CISD: find most recent consecutive bearish run; cisd_level = open of first bar in run
+//            fire when close > cisd_level
+f_cisd_long() =>
+    cisd_lvl = float(na)
+    // Walk back to find bearish run
+    run_start = 0
+    for k = 1 to cisd_lookback
+        if close[k] < open[k]
+            run_start := k
+            break
+    if run_start > 0
+        for k = run_start + 1 to run_start + cisd_lookback
+            if k < bar_index
+                if close[k] < open[k] or close[k] == open[k]
+                    run_start := k
+                else
+                    break
+        cisd_lvl := open[run_start]
+    [not na(cisd_lvl) and close > cisd_lvl, cisd_lvl]
+
+// SHORT CISD: consecutive bullish run; cisd_level = open of first; fire when close < cisd_level
+f_cisd_short() =>
+    cisd_lvl = float(na)
+    run_start = 0
+    for k = 1 to cisd_lookback
+        if close[k] > open[k]
+            run_start := k
+            break
+    if run_start > 0
+        for k = run_start + 1 to run_start + cisd_lookback
+            if k < bar_index
+                if close[k] > open[k] or close[k] == open[k]
+                    run_start := k
+                else
+                    break
+        cisd_lvl := open[run_start]
+    [not na(cisd_lvl) and close < cisd_lvl, cisd_lvl]
+
+[cisd_long_fired,  cisd_long_lvl]  = f_cisd_long()
+[cisd_short_fired, cisd_short_lvl] = f_cisd_short()
+
+// ── ENTRY + RISK ───────────────────────────────────────────────────────────────
+// Entry = next bar open (approximate with current close for label placement)
+long_risk  = not na(sweep_ext_long)  ? math.abs(close - sweep_ext_long)  : 0.0
+short_risk = not na(sweep_ext_short) ? math.abs(close - sweep_ext_short) : 0.0
+
+long_valid  = ret_long  and cisd_long_fired  and not alerted_long  and long_risk  >= min_risk
+short_valid = ret_short and cisd_short_fired and not alerted_short and short_risk >= min_risk
+
+if rth_only
+    long_valid  := long_valid  and is_rth()
+    short_valid := short_valid and is_rth()
+
+// ── FIRE ALERTS & DRAW ────────────────────────────────────────────────────────
+if long_valid
+    alerted_long := true
+    entry  = close
+    sl     = sweep_ext_long
+    tp1    = entry + (entry - sl)  // 1R
+
+    if show_entry
+        label.new(bar_index, low - ta.atr(14),
+             "▲ LONG\nEntry " + str.tostring(entry, "#.##") +
+             "\nSL " + str.tostring(sl, "#.##") +
+             "\nTP1 " + str.tostring(tp1, "#.##"),
+             color=color.new(color.teal, 10), textcolor=color.white,
+             style=label.style_label_up, size=size.small)
+
+    if show_sl
+        line.new(bar_index, sl,  bar_index + 10, sl,  color=color.red,   width=1, style=line.style_dashed)
+        line.new(bar_index, tp1, bar_index + 10, tp1, color=color.green, width=1, style=line.style_dashed)
+
+    if show_sweep and not na(sweep_ext_long)
+        label.new(bar_index, sweep_ext_long, "sweep", color=color.new(color.orange, 60),
+                  textcolor=color.orange, style=label.style_cross, size=size.tiny)
+
+    // TradingView alert — configure in Alerts panel (supports Discord webhook)
+    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") +
+          " | SL " + str.tostring(sl, "#.##") +
+          " | TP1 " + str.tostring(tp1, "#.##") +
+          " | Risk " + str.tostring(long_risk, "#.#") + " pts" +
+          " | Sweep TF " + sweep_tf + "M · CISD chart TF",
+          alert.freq_once_per_bar_close)
+
+if short_valid
+    alerted_short := true
+    entry  = close
+    sl     = sweep_ext_short
+    tp1    = entry - (sl - entry)  // 1R
+
+    if show_entry
+        label.new(bar_index, high + ta.atr(14),
+             "▼ SHORT\nEntry " + str.tostring(entry, "#.##") +
+             "\nSL " + str.tostring(sl, "#.##") +
+             "\nTP1 " + str.tostring(tp1, "#.##"),
+             color=color.new(color.red, 10), textcolor=color.white,
+             style=label.style_label_down, size=size.small)
+
+    if show_sl
+        line.new(bar_index, sl,  bar_index + 10, sl,  color=color.red,   width=1, style=line.style_dashed)
+        line.new(bar_index, tp1, bar_index + 10, tp1, color=color.green, width=1, style=line.style_dashed)
+
+    if show_sweep and not na(sweep_ext_short)
+        label.new(bar_index, sweep_ext_short, "sweep", color=color.new(color.orange, 60),
+                  textcolor=color.orange, style=label.style_cross, size=size.tiny)
+
+    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") +
+          " | SL " + str.tostring(sl, "#.##") +
+          " | TP1 " + str.tostring(tp1, "#.##") +
+          " | Risk " + str.tostring(short_risk, "#.#") + " pts" +
+          " | Sweep TF " + sweep_tf + "M · CISD chart TF",
+          alert.freq_once_per_bar_close)
+
+// ── BACKGROUND: highlight Q1 window ───────────────────────────────────────────
+bgcolor(in_q1 ? color.new(color.yellow, 93) : na, title="Q1 Window")
