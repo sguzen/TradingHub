@@ -526,7 +526,7 @@ class LiveScanner:
             bars = self.ib.reqHistoricalData(
                 contract,
                 endDateTime='',
-                durationStr='300 S',   # last 5 minutes
+                durationStr='1800 S',  # last 30 minutes — short durations cause HMDS errors
                 barSizeSetting='1 min',
                 whatToShow='TRADES',
                 useRTH=False,
