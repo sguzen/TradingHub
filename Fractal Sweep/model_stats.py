@@ -50,7 +50,7 @@ import scipy.stats as _scipy_stats
 DB_PATH   = Path(__file__).parent / 'candle_science.duckdb'
 OUT_PATH  = Path(__file__).parent / 'model_stats.json'
 TABLE     = 'nq_1m'
-PHASE1_XL = Path(__file__).parent / 'fractal_phase1_results.xlsx'
+PHASE1_XL = Path(__file__).parent.parent / 'archive' / 'Fractal Sweep' / 'fractal_phase1_results.xlsx'
 
 # ── DATE → CLASSIFICATION MAP (from fractal_phase1_results.xlsx) ──────────────
 def _load_date_classification():
