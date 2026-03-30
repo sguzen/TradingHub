@@ -5,8 +5,8 @@ indicator("Fractal Sweep + CISD", overlay=true, max_labels_count=100, max_lines_
 var string G1 = "Model"
 sweep_tf   = input.timeframe("30",  "Sweep Timeframe",  group=G1,
                  tooltip="Match to model: 30=30M_3M, 60=1H_3M or 1H_5M, 240=4H_15M")
-q1_bars    = input.int(8,           "Q1 Bars (sweep TF ÷ chart TF)", group=G1,
-                 tooltip="30M_3M on 3M chart=8 | 1H_3M on 3M=20 | 1H_5M on 5M=12 | 4H_15M on 15M=16")
+q1_bars    = input.int(3,           "Q1 Bars (q1_min ÷ chart TF)", group=G1,
+                 tooltip="30M_3M on 3M chart=3 | 1H_3M on 3M=5 | 1H_5M on 5M=3 | 4H_15M on 15M=4")
 cisd_lookback = input.int(8,        "CISD Lookback Bars",            group=G1)
 
 var string G2 = "Filters"
