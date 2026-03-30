@@ -478,14 +478,13 @@ _STATUS_PATH = Path(__file__).parent.parent / 'Fractal Sweep' / 'scanner_status.
 
 class LiveScanner:
     def __init__(self):
-        self.ib      = IB()
-        # Rolling 1m bar buffer per symbol (enough bars for the 4H model + CISD lookback)
-        maxlen       = HISTORY_DAYS * 24 * 60
-        self.buffers : dict[str, deque] = {s: deque(maxlen=maxlen) for s in INSTRUMENTS}
-        self.fired   : set              = set()   # dedup set, cleared each RTH open
-        self._handles: dict             = {}      # symbol → BarDataList (keeps subscription alive)
-        self._alerts_today: list        = []      # accumulated today's setups for status JSON
-        self._start_time: float         = time.time()
+        self.ib        = IB()
+        maxlen         = HISTORY_DAYS * 24 * 60
+        self.buffers   : dict[str, deque]  = {s: deque(maxlen=maxlen) for s in INSTRUMENTS}
+        self.contracts : dict[str, object] = {}   # symbol → qualified ContFuture
+        self.fired     : set               = set()
+        self._alerts_today: list           = []
+        self._start_time: float            = time.time()
 
     # ── IB connection ─────────────────────────────────────────────────────────
 
@@ -494,35 +493,68 @@ class LiveScanner:
         self.ib.connect(IB_HOST, IB_PORT, clientId=IB_CLIENT_ID)
         log.info('Connected.  Client id: %d', IB_CLIENT_ID)
 
-    # ── Subscriptions ─────────────────────────────────────────────────────────
+    # ── Seed historical bars ──────────────────────────────────────────────────
 
-    def subscribe(self, symbol: str) -> None:
-        """Seed history AND subscribe to live 1m bars in a single IB request."""
+    def seed(self, symbol: str) -> None:
+        """Fetch full history on startup to populate the buffer."""
         contract = ContFuture(symbol, 'CME')
         self.ib.qualifyContracts(contract)
+        self.contracts[symbol] = contract
         log.info('%s: qualified → %s', symbol, contract.localSymbol)
 
         bars = self.ib.reqHistoricalData(
             contract,
-            endDateTime='',                          # empty = up to now
+            endDateTime='',
             durationStr=f'{HISTORY_DAYS} D',
             barSizeSetting='1 min',
             whatToShow='TRADES',
-            useRTH=False,                            # include pre/post for anchor context
-            keepUpToDate=True,                       # stream live bars after seed
+            useRTH=False,
+            keepUpToDate=False,
         )
-
-        # Seed buffer from historical batch
         for b in bars:
             self._push(symbol, b)
         log.info('%s: seeded %d historical bars', symbol, len(bars))
 
-        # Wire live update handler
-        bars.updateEvent += lambda b, has_new: self._on_bar(symbol, b, has_new)
-        self._handles[symbol] = bars  # hold reference so GC doesn't destroy it
-        log.info('%s: live subscription active', symbol)
+    # ── Poll for new bars (called every ~65s) ─────────────────────────────────
 
-    # ── Bar event ─────────────────────────────────────────────────────────────
+    def poll(self, symbol: str) -> None:
+        """Fetch the last 5 minutes of bars, push any newer than the buffer tail."""
+        contract = self.contracts.get(symbol)
+        if contract is None:
+            return
+        try:
+            bars = self.ib.reqHistoricalData(
+                contract,
+                endDateTime='',
+                durationStr='300 S',   # last 5 minutes
+                barSizeSetting='1 min',
+                whatToShow='TRADES',
+                useRTH=False,
+                keepUpToDate=False,
+            )
+        except Exception as exc:
+            log.warning('%s: poll failed: %s', symbol, exc)
+            return
+
+        if not bars:
+            return
+
+        # Determine last known timestamp in buffer
+        buf = self.buffers[symbol]
+        last_ts = list(buf)[-1]['ts'] if buf else None
+
+        new_count = 0
+        for b in bars:
+            if last_ts is None or b.date > last_ts:
+                self._push(symbol, b)
+                new_count += 1
+
+        if new_count:
+            log.info('%s: +%d new bar(s), last=%s', symbol, new_count,
+                     list(self.buffers[symbol])[-1]['ts'])
+            self._scan(symbol)
+
+    # ── Bar push ──────────────────────────────────────────────────────────────
 
     def _push(self, symbol: str, bar) -> None:
         self.buffers[symbol].append({
@@ -532,12 +564,6 @@ class LiveScanner:
             'low':   float(bar.low),
             'close': float(bar.close),
         })
-
-    def _on_bar(self, symbol: str, bars, has_new_bar: bool) -> None:
-        if not has_new_bar or not bars:
-            return
-        self._push(symbol, bars[-1])
-        self._scan(symbol)
 
     # ── Build ET-indexed DataFrame ────────────────────────────────────────────
 
@@ -641,21 +667,28 @@ class LiveScanner:
         self.connect()
 
         for sym in INSTRUMENTS:
-            self.subscribe(sym)
+            self.seed(sym)
 
         threading.Thread(target=self._daily_reset_loop, daemon=True, name='daily-reset').start()
         threading.Thread(target=self._status_writer_loop, daemon=True, name='status-writer').start()
-        self._write_status()  # write immediately on startup so dashboard shows connected state
+
+        # Scan seeded history immediately (catches setups already formed today)
+        for sym in INSTRUMENTS:
+            self._scan(sym)
+        self._write_status()
 
         log.info(
-            'Scanner running  —  instruments: %s  |  models: %s',
+            'Scanner running  —  instruments: %s  |  models: %s  |  polling every 65s',
             ', '.join(INSTRUMENTS),
             ', '.join(ACTIVE_MODELS),
         )
         log.info('Press Ctrl+C to stop.')
 
         try:
-            self.ib.run()   # blocks on the IB event loop
+            while True:
+                self.ib.sleep(65)   # processes IB event loop, then polls
+                for sym in INSTRUMENTS:
+                    self.poll(sym)
         except KeyboardInterrupt:
             log.info('Shutting down...')
         finally:
