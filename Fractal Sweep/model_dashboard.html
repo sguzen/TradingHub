@@ -913,7 +913,7 @@ const PROFILE_LABELS = {
   'sl_018_tp_019':      'SL 0.18% / TP 0.19%  (R:R 1.06)',
   'sl_019_tp_019':      'SL 0.19% / TP 0.19%  (R:R 1.00)',
   'structural_dynamic': 'Structural Dynamic — TP1 @ 1R · 50% exit · Runner Free',
-  'split_80_20':        'Split Exit — TP1 @ 1R (80%) · TP2 @ 0.6724% (20%) · BE stop on runner',
+  'split_80_20':        'Split Exit — TP1 @ 0.3473% (80%) · Runner Free (20%) · BE stop after TP1',
 };
 const PCT_PROFILES = new Set(RR_PROFILES.filter(k => k !== 'structural_dynamic' && k !== 'split_80_20'));
 const STRUCTURAL_PROFILE = 'structural_dynamic';
@@ -3050,7 +3050,7 @@ function renderStructuralPanel(D){
       <div class="rg-cell">
         <div class="rg-lbl">Est. Net EV</div>
         <div class="rg-val" style="color:${netEV>0?'var(--green)':'var(--red)'}">${netEV!=null?(netEV>0?'+':'')+netEV.toFixed(3)+'R':'—'}</div>
-        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">TP1×(${tp1Size}+${tp2Size}×runner) − loss×1R</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">TP1_rate×(${tp1Size}×tp1_r+${tp2Size}×runner) − loss×1R</div>
       </div>
     </div>
 
@@ -3078,9 +3078,9 @@ function renderStructuralPanel(D){
         </table>
         <div style="margin-top:12px;padding:10px 12px;background:var(--bg-raised);border:1px solid var(--border);border-radius:6px;font-family:var(--font-data);font-size:10px;color:var(--text-muted);line-height:1.7">
           <strong style="color:var(--text-secondary)">Net R formula:</strong><br>
-          ${(tp1Size*100).toFixed(0)}% exits at <span style="color:var(--green)">+1R</span> when TP1 hit<br>
-          ${(tp2Size*100).toFixed(0)}% runner exits at <span style="color:var(--purple)">runner_exit_r</span> (≥ 0)<br>
-          <span style="color:var(--amber)">Net = ${tp1Size} + ${tp2Size} × runner_exit_r</span>${isSplit8020 ? '<br><span style="color:var(--text-muted)">Runner target: TP2 @ 0.6724% of entry</span>' : ''}
+          ${(tp1Size*100).toFixed(0)}% exits at <span style="color:var(--green)">TP1 (0.3473% of entry)</span> when hit<br>
+          ${(tp2Size*100).toFixed(0)}% runner free — BE stop, runs to EOD<br>
+          <span style="color:var(--amber)">Net = ${tp1Size} × tp1_r + ${tp2Size} × runner_exit_r</span>${isSplit8020 ? '<br><span style="color:var(--text-muted)">tp1_r = TP1_dist ÷ base_risk (variable per trade)</span>' : ''}
         </div>
       </div>
     </div>`;

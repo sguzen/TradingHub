@@ -120,8 +120,8 @@ RR_PROFILES = [
     (0.19, 0.19, 'sl_019_tp_019', 'pct'),
     # --- Structural Dynamic: SL = sweep extreme (1×base_risk), TP1 = 1R, 50% exit; runner with BE stop ---
     (1.0, 1.0, 'structural_dynamic', 'structural'),
-    # --- Split-exit: TP1 @ 1R (80% off), runner (20%) targets 0.6724% of entry; BE stop on runner ---
-    (1.0, 0.6724, 'split_80_20', 'split_tp'),
+    # --- Split-exit: TP1 @ 0.3473% of entry (80% off), 20% runner free with BE stop ---
+    (1.0, 0.3473, 'split_80_20', 'split_tp'),
 ]
 DEFAULT_PROFILE = 'sl_026_tp_018'
 
@@ -539,15 +539,15 @@ def resolve_outcomes_structural(m1_arrs, pending):
 
 
 # ── SPLIT-TP OUTCOME RESOLUTION ───────────────────────────────────────────────
-def resolve_outcomes_split_tp(m1_arrs, pending, tp2_pct: float,
+def resolve_outcomes_split_tp(m1_arrs, pending,
                                tp1_size: float = 0.80, tp2_size: float = 0.20):
     """
-    Split-exit profile:
-      - TP1 at 1R (target_price = entry ± base_risk, already in pending)
-        → exits tp1_size (80%) of position at +1R
-      - Runner (tp2_size = 20%) holds with BE stop, targets TP2 = entry ± entry × tp2_pct/100
+    Split-exit profile (runner-free):
+      - TP1 at target_price (= entry ± entry × tp1_pct/100, already set in pending)
+        → exits tp1_size (80%) of position; tp1_r = TP1_dist / base_risk (variable per trade)
+      - Runner (tp2_size = 20%) holds with BE stop, runs free to EOD (no fixed TP2 target)
       - SL (stop_price) hit before TP1 → full LOSS, r = -1.0
-      - net_r = tp1_size × 1.0 + tp2_size × runner_exit_r
+      - net_r = tp1_size × tp1_r + tp2_size × runner_exit_r
     """
     ts_ns  = m1_arrs['ts_ns']
     highs  = m1_arrs['high']
@@ -611,36 +611,25 @@ def resolve_outcomes_split_tp(m1_arrs, pending, tp2_pct: float,
             results.append(('LOSS', -1.0, mae_pct, mfe_pct, False, 0.0))
             continue
 
-        # ── TP1 hit first — run the 20% runner with BE stop toward TP2 ────────
-        tp2_dist = entry_price * tp2_pct / 100.0
-        if direction == 'LONG':
-            tp2_price = entry_price + tp2_dist
-        else:
-            tp2_price = entry_price - tp2_dist
+        # ── TP1 hit first — 80% off; 20% runner free with BE stop ────────────
+        tp1_dist = abs(target_price - entry_price)
+        tp1_r    = tp1_dist / base_risk   # R-multiple locked in at TP1 (variable per trade)
 
-        runner_start = tp1_idx + 1
-        runner_end   = len(h)
+        runner_start  = tp1_idx + 1
+        runner_end    = len(h)
         runner_exit_r = 0.0  # default: runner stopped at BE
 
         if runner_start < runner_end:
             rh = h[runner_start:runner_end]
             rl = l[runner_start:runner_end]
             if direction == 'LONG':
-                tp2_hit_arr = rh >= tp2_price
-                be_hit_arr  = rl <= entry_price
+                be_hit_arr = rl <= entry_price
             else:
-                tp2_hit_arr = rl <= tp2_price
-                be_hit_arr  = rh >= entry_price
+                be_hit_arr = rh >= entry_price
 
-            tp2_any = tp2_hit_arr.any()
-            be_any  = be_hit_arr.any()
+            be_any = be_hit_arr.any()
 
-            tp2_runner_idx = int(np.argmax(tp2_hit_arr)) if tp2_any else len(rh)
-            be_runner_idx  = int(np.argmax(be_hit_arr))  if be_any  else len(rh)
-
-            if tp2_any and (not be_any or tp2_runner_idx < be_runner_idx):
-                runner_exit_r = round(float(tp2_dist / base_risk), 3)
-            elif not be_any:
+            if not be_any:
                 # Runner survived to EOD — mark to market
                 last_close = closes[start + runner_end - 1]
                 if direction == 'LONG':
@@ -650,7 +639,7 @@ def resolve_outcomes_split_tp(m1_arrs, pending, tp2_pct: float,
                 runner_exit_r = max(0.0, round(float(runner_exit_r), 3))
             # else: BE stop hit → runner_exit_r stays 0.0
 
-        net_r = round(tp1_size * 1.0 + tp2_size * runner_exit_r, 3)
+        net_r = round(tp1_size * tp1_r + tp2_size * runner_exit_r, 3)
         results.append(('WIN', net_r, mae_pct, mfe_pct, True, runner_exit_r))
 
     return results
@@ -1173,8 +1162,8 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
             stop_dist    = entry_price * stop_val   / 100.0
             target_dist  = entry_price * target_val / 100.0
         elif profile_type == 'split_tp':
-            stop_dist    = stop_val * base_risk   # 1× base_risk
-            target_dist  = stop_dist               # TP1 = 1R (same as risk distance)
+            stop_dist    = stop_val * base_risk          # 1× base_risk (sweep extreme)
+            target_dist  = entry_price * target_val / 100.0  # TP1 = fixed % of entry
         else:  # 'mult' / 'structural'
             stop_dist    = stop_val   * base_risk
             target_dist  = target_val * base_risk
@@ -1215,7 +1204,7 @@ def apply_profile_and_resolve(base_rows, base_pending, m1_arrs,
         if profile_type == 'structural':
             outcomes = resolve_outcomes_structural(m1_arrs, profile_pending)
         else:
-            outcomes = resolve_outcomes_split_tp(m1_arrs, profile_pending, tp2_pct=target_val)
+            outcomes = resolve_outcomes_split_tp(m1_arrs, profile_pending)
         for po, (outcome, r_val, mae_pct, mfe_pct, tp1_hit, runner_exit_r) in zip(profile_pending, outcomes):
             idx = po['idx']
             rows[idx]['outcome']       = outcome
