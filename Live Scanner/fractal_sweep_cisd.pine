@@ -1,80 +1,91 @@
 //@version=5
-indicator("Fractal Sweep + CISD", overlay=true, max_labels_count=200, max_lines_count=200, max_boxes_count=100)
+indicator("Abhi's Fractal Sweep", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
 
 // ── INPUTS ────────────────────────────────────────────────────────────────────
 var string G1 = "Model"
-sweep_tf   = input.timeframe("30",  "Sweep Timeframe",  group=G1,
-                 tooltip="Match to model: 30=30M_3M, 60=1H_3M or 1H_5M, 240=4H_15M")
-q1_bars    = input.int(3,           "Q1 Bars (q1_min ÷ chart TF)", group=G1,
-                 tooltip="30M_3M on 3M chart=3 | 1H_3M on 3M=5 | 1H_5M on 5M=3 | 4H_15M on 15M=4")
-cisd_lookback = input.int(8,        "CISD Lookback Bars",            group=G1)
+combo = input.string("4H/15M", "Timeframe Combo", group=G1,
+    options=["1D/1H", "4H/15M", "1H/5M", "1H/3M", "30M/3M"],
+    tooltip="Set chart to the CISD (right) timeframe")
 
 var string G2 = "Filters"
-sweep_min  = input.float(0.10,  "Sweep Min % of Range", group=G2, step=0.05) / 100
-sweep_max  = input.float(1.50,  "Sweep Max % of Range", group=G2, step=0.05) / 100
-min_risk   = input.float(3.0,   "Min Risk (pts)",        group=G2)
-rth_only   = input.bool(true,   "RTH Only (07:00–16:00 ET)", group=G2)
+sweep_min     = input.float(0.10, "Sweep Min %",           group=G2, step=0.05) / 100
+sweep_max     = input.float(1.50, "Sweep Max %",           group=G2, step=0.05) / 100
+min_risk      = input.float(3.0,  "Min Risk (pts)",         group=G2)
+cisd_lookback = input.int(8,      "CISD Lookback Bars",     group=G2)
+rth_only      = input.bool(true,  "RTH Only (07:00–16:00 ET)", group=G2)
 
 var string G3 = "Display"
-show_sweep = input.bool(true,  "Highlight Sweep Bar",  group=G3)
-show_cisd  = input.bool(true,  "Highlight CISD Bar",   group=G3)
-show_entry = input.bool(true,  "Show Entry Labels",    group=G3)
-show_rr    = input.bool(true,  "Show R:R Box",         group=G3)
-rr_extend  = input.int(20,     "R:R Box Width (bars)",  group=G3, minval=5, maxval=100)
+rr_extend = input.int(20, "R:R Box Width (bars)", group=G3, minval=5, maxval=100)
+
+// ── COMBO → CONFIG ────────────────────────────────────────────────────────────
+// q1_bars: fraction of higher-TF candle treated as Q1 (in chart-TF bars)
+//   1D/1H  → 14 bars = covers 6pm–8am ET overnight sweep window
+//   4H/15M → 4 bars  = first 1h of 4H candle
+//   1H/5M  → 3 bars  = first 15m of 1H candle
+//   1H/3M  → 5 bars  = first 15m of 1H candle
+//   30M/3M → 3 bars  = first ~8m of 30M candle
+sweep_tf = combo == "1D/1H"  ? "1D"  :
+           combo == "4H/15M" ? "240" :
+           combo == "1H/5M"  ? "60"  :
+           combo == "1H/3M"  ? "60"  : "30"
+
+q1_bars  = combo == "1D/1H"  ? 14 :
+           combo == "4H/15M" ? 4  :
+           combo == "1H/5M"  ? 3  :
+           combo == "1H/3M"  ? 5  : 3
+
+sweep_tf_lbl = combo == "1D/1H"  ? "1D"  :
+               combo == "4H/15M" ? "4H"  :
+               combo == "1H/5M"  ? "1H"  :
+               combo == "1H/3M"  ? "1H"  : "30M"
+
+cisd_tf_lbl  = combo == "1D/1H"  ? "1H"  :
+               combo == "4H/15M" ? "15M" :
+               combo == "1H/5M"  ? "5M"  :
+               combo == "1H/3M"  ? "3M"  : "3M"
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 is_rth() =>
     h = hour(time, "America/New_York")
     h >= 7 and h < 16
 
-// ── PRIOR ANCHOR CANDLE (fully closed — lookahead safe) ───────────────────────
-prior_high = request.security(syminfo.tickerid, sweep_tf, high[1],  lookahead=barmerge.lookahead_on)
-prior_low  = request.security(syminfo.tickerid, sweep_tf, low[1],   lookahead=barmerge.lookahead_on)
+// ── ANCHOR CANDLE (prior higher-TF bar, fully closed) ─────────────────────────
+prior_high  = request.security(syminfo.tickerid, sweep_tf, high[1], lookahead=barmerge.lookahead_on)
+prior_low   = request.security(syminfo.tickerid, sweep_tf, low[1],  lookahead=barmerge.lookahead_on)
+anchor_time = request.security(syminfo.tickerid, sweep_tf, time,    lookahead=barmerge.lookahead_on)
+is_new_anchor = ta.change(anchor_time) != 0
 
-// Detect new anchor period
-anchor_time    = request.security(syminfo.tickerid, sweep_tf, time, lookahead=barmerge.lookahead_on)
-is_new_anchor  = ta.change(anchor_time) != 0
+// ── STATE ─────────────────────────────────────────────────────────────────────
+var float anc_hi          = na
+var float anc_lo          = na
+var int   q1_elapsed      = 0
+var bool  in_q1           = false
 
-// ── STATE VARIABLES ───────────────────────────────────────────────────────────
-var float  anc_hi          = na    // prior anchor high
-var float  anc_lo          = na    // prior anchor low
-var int    q1_elapsed      = 0
-var bool   in_q1           = false
+var bool  swept_long      = false
+var bool  swept_short     = false
+var float sweep_ext_long  = na
+var float sweep_ext_short = na
 
-var bool   swept_long      = false
-var bool   swept_short     = false
-var float  sweep_ext_long  = na    // sweep extreme (low for LONG)
-var float  sweep_ext_short = na    // sweep extreme (high for SHORT)
+var bool  ret_long        = false
+var bool  ret_short       = false
 
-var bool   ret_long        = false // returned to range after long sweep
-var bool   ret_short       = false
+var bool  alerted_long    = false
+var bool  alerted_short   = false
 
-var bool   alerted_long    = false // fired once per anchor period
-var bool   alerted_short   = false
-
-var int    sweep_bar_long  = na    // bar_index where long sweep fired
-var int    sweep_bar_short = na    // bar_index where short sweep fired
-var int    cisd_bar_long   = na    // bar_index where long CISD fired
-var int    cisd_bar_short  = na    // bar_index where short CISD fired
-
-// ── ANCHOR PERIOD RESET ───────────────────────────────────────────────────────
+// ── ANCHOR RESET ──────────────────────────────────────────────────────────────
 if is_new_anchor
-    anc_hi         := prior_high
-    anc_lo         := prior_low
-    q1_elapsed     := 0
-    in_q1          := true
-    swept_long     := false
-    swept_short    := false
-    sweep_ext_long := na
-    sweep_ext_short:= na
-    ret_long       := false
-    ret_short      := false
-    alerted_long   := false
-    alerted_short  := false
-    sweep_bar_long := na
-    sweep_bar_short:= na
-    cisd_bar_long  := na
-    cisd_bar_short := na
+    anc_hi          := prior_high
+    anc_lo          := prior_low
+    q1_elapsed      := 0
+    in_q1           := true
+    swept_long      := false
+    swept_short     := false
+    sweep_ext_long  := na
+    sweep_ext_short := na
+    ret_long        := false
+    ret_short       := false
+    alerted_long    := false
+    alerted_short   := false
 
 // ── Q1 COUNTER ────────────────────────────────────────────────────────────────
 if in_q1
@@ -86,21 +97,31 @@ if in_q1
 if in_q1 and not na(anc_hi) and not na(anc_lo)
     ref_range = anc_hi - anc_lo
     if ref_range > 0
-        // LONG: price sweeps below prior low
+        // LONG: sweep below prior low
         if not swept_long
             ext = anc_lo - low
             if low < anc_lo and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
-                swept_long      := true
-                sweep_ext_long  := low
-                sweep_bar_long  := bar_index
+                swept_long     := true
+                sweep_ext_long := low
+                // Dotted red line at the swept level (prior low)
+                line.new(bar_index, anc_lo, bar_index + rr_extend + 15, anc_lo,
+                    color=color.red, width=2, style=line.style_dotted)
+                label.new(bar_index, anc_lo, "Sweep of " + sweep_tf_lbl,
+                    color=color.new(color.red, 100), textcolor=color.red,
+                    style=label.style_label_right, size=size.small)
 
-        // SHORT: price sweeps above prior high
+        // SHORT: sweep above prior high
         if not swept_short
             ext = high - anc_hi
             if high > anc_hi and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
                 swept_short     := true
                 sweep_ext_short := high
-                sweep_bar_short := bar_index
+                // Dotted red line at the swept level (prior high)
+                line.new(bar_index, anc_hi, bar_index + rr_extend + 15, anc_hi,
+                    color=color.red, width=2, style=line.style_dotted)
+                label.new(bar_index, anc_hi, "Sweep of " + sweep_tf_lbl,
+                    color=color.new(color.red, 100), textcolor=color.red,
+                    style=label.style_label_right, size=size.small)
 
 // ── PHASE 2: RETURN TO RANGE ──────────────────────────────────────────────────
 if in_q1
@@ -110,11 +131,9 @@ if in_q1
         ret_short := true
 
 // ── PHASE 3: CISD ─────────────────────────────────────────────────────────────
-// LONG CISD: find most recent consecutive bearish run; cisd_level = open of first bar in run
-//            fire when close > cisd_level
+// Walk back to find the consecutive opposing delivery run; fire on close through its open
 f_cisd_long() =>
-    cisd_lvl = float(na)
-    // Walk back to find bearish run
+    cisd_lvl  = float(na)
     run_start = 0
     for k = 1 to cisd_lookback
         if close[k] < open[k]
@@ -130,9 +149,8 @@ f_cisd_long() =>
         cisd_lvl := open[run_start]
     [not na(cisd_lvl) and close > cisd_lvl, cisd_lvl]
 
-// SHORT CISD: consecutive bullish run; cisd_level = open of first; fire when close < cisd_level
 f_cisd_short() =>
-    cisd_lvl = float(na)
+    cisd_lvl  = float(na)
     run_start = 0
     for k = 1 to cisd_lookback
         if close[k] > open[k]
@@ -151,8 +169,7 @@ f_cisd_short() =>
 [cisd_long_fired,  cisd_long_lvl]  = f_cisd_long()
 [cisd_short_fired, cisd_short_lvl] = f_cisd_short()
 
-// ── ENTRY + RISK ───────────────────────────────────────────────────────────────
-// Entry = next bar open (approximate with current close for label placement)
+// ── VALIDITY ──────────────────────────────────────────────────────────────────
 long_risk  = not na(sweep_ext_long)  ? math.abs(close - sweep_ext_long)  : 0.0
 short_risk = not na(sweep_ext_short) ? math.abs(close - sweep_ext_short) : 0.0
 
@@ -163,59 +180,78 @@ if rth_only
     long_valid  := long_valid  and is_rth()
     short_valid := short_valid and is_rth()
 
-// ── FIRE ALERTS & DRAW ────────────────────────────────────────────────────────
+// ── FIRE: LONG ────────────────────────────────────────────────────────────────
 if long_valid
-    alerted_long  := true
-    cisd_bar_long := bar_index
-    entry  = close
-    sl     = sweep_ext_long
-    tp1    = entry + (entry - sl)  // 1R
-    risk   = entry - sl
-    r_end  = bar_index + rr_extend
+    alerted_long := true
+    entry = close
+    sl    = sweep_ext_long
+    tp    = entry + (entry - sl)   // 1R
+    risk  = entry - sl
+    r_end = bar_index + rr_extend
 
-    // R:R boxes: red = risk zone (SL→entry), green = reward zone (entry→TP1)
-    tp2_l = entry + 2 * risk
-    if show_rr
-        box.new(bar_index, entry, r_end, sl, border_color=color.new(color.red, 60), bgcolor=color.new(color.red, 85))
-        box.new(bar_index, tp1, r_end, entry, border_color=color.new(color.teal, 60), bgcolor=color.new(color.teal, 85))
-        line.new(bar_index, entry, r_end, entry, color=color.white, width=1, style=line.style_solid)
-        line.new(bar_index, tp2_l, r_end, tp2_l, color=color.new(color.teal, 40), width=1, style=line.style_dashed)
-        label.new(r_end, tp1, "TP1  +" + str.tostring(risk, "#.#") + " pts  1:1R", color=color.new(color.teal, 20), textcolor=color.white, style=label.style_label_left, size=size.tiny)
-        label.new(r_end, sl, "SL  -" + str.tostring(risk, "#.#") + " pts", color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_left, size=size.tiny)
-        label.new(r_end, tp2_l, "Runner  +" + str.tostring(2 * risk, "#.#") + " pts  2:1R", color=color.new(color.teal, 50), textcolor=color.new(color.teal, 0), style=label.style_label_left, size=size.tiny)
+    // CISD level — dotted blue line
+    line.new(bar_index, cisd_long_lvl, r_end, cisd_long_lvl,
+        color=color.blue, width=2, style=line.style_dotted)
+    label.new(bar_index, cisd_long_lvl, "CISD " + cisd_tf_lbl,
+        color=color.new(color.blue, 100), textcolor=color.blue,
+        style=label.style_label_right, size=size.small)
 
-    if show_entry
-        label.new(bar_index, low - ta.atr(14), "LONG\nEntry " + str.tostring(entry, "#.##") + "\nSL " + str.tostring(sl, "#.##") + "\nTP1 " + str.tostring(tp1, "#.##"), color=color.new(color.teal, 10), textcolor=color.white, style=label.style_label_up, size=size.small)
+    // R:R — risk zone (red), reward zone (teal), entry line
+    box.new(bar_index, entry, r_end, sl,
+        border_color=color.new(color.red,  40), bgcolor=color.new(color.red,  85))
+    box.new(bar_index, tp,    r_end, entry,
+        border_color=color.new(color.teal, 40), bgcolor=color.new(color.teal, 85))
+    line.new(bar_index, entry, r_end, entry,
+        color=color.white, width=1, style=line.style_solid)
+    label.new(r_end, tp,    "TP  +" + str.tostring(risk, "#.##") + " pts  1R",
+        color=color.new(color.teal, 20), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
+    label.new(r_end, entry, "Entry  " + str.tostring(entry, "#.##"),
+        color=color.new(color.gray, 60), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
+    label.new(r_end, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts",
+        color=color.new(color.red,  20), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
 
-    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP1 " + str.tostring(tp1, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | Sweep " + sweep_tf + "M", alert.freq_once_per_bar_close)
+    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") +
+        " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") +
+        " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo,
+        alert.freq_once_per_bar_close)
 
+// ── FIRE: SHORT ───────────────────────────────────────────────────────────────
 if short_valid
-    alerted_short  := true
-    cisd_bar_short := bar_index
-    entry  = close
-    sl     = sweep_ext_short
-    tp1    = entry - (sl - entry)  // 1R
-    risk   = sl - entry
-    r_end  = bar_index + rr_extend
+    alerted_short := true
+    entry = close
+    sl    = sweep_ext_short
+    tp    = entry - (sl - entry)   // 1R
+    risk  = sl - entry
+    r_end = bar_index + rr_extend
 
-    // R:R boxes: red = risk zone (entry→SL), green = reward zone (TP1→entry)
-    tp2_s = entry - 2 * risk
-    if show_rr
-        box.new(bar_index, sl, r_end, entry, border_color=color.new(color.red, 60), bgcolor=color.new(color.red, 85))
-        box.new(bar_index, entry, r_end, tp1, border_color=color.new(color.green, 60), bgcolor=color.new(color.green, 85))
-        line.new(bar_index, entry, r_end, entry, color=color.white, width=1, style=line.style_solid)
-        line.new(bar_index, tp2_s, r_end, tp2_s, color=color.new(color.green, 40), width=1, style=line.style_dashed)
-        label.new(r_end, tp1, "TP1  +" + str.tostring(risk, "#.#") + " pts  1:1R", color=color.new(color.green, 20), textcolor=color.white, style=label.style_label_left, size=size.tiny)
-        label.new(r_end, sl, "SL  -" + str.tostring(risk, "#.#") + " pts", color=color.new(color.red, 20), textcolor=color.white, style=label.style_label_left, size=size.tiny)
-        label.new(r_end, tp2_s, "Runner  +" + str.tostring(2 * risk, "#.#") + " pts  2:1R", color=color.new(color.green, 50), textcolor=color.new(color.green, 0), style=label.style_label_left, size=size.tiny)
+    // CISD level — dotted blue line
+    line.new(bar_index, cisd_short_lvl, r_end, cisd_short_lvl,
+        color=color.blue, width=2, style=line.style_dotted)
+    label.new(bar_index, cisd_short_lvl, "CISD " + cisd_tf_lbl,
+        color=color.new(color.blue, 100), textcolor=color.blue,
+        style=label.style_label_right, size=size.small)
 
-    if show_entry
-        label.new(bar_index, high + ta.atr(14), "SHORT\nEntry " + str.tostring(entry, "#.##") + "\nSL " + str.tostring(sl, "#.##") + "\nTP1 " + str.tostring(tp1, "#.##"), color=color.new(color.red, 10), textcolor=color.white, style=label.style_label_down, size=size.small)
+    // R:R — risk zone (red), reward zone (teal), entry line
+    box.new(bar_index, sl,    r_end, entry,
+        border_color=color.new(color.red,  40), bgcolor=color.new(color.red,  85))
+    box.new(bar_index, entry, r_end, tp,
+        border_color=color.new(color.teal, 40), bgcolor=color.new(color.teal, 85))
+    line.new(bar_index, entry, r_end, entry,
+        color=color.white, width=1, style=line.style_solid)
+    label.new(r_end, tp,    "TP  +" + str.tostring(risk, "#.##") + " pts  1R",
+        color=color.new(color.teal, 20), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
+    label.new(r_end, entry, "Entry  " + str.tostring(entry, "#.##"),
+        color=color.new(color.gray, 60), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
+    label.new(r_end, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts",
+        color=color.new(color.red,  20), textcolor=color.white,
+        style=label.style_label_left, size=size.tiny)
 
-    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP1 " + str.tostring(tp1, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | Sweep " + sweep_tf + "M", alert.freq_once_per_bar_close)
-
-// ── BAR HIGHLIGHTS ────────────────────────────────────────────────────────────
-is_sweep_bar = show_sweep and (bar_index == sweep_bar_long or bar_index == sweep_bar_short)
-is_cisd_bar  = show_cisd  and (bar_index == cisd_bar_long  or bar_index == cisd_bar_short)
-bgcolor(is_cisd_bar  ? color.new(color.blue,   70) : na, title="CISD Bar")
-bgcolor(is_sweep_bar ? color.new(color.orange, 70) : na, title="Sweep Bar")
+    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") +
+        " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") +
+        " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo,
+        alert.freq_once_per_bar_close)
