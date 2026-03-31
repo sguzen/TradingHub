@@ -23,6 +23,7 @@ It tests **4 combinations** of timeframes (e.g., 4-Hour sweep detected, 15-Minut
 | `model_stats.py` | The backtest engine — runs the analysis and saves results |
 | `model_stats.json` | Pre-computed results — already included, dashboard loads this automatically |
 | `daily_update.py` | Optional — fetches new bar data from Databento to keep the database current |
+| `fractal_sweep_cisd.pine` | TradingView Pine v5 indicator — live sweep+CISD detection with alert support |
 
 ---
 

@@ -834,6 +834,133 @@ html {
 }
 
 /* ===========================================
+   SLIDE — INTRO (ABHINAY NATRAJ)
+   =========================================== */
+#s_intro .slide-content {
+  justify-content: center;
+  gap: var(--gap);
+  position: relative; z-index: 5;
+}
+
+.intro-name {
+  font-family: var(--font-display);
+  font-size: var(--title-size);
+  font-weight: 800;
+  line-height: 0.92;
+}
+.intro-name .accent { color: var(--accent); }
+.intro-name .white  { color: var(--white); }
+
+.intro-role {
+  font-family: var(--font-mono);
+  font-size: clamp(0.7rem, 1.4vw, 1rem);
+  color: rgba(224,255,0,0.5);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-top: clamp(0.3rem, 0.6vh, 0.8rem);
+}
+
+.intro-bullets {
+  list-style: none;
+  display: flex; flex-direction: column;
+  gap: clamp(0.35rem, 0.7vh, 0.7rem);
+  margin-top: clamp(0.3rem, 0.8vh, 0.8rem);
+}
+.intro-bullets li {
+  font-size: clamp(0.72rem, 1.3vw, 0.95rem);
+  color: rgba(255,255,255,0.65);
+  line-height: 1.5;
+  padding-left: 1.5em;
+  position: relative;
+}
+.intro-bullets li::before {
+  content: '▶';
+  position: absolute; left: 0;
+  color: var(--accent);
+  font-size: 0.65em;
+  top: 0.22em;
+}
+
+/* ===========================================
+   SLIDE — JOURNEY (TPT + APEX)
+   =========================================== */
+#s_journey .slide-content {
+  justify-content: center;
+  gap: var(--gap);
+  position: relative; z-index: 5;
+}
+
+.journey-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: clamp(0.5rem, 1.5vw, 1.5rem);
+  margin-top: clamp(0.35rem, 0.7vh, 0.7rem);
+}
+
+.jstat {
+  padding: clamp(0.6rem, 1.4vw, 1.2rem);
+  border: 1px solid rgba(224,255,0,0.1);
+  background: rgba(224,255,0,0.02);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.jstat.hi { border-color: rgba(224,255,0,0.35); background: rgba(224,255,0,0.05); }
+
+.jstat-val {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3.5vw, 2.8rem);
+  font-weight: 800;
+  color: var(--accent);
+  line-height: 1;
+}
+.jstat-lbl {
+  font-family: var(--font-mono);
+  font-size: var(--mono-size);
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.jstat-ctx {
+  font-size: clamp(0.55rem, 0.85vw, 0.65rem);
+  color: rgba(255,255,255,0.2);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.milestone-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(0.25rem, 0.5vh, 0.5rem) clamp(0.75rem, 1.5vw, 1.5rem);
+  margin-top: clamp(0.35rem, 0.7vh, 0.7rem);
+}
+
+.ms-item {
+  display: flex; align-items: baseline; gap: 0.55em;
+  padding: clamp(3px, 0.4vh, 6px) 0;
+  border-bottom: 1px solid rgba(224,255,0,0.06);
+}
+.ms-date-tag {
+  font-family: var(--font-mono);
+  font-size: calc(var(--mono-size) * 0.9);
+  color: rgba(224,255,0,0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 5.5em;
+}
+.ms-amount {
+  font-family: var(--font-display);
+  font-size: clamp(0.85rem, 1.8vw, 1.3rem);
+  font-weight: 700;
+  color: var(--white);
+}
+.ms-note {
+  font-size: clamp(0.55rem, 0.85vw, 0.65rem);
+  color: var(--muted);
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ===========================================
    KEYBOARD HINT
    =========================================== */
 .keyboard-hint {
@@ -865,7 +992,129 @@ html {
 
 
 <!-- ══════════════════════════════════════════
-     SLIDE 1 — TITLE
+     SLIDE 1 — INTRO (ABHINAY NATRAJ)
+     ══════════════════════════════════════════ -->
+<section class="slide" id="s_intro" aria-label="Introduction — Abhinay Natraj">
+  <div class="hud-grid"></div>
+  <div class="hud-brackets">
+    <div class="brk brk-tl"></div><div class="brk brk-tr"></div>
+    <div class="brk brk-bl"></div><div class="brk brk-br"></div>
+  </div>
+  <div class="scan-line"></div>
+  <div class="glow-orb orb-1"></div>
+
+  <div class="status-bar">
+    <span class="sb-item hi">PRESENTER<span class="blink">_</span></span>
+    <span class="sb-item">DAILY PROFILER BOOTCAMP · 2026</span>
+  </div>
+
+  <div class="slide-content">
+    <div class="pre-label reveal delay-1">Who I Am</div>
+    <div class="intro-name reveal delay-2"><span class="accent">ABHINAY</span><br><span class="white">NATRAJ</span></div>
+    <div class="intro-role reveal delay-3">Systematic Futures Trader · NQ &amp; ES</div>
+    <div class="div-line reveal delay-4"></div>
+    <ul class="intro-bullets">
+      <li class="reveal delay-4">Started trading equity index futures via prop firms in August 2024</li>
+      <li class="reveal delay-5">Systematic from day one — built a sweep &amp; displacement model from first principles</li>
+      <li class="reveal delay-6">Backtested 11+ years of NQ price action to isolate a repeatable statistical edge</li>
+      <li class="reveal" style="transition-delay:0.76s">Here to share the Fractal Sweep model with the Daily Profiler community</li>
+    </ul>
+  </div>
+
+  <div class="slide-idx">01 / 09</div>
+  <div class="hud-bottom"></div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 2 — JOURNEY (TPT + APEX)
+     ══════════════════════════════════════════ -->
+<section class="slide" id="s_journey" aria-label="Prop firm journey">
+  <div class="hud-grid"></div>
+  <div class="hud-brackets">
+    <div class="brk brk-tl"></div><div class="brk brk-tr"></div>
+    <div class="brk brk-bl"></div><div class="brk brk-br"></div>
+  </div>
+
+  <div class="status-bar">
+    <span class="sb-item hi">TRACK RECORD</span>
+    <span class="sb-item">TPT + APEX · AUG 2024 – MAR 2026</span>
+  </div>
+
+  <div class="slide-content">
+    <div class="pre-label reveal delay-1">Prop Firm Journey</div>
+    <div style="font-family:var(--font-display);font-size:var(--h2-size);font-weight:800;line-height:1.05;" class="reveal delay-2">20 MONTHS.<br><span style="color:var(--accent)">PROOF OF CONCEPT.</span></div>
+    <div class="div-line reveal delay-3"></div>
+
+    <div class="journey-grid reveal delay-4">
+      <div class="jstat hi">
+        <div class="jstat-val">$36K</div>
+        <div class="jstat-lbl">Peak Single Payout</div>
+        <div class="jstat-ctx">TPT · March 26, 2026</div>
+      </div>
+      <div class="jstat">
+        <div class="jstat-val">$21K</div>
+        <div class="jstat-lbl">First Breakout Day</div>
+        <div class="jstat-ctx">TPT · January 14, 2025</div>
+      </div>
+      <div class="jstat">
+        <div class="jstat-val">97</div>
+        <div class="jstat-lbl">TPT Withdrawals</div>
+        <div class="jstat-ctx">Aug 2024 → Mar 2026</div>
+      </div>
+    </div>
+
+    <div class="milestone-list reveal delay-5">
+      <div class="ms-item">
+        <span class="ms-date-tag">AUG 2024</span>
+        <span class="ms-amount">$2,705</span>
+        <span class="ms-note">First TPT payout</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">DEC 2024</span>
+        <span class="ms-amount">$9,002</span>
+        <span class="ms-note">Single-day breakthrough</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">JAN 2025</span>
+        <span class="ms-amount">$21,263</span>
+        <span class="ms-note">Scaling up</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">FEB 2025</span>
+        <span class="ms-amount">$16,000</span>
+        <span class="ms-note">Consistent $10K+ weeks</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">JUL 2025</span>
+        <span class="ms-amount">$24,321</span>
+        <span class="ms-note">New record at the time</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">NOV 2025</span>
+        <span class="ms-amount">$26,095</span>
+        <span class="ms-note">Apex running alongside</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">MAR 2026</span>
+        <span class="ms-amount">$36,000</span>
+        <span class="ms-note">Peak payout to date</span>
+      </div>
+      <div class="ms-item">
+        <span class="ms-date-tag">MAR 2026</span>
+        <span class="ms-amount">$56,429</span>
+        <span class="ms-note">Single day, two payouts</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-idx">02 / 09</div>
+  <div class="hud-bottom"></div>
+</section>
+
+
+<!-- ══════════════════════════════════════════
+     SLIDE 3 — TITLE
      ══════════════════════════════════════════ -->
 <section class="slide" id="s1" aria-label="Title slide">
   <div class="hud-grid"></div>
@@ -900,7 +1149,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">01 / 07</div>
+  <div class="slide-idx">03 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -952,7 +1201,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">02 / 07</div>
+  <div class="slide-idx">04 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -1006,7 +1255,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">03 / 07</div>
+  <div class="slide-idx">05 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -1079,7 +1328,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">04 / 07</div>
+  <div class="slide-idx">06 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -1169,7 +1418,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">05 / 07</div>
+  <div class="slide-idx">07 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -1238,7 +1487,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">06 / 07</div>
+  <div class="slide-idx">08 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 
@@ -1292,7 +1541,7 @@ html {
     </div>
   </div>
 
-  <div class="slide-idx">07 / 07</div>
+  <div class="slide-idx">09 / 09</div>
   <div class="hud-bottom"></div>
 </section>
 

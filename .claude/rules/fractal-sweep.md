@@ -36,6 +36,19 @@ python3 daily_update.py                         # fetch new bars from Databento
 
 Prior range floor, sweep min size, sweep max cap, close-back required, CISD speed — applied cumulatively.
 
+## Risk Profiles
+
+12 profiles. 3 profile_types:
+
+| profile_type | Keys | Stop/Target |
+|---|---|---|
+| `pct` | `sl_026_tp_018` … `sl_019_tp_019` | Fixed % of entry price; SL and TP independent of sweep size |
+| `structural` | `structural_dynamic` | SL = sweep extreme (1×base_risk); TP1 @ 1R, 50% off; runner free with BE stop |
+| `split_tp` | `split_80_20` | SL = sweep extreme; TP1 @ 1R, 80% off; 20% runner → TP2 @ 0.6724% of entry; BE stop on runner |
+
+`split_tp` resolver: `resolve_outcomes_split_tp(m1_arrs, pending, tp2_pct=0.6724)`
+`net_r = 0.80 + 0.20 × runner_exit_r` | BE WR = 1/1.8 ≈ 55.56%
+
 ## Trade Row Fields
 
 Each resolved trade row carries:

@@ -231,6 +231,29 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .sel-drop:focus{outline:none;border-color:var(--green)}
 .sel-drop option{background:var(--bg-card);color:var(--text-primary)}
 .sel-note{font-family:var(--font-data);font-size:11px;color:var(--text-muted);letter-spacing:0.02em;margin-left:auto}
+
+/* MODEL EXPLAINER */
+.model-explainer-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
+@media(max-width:900px){.model-explainer-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){.model-explainer-grid{grid-template-columns:1fr}}
+.model-col-head{font-family:var(--font-data);font-size:9.5px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-muted);margin-bottom:12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+.model-step{display:flex;gap:10px;margin-bottom:12px;align-items:flex-start}
+.model-step-num{font-family:var(--font-data);font-size:10px;font-weight:700;color:var(--blue);background:var(--blue-tint);border:1px solid rgba(59,130,246,.25);border-radius:4px;width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px}
+.model-step-title{font-family:var(--font-display);font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:3px}
+.model-step-body{font-family:var(--font-body);font-size:11.5px;color:var(--text-secondary);line-height:1.55}
+.model-mech-row{display:flex;align-items:baseline;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)}
+.model-mech-row:last-child{border-bottom:none}
+.model-mech-label{font-family:var(--font-data);font-size:9px;font-weight:600;letter-spacing:0.12em;color:var(--text-muted);text-transform:uppercase;white-space:nowrap;min-width:52px}
+.model-mech-val{font-family:var(--font-body);font-size:11.5px;color:var(--text-secondary);line-height:1.5}
+.model-mech-val strong{font-family:var(--font-data);font-size:11px;font-weight:600;color:var(--green)}
+.model-tf-table{width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:10.5px;margin-bottom:12px}
+.model-tf-table th{font-size:9px;font-weight:600;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);padding:5px 8px;text-align:left;border-bottom:1px solid var(--border)}
+.model-tf-table td{padding:6px 8px;color:var(--text-secondary);border-bottom:1px solid var(--border)}
+.model-tf-table tr:last-child td{border-bottom:none}
+.model-tf-table td:first-child{font-weight:600;color:var(--green);letter-spacing:0.04em}
+.model-tf-table tbody tr:hover td{background:var(--bg-raised)}
+.model-def-note{font-family:var(--font-body);font-size:11px;color:var(--text-muted);line-height:1.65;padding:8px 10px;background:var(--bg-raised);border:1px solid var(--border);border-radius:6px}
+.model-def-note code{font-family:var(--font-data);font-size:10px;color:var(--text-secondary);background:var(--border);padding:1px 5px;border-radius:3px}
 </style>
 </head>
 <body>
@@ -303,27 +326,107 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 
   <!-- ══ TAB: OVERVIEW ══════════════════════════════════════════════════════ -->
   <div class="page-pane active" id="pane-overview">
+
+    <div class="sec-label">Model Overview</div>
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Fractal Sweep + CISD · Setup Anatomy</span>
+        <span class="ph-note">Sweep → Return → Confirm → Execute</span>
+      </div>
+      <div class="pb">
+        <div class="model-explainer-grid">
+
+          <!-- Column 1: 3-Phase Conditions -->
+          <div>
+            <div class="model-col-head">Setup Conditions</div>
+            <div class="model-step">
+              <div class="model-step-num">1</div>
+              <div>
+                <div class="model-step-title">Q1 Sweep</div>
+                <div class="model-step-body">Within Q1 (first 8–60 min of the anchor period), price sweeps the prior anchor candle's high or low. Sweep must be 0.10%–1.50% of the prior range.</div>
+              </div>
+            </div>
+            <div class="model-step">
+              <div class="model-step-num">2</div>
+              <div>
+                <div class="model-step-title">Return to Range</div>
+                <div class="model-step-body">Price closes back inside the prior anchor range — confirming the sweep was a liquidity grab, not a genuine breakout.</div>
+              </div>
+            </div>
+            <div class="model-step">
+              <div class="model-step-num">3</div>
+              <div>
+                <div class="model-step-title">CISD Confirmation</div>
+                <div class="model-step-body">Change in State of Delivery: price closes beyond the open of the first candle of the opposing consecutive delivery leg within 8 CISD bars.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 2: Trade Mechanics -->
+          <div>
+            <div class="model-col-head">Trade Mechanics</div>
+            <div class="model-mech-row">
+              <span class="model-mech-label">Entry</span>
+              <span class="model-mech-val">Next bar open after CISD bar closes</span>
+            </div>
+            <div class="model-mech-row">
+              <span class="model-mech-label">Stop</span>
+              <span class="model-mech-val">Sweep extreme — the wick that swept the anchor level</span>
+            </div>
+            <div class="model-mech-row">
+              <span class="model-mech-label">TP1</span>
+              <span class="model-mech-val"><strong>1R</strong> — 1:1 risk-reward</span>
+            </div>
+            <div class="model-mech-row">
+              <span class="model-mech-label">Runner</span>
+              <span class="model-mech-val"><strong>2R</strong> — 1:2 risk-reward · primary backtest target</span>
+            </div>
+            <div style="margin-top:14px">
+              <div class="model-col-head">Filters</div>
+              <div class="model-mech-row">
+                <span class="model-mech-label">Window</span>
+                <span class="model-mech-val">RTH only · 07:00–16:00 ET</span>
+              </div>
+              <div class="model-mech-row">
+                <span class="model-mech-label">Min Risk</span>
+                <span class="model-mech-val">3 pts minimum stop size</span>
+              </div>
+              <div class="model-mech-row">
+                <span class="model-mech-label">Sweep %</span>
+                <span class="model-mech-val">0.10% – 1.50% of prior anchor range</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Column 3: 4 TF Combinations -->
+          <div>
+            <div class="model-col-head">4 Timeframe Combinations</div>
+            <table class="model-tf-table">
+              <thead>
+                <tr><th>Model</th><th>Sweep TF</th><th>CISD TF</th><th>Q1 Window</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>4H_15M</td><td>4 Hour</td><td>15 Min</td><td>First 1h</td></tr>
+                <tr><td>1H_5M</td><td>1 Hour</td><td>5 Min</td><td>First 15m</td></tr>
+                <tr><td>1H_3M</td><td>1 Hour</td><td>3 Min</td><td>First 15m</td></tr>
+                <tr><td>30M_3M</td><td>30 Min</td><td>3 Min</td><td>First 8m</td></tr>
+              </tbody>
+            </table>
+            <div class="model-def-note">
+              <strong>PREV</strong> anchor = prior candle's high / low &nbsp;·&nbsp;
+              <strong>CISD</strong> level = open of the first candle of the opposing delivery run &nbsp;·&nbsp;
+              Entry fires on the bar <em>after</em> CISD close
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
     <div class="meta-row" id="meta-row"></div>
 
     <div class="sec-label">Classification Breakdown</div>
     <div id="classification-breakdown"></div>
-
-    <div class="sec-label">Trade Setup Anatomy</div>
-    <div class="panel">
-      <div class="ph">
-        <span class="ph-title">Entry / Stop / Target · Sweep + CISD Structure</span>
-      </div>
-      <div class="pb" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div>
-          <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--green);margin-bottom:6px;">▲ LONG</div>
-          <canvas id="setup-canvas-bull" style="display:block;width:100%" height="340"></canvas>
-        </div>
-        <div>
-          <div style="text-align:center;font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--red);margin-bottom:6px;">▼ SHORT</div>
-          <canvas id="setup-canvas-bear" style="display:block;width:100%" height="340"></canvas>
-        </div>
-      </div>
-    </div>
 
     <div class="panel">
       <div class="ph"><span class="ph-title">Direction Summary · Long vs Short</span></div>
@@ -796,6 +899,7 @@ const RR_PROFILES = [
   'sl_026_tp_018','sl_026_tp_019','sl_021_tp_018','sl_020_tp_018','sl_018_tp_018',
   'sl_019_tp_018','sl_020_tp_021','sl_020_tp_019','sl_018_tp_019','sl_019_tp_019',
   'structural_dynamic',
+  'split_80_20',
 ];
 const PROFILE_LABELS = {
   'sl_026_tp_018':      'SL 0.26% / TP 0.18%  (R:R 0.69)',
@@ -809,9 +913,11 @@ const PROFILE_LABELS = {
   'sl_018_tp_019':      'SL 0.18% / TP 0.19%  (R:R 1.06)',
   'sl_019_tp_019':      'SL 0.19% / TP 0.19%  (R:R 1.00)',
   'structural_dynamic': 'Structural Dynamic — TP1 @ 1R · 50% exit · Runner Free',
+  'split_80_20':        'Split Exit — TP1 @ 1R (80%) · TP2 @ 0.6724% (20%) · BE stop on runner',
 };
-const PCT_PROFILES = new Set(RR_PROFILES.filter(k => k !== 'structural_dynamic'));
+const PCT_PROFILES = new Set(RR_PROFILES.filter(k => k !== 'structural_dynamic' && k !== 'split_80_20'));
 const STRUCTURAL_PROFILE = 'structural_dynamic';
+const SPLIT_PROFILES = new Set(['split_80_20']);
 
 // Helper — resolve active profile data (handles both flat DEMO and {profiles:{}} real JSON)
 function getProfileData(fullKey, profile) {
@@ -926,7 +1032,7 @@ function getAvailableProfiles(fullKey) {
   if (base.profiles) {
     // Merge JSON profiles with full list so structural_dynamic always appears
     const fromJson = new Set(Object.keys(base.profiles));
-    return RR_PROFILES.filter(pk => fromJson.has(pk) || pk === STRUCTURAL_PROFILE);
+    return RR_PROFILES.filter(pk => fromJson.has(pk) || pk === STRUCTURAL_PROFILE || SPLIT_PROFILES.has(pk));
   }
   return RR_PROFILES; // demo data — all profiles point to same data
 }
@@ -2897,16 +3003,19 @@ function renderStructuralPanel(D){
   const bodyEl   = document.getElementById('structural-runner-body');
   if(!panelEl || !bodyEl) return;
 
-  const isStructural = activeProfile === STRUCTURAL_PROFILE;
-  panelEl.style.display = isStructural ? '' : 'none';
-  if(!isStructural) return;
+  const isSplitPanel = activeProfile === STRUCTURAL_PROFILE || SPLIT_PROFILES.has(activeProfile);
+  panelEl.style.display = isSplitPanel ? '' : 'none';
+  if(!isSplitPanel) return;
 
   const ss = D?.structural_stats;
   if(!ss){
-    bodyEl.innerHTML = `<p style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">Run <code>python3 model_stats.py</code> to generate structural_dynamic stats.</p>`;
+    bodyEl.innerHTML = `<p style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">Run <code>python3 model_stats.py</code> to generate split-exit stats.</p>`;
     return;
   }
 
+  const isSplit8020 = activeProfile === 'split_80_20';
+  const tp1Size  = isSplit8020 ? 0.80 : 0.50;
+  const tp2Size  = isSplit8020 ? 0.20 : 0.50;
   const pct = v => v != null ? (v*100).toFixed(1)+'%' : '—';
   const fp3 = v => v != null ? (+v).toFixed(3)+'R' : '—';
   const fp4 = v => v != null ? (+v).toFixed(4)+'%' : '—';
@@ -2916,10 +3025,10 @@ function renderStructuralPanel(D){
   const rrs = ss.runner_ran_stats || {};
   const m = D?.meta || {};
 
-  // Net EV estimate: WR=tp1 (partial always positive), runner adds bonus
+  // Net EV estimate
   const netEV = tp1 != null && rs.mean != null
-    ? (+(tp1 * (0.5 + 0.5 * rs.mean) + (1 - tp1) * (-1.0)).toFixed(3)) : null;
-  const beWR = 2/3;
+    ? (+(tp1 * (tp1Size + tp2Size * rs.mean) + (1 - tp1) * (-1.0)).toFixed(3)) : null;
+  const beWR = isSplit8020 ? (1/1.8) : (2/3);
 
   bodyEl.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">
@@ -2941,7 +3050,7 @@ function renderStructuralPanel(D){
       <div class="rg-cell">
         <div class="rg-lbl">Est. Net EV</div>
         <div class="rg-val" style="color:${netEV>0?'var(--green)':'var(--red)'}">${netEV!=null?(netEV>0?'+':'')+netEV.toFixed(3)+'R':'—'}</div>
-        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">TP1×(0.5+0.5×runner) − loss×1R</div>
+        <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px">TP1×(${tp1Size}+${tp2Size}×runner) − loss×1R</div>
       </div>
     </div>
 
@@ -2969,9 +3078,9 @@ function renderStructuralPanel(D){
         </table>
         <div style="margin-top:12px;padding:10px 12px;background:var(--bg-raised);border:1px solid var(--border);border-radius:6px;font-family:var(--font-data);font-size:10px;color:var(--text-muted);line-height:1.7">
           <strong style="color:var(--text-secondary)">Net R formula:</strong><br>
-          50% exits at <span style="color:var(--green)">+1R</span> when TP1 hit<br>
-          50% runner exits at <span style="color:var(--purple)">runner_exit_r</span> (≥ 0)<br>
-          <span style="color:var(--amber)">Net = 0.5 + 0.5 × runner_exit_r</span>
+          ${(tp1Size*100).toFixed(0)}% exits at <span style="color:var(--green)">+1R</span> when TP1 hit<br>
+          ${(tp2Size*100).toFixed(0)}% runner exits at <span style="color:var(--purple)">runner_exit_r</span> (≥ 0)<br>
+          <span style="color:var(--amber)">Net = ${tp1Size} + ${tp2Size} × runner_exit_r</span>${isSplit8020 ? '<br><span style="color:var(--text-muted)">Runner target: TP2 @ 0.6724% of entry</span>' : ''}
         </div>
       </div>
     </div>`;
