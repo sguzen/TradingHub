@@ -12,7 +12,7 @@ sweep_min     = input.float(0.10, "Sweep Min %",           group=G2, step=0.05) 
 sweep_max     = input.float(1.50, "Sweep Max %",           group=G2, step=0.05) / 100
 min_risk      = input.float(3.0,  "Min Risk (pts)",         group=G2)
 cisd_lookback = input.int(8,      "CISD Lookback Bars",     group=G2)
-rth_only      = input.bool(true,  "RTH Only (07:00–16:00 ET)", group=G2)
+rth_only      = input.bool(true,  "RTH Only (07:00-16:00 ET)", group=G2)
 
 var string G3 = "Display"
 rr_extend = input.int(20, "R:R Box Width (bars)", group=G3, minval=5, maxval=100)
@@ -24,25 +24,30 @@ rr_extend = input.int(20, "R:R Box Width (bars)", group=G3, minval=5, maxval=100
 //   1H/5M  → 3 bars  = first 15m of 1H candle
 //   1H/3M  → 5 bars  = first 15m of 1H candle
 //   30M/3M → 3 bars  = first ~8m of 30M candle
-sweep_tf = combo == "1D/1H"  ? "1D"  :
-           combo == "4H/15M" ? "240" :
-           combo == "1H/5M"  ? "60"  :
-           combo == "1H/3M"  ? "60"  : "30"
-
-q1_bars  = combo == "1D/1H"  ? 14 :
-           combo == "4H/15M" ? 4  :
-           combo == "1H/5M"  ? 3  :
-           combo == "1H/3M"  ? 5  : 3
-
-sweep_tf_lbl = combo == "1D/1H"  ? "1D"  :
-               combo == "4H/15M" ? "4H"  :
-               combo == "1H/5M"  ? "1H"  :
-               combo == "1H/3M"  ? "1H"  : "30M"
-
-cisd_tf_lbl  = combo == "1D/1H"  ? "1H"  :
-               combo == "4H/15M" ? "15M" :
-               combo == "1H/5M"  ? "5M"  :
-               combo == "1H/3M"  ? "3M"  : "3M"
+var string sweep_tf      = "30"
+var int    q1_bars       = 3
+var string sweep_tf_lbl  = "30M"
+var string cisd_tf_lbl   = "3M"
+if combo == "1D/1H"
+    sweep_tf     := "1D"
+    q1_bars      := 14
+    sweep_tf_lbl := "1D"
+    cisd_tf_lbl  := "1H"
+else if combo == "4H/15M"
+    sweep_tf     := "240"
+    q1_bars      := 4
+    sweep_tf_lbl := "4H"
+    cisd_tf_lbl  := "15M"
+else if combo == "1H/5M"
+    sweep_tf     := "60"
+    q1_bars      := 3
+    sweep_tf_lbl := "1H"
+    cisd_tf_lbl  := "5M"
+else if combo == "1H/3M"
+    sweep_tf     := "60"
+    q1_bars      := 5
+    sweep_tf_lbl := "1H"
+    cisd_tf_lbl  := "3M"
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 is_rth() =>
