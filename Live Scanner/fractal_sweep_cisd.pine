@@ -226,6 +226,15 @@ if tf_supported and in_q1 and not na(anc_hi) and not na(anc_lo)
                 sweep_line_short := line.new(anc_bar_index, anc_hi, bar_index + rr_extend + 15, anc_hi, color=color.red, width=2, style=sweep_lstyle)
                 sweep_lbl_short  := label.new(sweep_x_short, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
 
+// Track swing extreme — SL moves to highest high / lowest low before return
+if tf_supported and in_q1
+    if swept_long and not ret_long and low < sweep_ext_long
+        sweep_ext_long := low
+        sweep_bar_long := bar_index
+    if swept_short and not ret_short and high > sweep_ext_short
+        sweep_ext_short := high
+        sweep_bar_short := bar_index
+
 // ── PHASE 2: RETURN TO RANGE ──────────────────────────────────────────────────
 if in_q1
     if swept_long  and not ret_long  and close >= anc_lo
