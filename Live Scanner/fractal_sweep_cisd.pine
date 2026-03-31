@@ -357,15 +357,13 @@ if long_valid
     label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
     // fib extension
     if show_fib
-        label.new(bar_index, sl, "1 (" + str.tostring(sl, "#.##") + ")", color=color.new(fib_color, 100), textcolor=fib_color, style=label.style_label_right, size=size.tiny)
-        label.new(bar_index, entry, "0 (" + str.tostring(entry, "#.##") + ")", color=color.new(fib_color, 100), textcolor=fib_color, style=label.style_label_right, size=size.tiny)
         fib_steps = int(fib_max_r / fib_step)
         for i = 1 to fib_steps
             r_val = i * fib_step
             lvl   = entry + r_val * risk
             lc    = math.abs(r_val - fib_hl_level) < 0.01 ? fib_hl_color : fib_color
             line.new(bar_index, lvl, r_end, lvl, color=lc, width=1, style=line.style_dashed)
-            label.new(bar_index, lvl, "-" + str.tostring(r_val, "#.#") + " (" + str.tostring(lvl, "#.##") + ")", color=color.new(lc, 100), textcolor=lc, style=label.style_label_right, size=size.tiny)
+            label.new(r_end, lvl, "-" + str.tostring(r_val, "#.#") + " (" + str.tostring(lvl, "#.##") + ")", color=color.new(lc, 100), textcolor=lc, style=label.style_label_left, size=size.tiny)
     alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
@@ -400,13 +398,11 @@ if short_valid
     label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
     // fib extension
     if show_fib
-        label.new(bar_index, sl, "1 (" + str.tostring(sl, "#.##") + ")", color=color.new(fib_color, 100), textcolor=fib_color, style=label.style_label_right, size=size.tiny)
-        label.new(bar_index, entry, "0 (" + str.tostring(entry, "#.##") + ")", color=color.new(fib_color, 100), textcolor=fib_color, style=label.style_label_right, size=size.tiny)
         fib_steps = int(fib_max_r / fib_step)
         for i = 1 to fib_steps
             r_val = i * fib_step
             lvl   = entry - r_val * risk
             lc    = math.abs(r_val - fib_hl_level) < 0.01 ? fib_hl_color : fib_color
             line.new(bar_index, lvl, r_end, lvl, color=lc, width=1, style=line.style_dashed)
-            label.new(bar_index, lvl, "-" + str.tostring(r_val, "#.#") + " (" + str.tostring(lvl, "#.##") + ")", color=color.new(lc, 100), textcolor=lc, style=label.style_label_right, size=size.tiny)
+            label.new(r_end, lvl, "-" + str.tostring(r_val, "#.#") + " (" + str.tostring(lvl, "#.##") + ")", color=color.new(lc, 100), textcolor=lc, style=label.style_label_left, size=size.tiny)
     alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
