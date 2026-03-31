@@ -10,40 +10,45 @@ cisd_lookback = input.int(8,      "CISD Lookback Bars", group=G2)
 rth_only      = input.bool(true,  "RTH Only (07:00-16:00 ET)", group=G2)
 
 var string G3 = "R:R Box"
-rr_extend       = input.int(20,   "Box Width (bars)", group=G3, minval=5, maxval=100)
-rr_ratio        = input.float(1.0, "R:R Target", group=G3, step=0.5, minval=0.5, tooltip="e.g. 2 = TP at 2R")
-rr_risk_col     = input.color(color.new(color.red,  85), "Risk Zone Fill",   group=G3)
-rr_risk_border  = input.color(color.new(color.red,  40), "Risk Zone Border",  group=G3)
-rr_rew_col      = input.color(color.new(color.teal, 85), "Reward Zone Fill",  group=G3)
-rr_rew_border   = input.color(color.new(color.teal, 40), "Reward Zone Border", group=G3)
-rr_entry_col    = input.color(color.white,               "Entry Line Color",  group=G3)
+rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
+rr_ratio       = input.float(1.0, "R:R Target", group=G3, step=0.5, minval=0.5, tooltip="e.g. 2 = TP at 2R")
+rr_risk_col    = input.color(color.new(color.red,  85), "Risk Zone Fill",    group=G3)
+rr_risk_border = input.color(color.new(color.red,  40), "Risk Zone Border",  group=G3)
+rr_rew_col     = input.color(color.new(color.teal, 85), "Reward Zone Fill",  group=G3)
+rr_rew_border  = input.color(color.new(color.teal, 40), "Reward Zone Border", group=G3)
+rr_entry_col   = input.color(color.white,               "Entry Line Color",  group=G3)
 
 var string G4 = "Sweep Line"
-sweep_style_inp = input.string("Dotted",  "Line Style",    options=["Dotted", "Dashed", "Solid"], group=G4)
-sweep_text      = input.string("Sweep of", "Label Text",   group=G4, tooltip="TF is appended automatically")
-sweep_lbl_pos   = input.string("Right",   "Label Position", options=["Left", "Right"], group=G4)
+sweep_style_inp = input.string("Dotted",   "Line Style",     options=["Dotted", "Dashed", "Solid"], group=G4)
+sweep_text      = input.string("Sweep of", "Label Text",     group=G4, tooltip="TF is appended automatically")
+sweep_lbl_pos   = input.string("Right",    "Label Position", options=["Left", "Right"], group=G4)
 
 var string G5 = "CISD Line"
-cisd_style_inp  = input.string("Dotted",  "Line Style",    options=["Dotted", "Dashed", "Solid"], group=G5)
-cisd_text       = input.string("CISD",    "Label Text",    group=G5, tooltip="TF is appended automatically")
-cisd_lbl_pos    = input.string("Right",   "Label Position", options=["Left", "Right"], group=G5)
+cisd_style_inp  = input.string("Dotted", "Line Style",     options=["Dotted", "Dashed", "Solid"], group=G5)
+cisd_text       = input.string("CISD",   "Label Text",     group=G5, tooltip="TF is appended automatically")
+cisd_lbl_pos    = input.string("Right",  "Label Position", options=["Left", "Right"], group=G5)
 
 var string G6 = "R:R Labels"
-rr_lbl_pos      = input.string("Right",   "Label Position", options=["Left", "Right"], group=G6)
-rr_lbl_tp_col   = input.color(color.new(color.teal, 20), "TP Label Color",    group=G6)
-rr_lbl_sl_col   = input.color(color.new(color.red,  20), "SL Label Color",    group=G6)
-rr_lbl_en_col   = input.color(color.new(color.gray, 60), "Entry Label Color", group=G6)
+rr_lbl_pos    = input.string("Right",                        "Label Position", options=["Left", "Right"], group=G6)
+rr_lbl_tp_col = input.color(color.new(color.teal, 20), "TP Label Color",    group=G6)
+rr_lbl_sl_col = input.color(color.new(color.red,  20), "SL Label Color",    group=G6)
+rr_lbl_en_col = input.color(color.new(color.gray, 60), "Entry Label Color", group=G6)
 
 // ── STYLE HELPERS ─────────────────────────────────────────────────────────────
-sweep_lstyle   = sweep_style_inp == "Dashed" ? line.style_dashed : sweep_style_inp == "Solid" ? line.style_solid : line.style_dotted
-cisd_lstyle    = cisd_style_inp  == "Dashed" ? line.style_dashed : cisd_style_inp  == "Solid" ? line.style_solid : line.style_dotted
-sweep_lbl_style = sweep_lbl_pos == "Left" ? label.style_label_left : label.style_label_right
-cisd_lbl_style  = cisd_lbl_pos  == "Left" ? label.style_label_left : label.style_label_right
-rr_lbl_style    = rr_lbl_pos    == "Left" ? label.style_label_left : label.style_label_right
+// "Right" → anchor at END of line, text flows right → style_label_left
+// "Left"  → anchor at START of line, text flows left → style_label_right
+sweep_lstyle    = sweep_style_inp == "Dashed" ? line.style_dashed : sweep_style_inp == "Solid" ? line.style_solid : line.style_dotted
+cisd_lstyle     = cisd_style_inp  == "Dashed" ? line.style_dashed : cisd_style_inp  == "Solid" ? line.style_solid : line.style_dotted
+sweep_lbl_style = sweep_lbl_pos == "Right" ? label.style_label_left  : label.style_label_right
+cisd_lbl_style  = cisd_lbl_pos  == "Right" ? label.style_label_left  : label.style_label_right
+rr_lbl_style    = rr_lbl_pos    == "Right" ? label.style_label_left  : label.style_label_right
+// x-position offset: Right = end of line, Left = start of line
+sweep_lbl_x  = sweep_lbl_pos == "Right" ? rr_extend + 15 : 0
+cisd_lbl_x   = cisd_lbl_pos  == "Right" ? rr_extend      : 0
+rr_lbl_x     = rr_lbl_pos    == "Right" ? rr_extend      : 0
 
 // ── AUTO COMBO FROM CHART TIMEFRAME ──────────────────────────────────────────
 // 1H → 1D/1H | 15M → 4H/15M | 5M → 1H/5M | 3M → 30M/3M | other → inactive
-var string sweep_tf     = ""
 var int    q1_bars      = 0
 var string sweep_tf_lbl = ""
 var string cisd_tf_lbl  = ""
@@ -51,28 +56,24 @@ var string combo        = ""
 var bool   tf_supported = false
 
 if timeframe.period == "60"
-    sweep_tf     := "1D"
     q1_bars      := 14
     sweep_tf_lbl := "1D"
     cisd_tf_lbl  := "1H"
     combo        := "1D/1H"
     tf_supported := true
 else if timeframe.period == "15"
-    sweep_tf     := "240"
     q1_bars      := 4
     sweep_tf_lbl := "4H"
     cisd_tf_lbl  := "15M"
     combo        := "4H/15M"
     tf_supported := true
 else if timeframe.period == "5"
-    sweep_tf     := "60"
     q1_bars      := 3
     sweep_tf_lbl := "1H"
     cisd_tf_lbl  := "5M"
     combo        := "1H/5M"
     tf_supported := true
 else if timeframe.period == "3"
-    sweep_tf     := "30"
     q1_bars      := 3
     sweep_tf_lbl := "30M"
     cisd_tf_lbl  := "3M"
@@ -88,10 +89,25 @@ is_rth() =>
     h = hour(time, "America/New_York")
     h >= 7 and h < 16
 
-// ── ANCHOR CANDLE ─────────────────────────────────────────────────────────────
-prior_high    = request.security(syminfo.tickerid, sweep_tf, high[1], lookahead=barmerge.lookahead_on)
-prior_low     = request.security(syminfo.tickerid, sweep_tf, low[1],  lookahead=barmerge.lookahead_on)
-anchor_time   = request.security(syminfo.tickerid, sweep_tf, time,    lookahead=barmerge.lookahead_on)
+// ── ANCHOR CANDLE — pre-declared with literal TF strings ──────────────────────
+// Pine v5 requires literal or consistent strings in request.security timeframe arg.
+// All 4 TFs are pre-fetched; correct one selected by chart TF below.
+ph_1D  = request.security(syminfo.tickerid, "1D",  high[1], lookahead=barmerge.lookahead_on)
+pl_1D  = request.security(syminfo.tickerid, "1D",  low[1],  lookahead=barmerge.lookahead_on)
+at_1D  = request.security(syminfo.tickerid, "1D",  time,    lookahead=barmerge.lookahead_on)
+ph_240 = request.security(syminfo.tickerid, "240", high[1], lookahead=barmerge.lookahead_on)
+pl_240 = request.security(syminfo.tickerid, "240", low[1],  lookahead=barmerge.lookahead_on)
+at_240 = request.security(syminfo.tickerid, "240", time,    lookahead=barmerge.lookahead_on)
+ph_60  = request.security(syminfo.tickerid, "60",  high[1], lookahead=barmerge.lookahead_on)
+pl_60  = request.security(syminfo.tickerid, "60",  low[1],  lookahead=barmerge.lookahead_on)
+at_60  = request.security(syminfo.tickerid, "60",  time,    lookahead=barmerge.lookahead_on)
+ph_30  = request.security(syminfo.tickerid, "30",  high[1], lookahead=barmerge.lookahead_on)
+pl_30  = request.security(syminfo.tickerid, "30",  low[1],  lookahead=barmerge.lookahead_on)
+at_30  = request.security(syminfo.tickerid, "30",  time,    lookahead=barmerge.lookahead_on)
+
+prior_high    = timeframe.period == "60" ? ph_1D : timeframe.period == "15" ? ph_240 : timeframe.period == "5" ? ph_60 : ph_30
+prior_low     = timeframe.period == "60" ? pl_1D : timeframe.period == "15" ? pl_240 : timeframe.period == "5" ? pl_60 : pl_30
+anchor_time   = timeframe.period == "60" ? at_1D : timeframe.period == "15" ? at_240 : timeframe.period == "5" ? at_60 : at_30
 is_new_anchor = ta.change(anchor_time) != 0
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
@@ -130,6 +146,7 @@ if in_q1
         in_q1 := false
 
 // ── PHASE 1: SWEEP ────────────────────────────────────────────────────────────
+// Sweep line drawn at the wick extreme (= SL level), not the prior candle boundary
 if tf_supported and in_q1 and not na(anc_hi) and not na(anc_lo)
     ref_range = anc_hi - anc_lo
     if ref_range > 0
@@ -138,15 +155,15 @@ if tf_supported and in_q1 and not na(anc_hi) and not na(anc_lo)
             if low < anc_lo and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
                 swept_long     := true
                 sweep_ext_long := low
-                line.new(bar_index, anc_lo, bar_index + rr_extend + 15, anc_lo, color=color.red, width=2, style=sweep_lstyle)
-                label.new(bar_index, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
+                line.new(bar_index, low, bar_index + rr_extend + 15, low, color=color.red, width=2, style=sweep_lstyle)
+                label.new(bar_index + sweep_lbl_x, low, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
         if not swept_short
             ext = high - anc_hi
             if high > anc_hi and ext / ref_range >= sweep_min and ext / ref_range <= sweep_max
                 swept_short     := true
                 sweep_ext_short := high
-                line.new(bar_index, anc_hi, bar_index + rr_extend + 15, anc_hi, color=color.red, width=2, style=sweep_lstyle)
-                label.new(bar_index, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
+                line.new(bar_index, high, bar_index + rr_extend + 15, high, color=color.red, width=2, style=sweep_lstyle)
+                label.new(bar_index + sweep_lbl_x, high, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
 
 // ── PHASE 2: RETURN TO RANGE ──────────────────────────────────────────────────
 if in_q1
@@ -211,13 +228,13 @@ if long_valid
     tp    = entry + risk * rr_ratio
     r_end = bar_index + rr_extend
     line.new(bar_index, cisd_long_lvl, r_end, cisd_long_lvl, color=color.blue, width=2, style=cisd_lstyle)
-    label.new(bar_index, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small)
-    box.new(bar_index, entry, r_end, sl, border_color=rr_risk_border, bgcolor=rr_risk_col)
-    box.new(bar_index, tp, r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
+    label.new(bar_index + cisd_lbl_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small)
+    box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
+    box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
     line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    label.new(r_end, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(r_end, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(r_end, sl,    "SL  -"  + str.tostring(risk,  "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
     alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
@@ -229,11 +246,11 @@ if short_valid
     tp    = entry - risk * rr_ratio
     r_end = bar_index + rr_extend
     line.new(bar_index, cisd_short_lvl, r_end, cisd_short_lvl, color=color.blue, width=2, style=cisd_lstyle)
-    label.new(bar_index, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small)
-    box.new(bar_index, sl, r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
-    box.new(bar_index, entry, r_end, tp, border_color=rr_rew_border,  bgcolor=rr_rew_col)
+    label.new(bar_index + cisd_lbl_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small)
+    box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
+    box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
     line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    label.new(r_end, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(r_end, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(r_end, sl,    "SL  -"  + str.tostring(risk,  "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
     alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
