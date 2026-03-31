@@ -3,7 +3,7 @@ indicator("Abhi's Fractal Sweep", overlay=true, max_labels_count=500, max_lines_
 
 // ── INPUTS ────────────────────────────────────────────────────────────────────
 var string G1 = "Model"
-combo = input.string("4H/15M", "Timeframe Combo", options=["1D/1H", "4H/15M", "1H/5M", "1H/3M", "30M/3M"], group=G1, tooltip="Set chart to the CISD (right) timeframe")
+tf3m_sweep = input.string("1H", "3M Chart: Sweep TF", options=["1H", "30M"], group=G1, tooltip="Only used when chart is on 3M. Choose 1H for 1H/3M or 30M for 30M/3M.")
 
 var string G2 = "Filters"
 sweep_min     = input.float(0.10, "Sweep Min %", group=G2, step=0.05) / 100
@@ -27,31 +27,44 @@ cisd_line_text       = input.string("CISD",   "CISD Label Text",  group=G5)
 sweep_lstyle = sweep_line_style_inp == "Dashed" ? line.style_dashed : sweep_line_style_inp == "Solid" ? line.style_solid : line.style_dotted
 cisd_lstyle  = cisd_line_style_inp  == "Dashed" ? line.style_dashed : cisd_line_style_inp  == "Solid" ? line.style_solid : line.style_dotted
 
-// ── COMBO CONFIG ──────────────────────────────────────────────────────────────
+// ── AUTO COMBO FROM CHART TIMEFRAME ──────────────────────────────────────────
+// 1H chart → 1D/1H | 15M → 4H/15M | 5M → 1H/5M | 3M → 1H/3M or 30M/3M
 var string sweep_tf     = "30"
 var int    q1_bars      = 3
 var string sweep_tf_lbl = "30M"
 var string cisd_tf_lbl  = "3M"
-if combo == "1D/1H"
+var string combo        = "30M/3M"
+if timeframe.period == "60"
     sweep_tf     := "1D"
     q1_bars      := 14
     sweep_tf_lbl := "1D"
     cisd_tf_lbl  := "1H"
-else if combo == "4H/15M"
+    combo        := "1D/1H"
+else if timeframe.period == "15"
     sweep_tf     := "240"
     q1_bars      := 4
     sweep_tf_lbl := "4H"
     cisd_tf_lbl  := "15M"
-else if combo == "1H/5M"
+    combo        := "4H/15M"
+else if timeframe.period == "5"
     sweep_tf     := "60"
     q1_bars      := 3
     sweep_tf_lbl := "1H"
     cisd_tf_lbl  := "5M"
-else if combo == "1H/3M"
-    sweep_tf     := "60"
-    q1_bars      := 5
-    sweep_tf_lbl := "1H"
-    cisd_tf_lbl  := "3M"
+    combo        := "1H/5M"
+else if timeframe.period == "3"
+    if tf3m_sweep == "30M"
+        sweep_tf     := "30"
+        q1_bars      := 3
+        sweep_tf_lbl := "30M"
+        cisd_tf_lbl  := "3M"
+        combo        := "30M/3M"
+    else
+        sweep_tf     := "60"
+        q1_bars      := 5
+        sweep_tf_lbl := "1H"
+        cisd_tf_lbl  := "3M"
+        combo        := "1H/3M"
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 is_rth() =>
