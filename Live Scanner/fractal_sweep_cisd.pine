@@ -148,7 +148,7 @@ if is_new_anchor and tf_supported
     ret_short       := false
     alerted_long    := false
     alerted_short   := false
-    anc_bar_index   := bar_index
+    anc_bar_index   := bar_index - 1
     // clean up any leftover drawings from previous Q1
     line.delete(sweep_line_long)
     sweep_line_long  := na
