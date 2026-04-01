@@ -7,7 +7,6 @@ sweep_min     = input.float(0.10, "Sweep Min %", group=G2, step=0.05) / 100
 sweep_max     = input.float(1.50, "Sweep Max %", group=G2, step=0.05) / 100
 min_risk      = input.float(3.0,  "Min Risk (pts)", group=G2)
 cisd_lookback = input.int(8,      "CISD Lookback Bars", group=G2)
-rth_only      = input.bool(true,  "RTH Only (07:00-16:00 ET)", group=G2)
 
 var string G3 = "R:R Box"
 rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
@@ -90,10 +89,6 @@ else if timeframe.period == "3"
     tf_supported := true
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
-is_rth() =>
-    h = hour(time, "America/New_York")
-    h >= 7 and h < 16
-
 // Logarithmic midpoint — weights toward the dominant wick (same as TTFM)
 f_log_mid(float _h, float _l, float _o, float _c) =>
     log_h = math.log(_h)
@@ -402,9 +397,7 @@ long_risk  = not na(sweep_ext_long)  ? math.abs(close - sweep_ext_long)  : 0.0
 short_risk = not na(sweep_ext_short) ? math.abs(close - sweep_ext_short) : 0.0
 long_valid  = tf_supported and ret_long  and cisd_long_fired  and not alerted_long  and long_risk  >= min_risk
 short_valid = tf_supported and ret_short and cisd_short_fired and not alerted_short and short_risk >= min_risk
-if rth_only
-    long_valid  := long_valid  and is_rth()
-    short_valid := short_valid and is_rth()
+
 
 // ── FIRE: LONG ────────────────────────────────────────────────────────────────
 if long_valid
