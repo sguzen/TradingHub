@@ -417,42 +417,15 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
               <strong>CISD</strong> level = open of the first candle of the opposing delivery run &nbsp;·&nbsp;
               Entry fires on the bar <em>after</em> CISD close
             </div>
+            <div class="model-def-note" style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+              <strong>vs TTFM:</strong> &nbsp;
+              Q1 window constrains sweep timing (TTFM uses full candle) &nbsp;·&nbsp;
+              Sweep size filtered 0.10%–1.50% (TTFM: any wick) &nbsp;·&nbsp;
+              Prior candle sweeps pre-seeded at anchor reset
+            </div>
           </div>
 
         </div>
-      </div>
-    </div>
-
-    <!-- ── Differences from TTrades Model ─────────────────────────────────── -->
-    <div class="sec-label">Abhi's Fractal Sweep vs TTrades Fractal Model</div>
-    <div class="panel">
-      <div class="ph">
-        <span class="ph-title">Key Differences from TTFM</span>
-        <span class="ph-note">Same core concept · different implementation details</span>
-      </div>
-      <div class="pb">
-        <table class="model-tf-table" style="width:100%;font-size:12px">
-          <thead>
-            <tr><th style="width:22%">Aspect</th><th style="width:39%">Abhi's Fractal Sweep</th><th style="width:39%">TTrades Fractal Model (TTFM)</th></tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><strong>Sweep Detection</strong></td>
-              <td>Must happen within Q1 window (first 8–60 min of the anchor period) OR pre-seeded if prior candle itself swept the prev-prev candle</td>
-              <td>Detected when new HTF candle closes — checks if last closed candle swept prior candle's high/low. No Q1 window constraint</td>
-            </tr>
-            <tr>
-              <td><strong>Q1 Window</strong></td>
-              <td>Sweep + return must complete within Q1 (3–14 bars depending on model). CISD can fire after Q1 if both completed in time</td>
-              <td>No explicit Q1 window — sweep is evaluated on HTF candle close, so the entire HTF period is considered</td>
-            </tr>
-            <tr>
-              <td><strong>Sweep Size Filter</strong></td>
-              <td>Filtered: sweep must be 0.10%–1.50% of the prior anchor candle's range. Too small or too large sweeps are rejected</td>
-              <td>No sweep size filter — any wick beyond the prior high/low qualifies regardless of depth</td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </div>
 
