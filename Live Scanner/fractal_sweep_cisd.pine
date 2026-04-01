@@ -300,25 +300,27 @@ if in_q1
 
 f_cisd_long(int ret_bar) =>
     // LONG: find consecutive bearish run (close < open) backward from return bar
+    // Matches backtest: skip dojis, find first bearish candle, extend run back
     cisd_lvl  = float(na)
     run_end   = 0
     if not na(ret_bar)
         offset = bar_index - ret_bar
-        // Step 1: find first bearish candle scanning back from return bar
-        j = offset + 1
+        // Step 1: scan back from ret_bar, skip dojis, find first bearish candle
         found = false
-        for step = 0 to cisd_lookback * 4
-            if j + step < bar_index
-                if close[j + step] == open[j + step]
-                    continue
-                if close[j + step] < open[j + step]
-                    run_end := j + step
-                    found := true
-                    break
-                else
-                    break
+        for step = 1 to cisd_lookback * 4
+            k = offset + step
+            if k >= bar_index
+                break
+            if close[k] == open[k]
+                continue
+            if close[k] < open[k]
+                run_end := k
+                found := true
+                break
+            else
+                break
         if found
-            // Extend run further back for more consecutive bearish candles
+            // Step 2: extend run further back for consecutive bearish candles
             run_start = run_end
             for step = 1 to cisd_lookback * 4
                 k = run_end + step
@@ -330,32 +332,32 @@ f_cisd_long(int ret_bar) =>
                     continue
                 else
                     break
-            // CISD level = open of the FIRST (earliest = furthest back) bearish candle
-            // For bearish run going down, the earliest candle has the highest open
             cisd_lvl := open[run_start]
     [not na(cisd_lvl) and close > cisd_lvl, cisd_lvl, na(cisd_lvl) ? 0 : run_end]
 
 f_cisd_short(int ret_bar) =>
     // SHORT: find consecutive bullish run (close > open) backward from return bar
+    // Matches backtest: skip dojis, find first bullish candle, extend run back
     cisd_lvl  = float(na)
     run_end   = 0
     if not na(ret_bar)
         offset = bar_index - ret_bar
-        // Step 1: find first bullish candle scanning back from return bar
-        j = offset + 1
+        // Step 1: scan back from ret_bar, skip dojis, find first bullish candle
         found = false
-        for step = 0 to cisd_lookback * 4
-            if j + step < bar_index
-                if close[j + step] == open[j + step]
-                    continue
-                if close[j + step] > open[j + step]
-                    run_end := j + step
-                    found := true
-                    break
-                else
-                    break
+        for step = 1 to cisd_lookback * 4
+            k = offset + step
+            if k >= bar_index
+                break
+            if close[k] == open[k]
+                continue
+            if close[k] > open[k]
+                run_end := k
+                found := true
+                break
+            else
+                break
         if found
-            // Extend run further back for more consecutive bullish candles
+            // Step 2: extend run further back for consecutive bullish candles
             run_start = run_end
             for step = 1 to cisd_lookback * 4
                 k = run_end + step
@@ -367,8 +369,6 @@ f_cisd_short(int ret_bar) =>
                     continue
                 else
                     break
-            // CISD level = open of the FIRST (earliest = furthest back) bullish candle
-            // For bullish run going up, the earliest candle has the lowest open
             cisd_lvl := open[run_start]
     [not na(cisd_lvl) and close < cisd_lvl, cisd_lvl, na(cisd_lvl) ? 0 : run_end]
 
