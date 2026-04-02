@@ -3177,14 +3177,13 @@ function renderQ1Impact(){
   const md=q1ImpactData[mk];
   if(!md){body.innerHTML='<tr><td colspan="4" style="color:var(--text-muted)">No Q1 data for '+mk+'</td></tr>';note.textContent='';summary.textContent='';return;}
   // Map activeProfile to the closest Q1 data key
-  const pk=(activeProfile==='split_80_20'||activeProfile==='structural_dynamic')?activeProfile
-    :activeProfile.startsWith('sl_')?'split_80_20':'structural_dynamic';
+  const pk=(activeProfile==='split_80_20'||activeProfile==='structural_dynamic')?activeProfile:'split_80_20';
   const pd=md.profiles[pk];
   if(!pd){body.innerHTML='<tr><td colspan="4" style="color:var(--text-muted)">No data for '+activeProfile+'</td></tr>';return;}
   const o=pd.orig, f=pd.full;
   document.getElementById('q1-col-orig').textContent='Q1 = '+md.q1_orig+' min';
   document.getElementById('q1-col-full').textContent='Full '+md.q1_full+' min';
-  const ptqStr=pk==='split_80_20'?'TP1 @ '+md.ptq+'% PTQ (90%) · Runner (10%) · BE stop':'Structural 1:2 R:R';
+  const ptqStr=pk==='split_80_20'?'Split Exit — TP1 @ '+md.ptq+'% PTQ (90%) · Runner (10%) · BE stop':'Structural Dynamic — TP1 @ 1R · 50% exit · Runner Free · BE stop';
   note.textContent=mk+' · '+ptqStr+(pk!==activeProfile?' (nearest match)':'');
   function pct(v){return(v*100).toFixed(1)+'%';}
   function delta(ov,fv,fmt,invert){
