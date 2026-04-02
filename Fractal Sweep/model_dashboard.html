@@ -643,6 +643,7 @@ function switchPageTab(tab){
     renderMFEStudy(D);
     renderStructuralPanel(D);
   }
+  if(tab === 'trades') renderRecentTrades(0);
   if(tab === 'overview') drawSetupViz();
   if(tab === 'live-scanner') loadScannerStatus();
 }
