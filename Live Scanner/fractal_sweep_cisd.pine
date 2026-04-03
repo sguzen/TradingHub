@@ -9,8 +9,9 @@ sweep_max     = input.float(50.0, "Sweep Max %", group=G2, step=0.5) / 100
 min_risk      = input.float(3.0,  "Min Risk (pts)", group=G2)
 cisd_lookback = input.int(8,      "CISD Lookback Bars", group=G2)
 
-var string G8 = "Debug"
+var string G8 = "Display"
 show_debug    = input.bool(false, "Show Debug Labels", group=G8)
+max_setups    = input.int(1, "Max Setups to Show", group=G8, minval=1, maxval=20, tooltip="Only the N most recent fired setups are kept; older ones are removed")
 
 var string G3 = "R:R Box"
 rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
@@ -186,15 +187,33 @@ var float sweep_pct_short    = na
 // bar index where return-to-range happened (CISD scans backward from here)
 var int   ret_bar_long       = na
 var int   ret_bar_short      = na
-// track which bar makes the running high/low during the current HTF period
-var int   _running_hi_bar    = na
-var int   _running_lo_bar    = na
-var float _running_hi        = na
-var float _running_lo        = na
+// arrays to track fired setup drawings for cleanup when exceeding max_setups
+var fired_lines  = array.new_line()
+var fired_labels = array.new_label()
+var fired_boxes  = array.new_box()
+
+// helper: register a fired drawing for later cleanup
+f_reg_line(line l)   => array.push(fired_lines, l)
+f_reg_label(label l) => array.push(fired_labels, l)
+f_reg_box(box b)     => array.push(fired_boxes, b)
+
+// helper: trim oldest drawings to keep only max_setups worth
+// each setup creates ~15 lines, ~8 labels, ~3 boxes
+f_trim_fired() =>
+    _per_setup_lines  = 12
+    _per_setup_labels = 12
+    _per_setup_boxes  = 4
+    _max_lines  = max_setups * _per_setup_lines
+    _max_labels = max_setups * _per_setup_labels
+    _max_boxes  = max_setups * _per_setup_boxes
+    while array.size(fired_lines) > _max_lines
+        line.delete(array.shift(fired_lines))
+    while array.size(fired_labels) > _max_labels
+        label.delete(array.shift(fired_labels))
+    while array.size(fired_boxes) > _max_boxes
+        box.delete(array.shift(fired_boxes))
 
 // ── ANCHOR RESET ──────────────────────────────────────────────────────────────
-// NOTE: Running hi/lo tracker is AFTER anchor reset so the reset bar's data
-// doesn't corrupt the prior period's tracked high/low.
 if is_new_anchor and tf_supported
     // Capture fired state BEFORE resetting — used to preserve fired drawings
     _was_alerted_long  = alerted_long
@@ -223,14 +242,21 @@ if is_new_anchor and tf_supported
     alerted_short   := false
     q1_sweep_long   := false
     q1_sweep_short  := false
-    // Use the running tracker from the just-completed HTF period
-    anc_hi_bar := not na(_running_hi_bar) ? _running_hi_bar : bar_index - 1
-    anc_lo_bar := not na(_running_lo_bar) ? _running_lo_bar : bar_index - 1
-    // Reset tracker for the new period
-    _running_hi     := na
-    _running_lo     := na
-    _running_hi_bar := na
-    _running_lo_bar := na
+    // find the FIRST LTF bar that reached the prior HTF high/low
+    // Scan from oldest to newest — first match = earliest bar at that level
+    // Use tolerance (0.25 pts) for floating point differences between HTF and LTF values
+    _htf_n = timeframe.period == "60" ? 24 : timeframe.period == "15" ? 16 : timeframe.period == "5" ? 12 : 10
+    _tol = syminfo.mintick * 2
+    anc_hi_bar := bar_index - 1
+    anc_lo_bar := bar_index - 1
+    for k = _htf_n to 1
+        if high[k] >= anc_hi - _tol
+            anc_hi_bar := bar_index - k
+            break
+    for k = _htf_n to 1
+        if low[k] <= anc_lo + _tol
+            anc_lo_bar := bar_index - k
+            break
     // ── Pre-seed: did the prior candle itself sweep beyond the prev-prev range? ─
     // If the just-closed HTF candle swept above prev2_high and closed back below,
     // that IS a valid sweep+return — pre-seed state so only CISD is needed.
@@ -251,6 +277,15 @@ if is_new_anchor and tf_supported
                     // override anc_hi/lo to the prev-prev candle (the one that was swept)
                     anc_hi := prev2_high
                     anc_lo := prev2_low
+                    // re-search for anchor bars in prev-prev period (wider range)
+                    for k2 = _htf_n * 3 to 1
+                        if high[k2] >= prev2_high - _tol
+                            anc_hi_bar := bar_index - k2
+                            break
+                    for k2 = _htf_n * 3 to 1
+                        if low[k2] <= prev2_low + _tol
+                            anc_lo_bar := bar_index - k2
+                            break
             // LONG pre-seed: prior candle swept below prev-prev low, closed back above
             if prior_low < prev2_low and prior_close >= prev2_low
                 ext_l = prev2_low - prior_low
@@ -265,6 +300,15 @@ if is_new_anchor and tf_supported
                     // override anc_hi/lo to the prev-prev candle (the one that was swept)
                     anc_hi := prev2_high
                     anc_lo := prev2_low
+                    // re-search for anchor bars in prev-prev period (wider range)
+                    for k2 = _htf_n * 3 to 1
+                        if high[k2] >= prev2_high - _tol
+                            anc_hi_bar := bar_index - k2
+                            break
+                    for k2 = _htf_n * 3 to 1
+                        if low[k2] <= prev2_low + _tol
+                            anc_lo_bar := bar_index - k2
+                            break
     // clean up UNFIRED drawings only — fired setups keep their drawings
     if not _was_alerted_long
         line.delete(sweep_line_long)
@@ -303,15 +347,6 @@ if is_new_anchor and tf_supported
         sweep_line_short := line.new(anc_hi_bar, anc_hi, bar_index + rr_extend, anc_hi, color=color.red, width=2, style=sweep_lstyle)
         sweep_lbl_short  := label.new(ps_x, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small)
 
-// ── RUNNING HIGH/LOW TRACKER — updates every bar to track where the HTF high/low is made ─
-// Placed AFTER anchor reset so the reset bar starts fresh for the new period
-if tf_supported
-    if na(_running_hi) or high >= _running_hi
-        _running_hi     := high
-        _running_hi_bar := bar_index
-    if na(_running_lo) or low <= _running_lo
-        _running_lo     := low
-        _running_lo_bar := bar_index
 
 // ── Q1 COUNTER ────────────────────────────────────────────────────────────────
 q1_elapsed += 1
@@ -542,6 +577,7 @@ if show_debug and tf_supported and barstate.islast
          + "\nCISD_L_lvl=" + (not na(cisd_long_lvl) ? str.tostring(cisd_long_lvl, "#.##") : "na") + " fired=" + str.tostring(cisd_long_fired) + " off=" + str.tostring(cisd_long_off)
          + "\nrisk_S=" + str.tostring(short_risk, "#.#") + " valid_S=" + str.tostring(short_valid)
          + "\nanc_hi=" + str.tostring(anc_hi, "#.##") + " anc_lo=" + str.tostring(anc_lo, "#.##")
+         + "\nhi_bar_off=" + str.tostring(bar_index - anc_hi_bar) + " lo_bar_off=" + str.tostring(bar_index - anc_lo_bar)
     var label dbg_lbl = na
     label.delete(dbg_lbl)
     dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(color.black, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
@@ -568,41 +604,36 @@ if long_valid
     _swp_col  = _is_q1_l ? color.red      : color.orange
     _cisd_col = _is_q1_l ? color.blue     : #eab308
     cisd_bar = bar_index - cisd_long_off
-    line.new(cisd_bar, cisd_long_lvl, r_end, cisd_long_lvl, color=_cisd_col, width=2, style=cisd_lstyle)
+    f_reg_line(line.new(cisd_bar, cisd_long_lvl, r_end, cisd_long_lvl, color=_cisd_col, width=2, style=cisd_lstyle))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
-    label.new(cisd_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl + (_is_q1_l ? "" : " *"), color=color.new(_cisd_col, 100), textcolor=_cisd_col, style=cisd_lbl_style, size=size.small)
-    // redraw sweep line from anchor candle to r_end (may have been deleted by Q1 cleanup)
+    f_reg_label(label.new(cisd_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl + (_is_q1_l ? "" : " *"), color=color.new(_cisd_col, 100), textcolor=_cisd_col, style=cisd_lbl_style, size=size.small))
     if not na(sweep_line_long)
         line.delete(sweep_line_long)
     if not na(sweep_lbl_long)
         label.delete(sweep_lbl_long)
-    line.new(anc_lo_bar, anc_lo, r_end, anc_lo, color=_swp_col, width=2, style=sweep_lstyle)
+    f_reg_line(line.new(anc_lo_bar, anc_lo, r_end, anc_lo, color=_swp_col, width=2, style=sweep_lstyle))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : anc_lo_bar
-    label.new(sweep_x, anc_lo, sweep_text + " " + sweep_tf_lbl + (_is_q1_l ? "" : " *"), color=color.new(_swp_col, 100), textcolor=_swp_col, style=sweep_lbl_style, size=size.small)
+    f_reg_label(label.new(sweep_x, anc_lo, sweep_text + " " + sweep_tf_lbl + (_is_q1_l ? "" : " *"), color=color.new(_swp_col, 100), textcolor=_swp_col, style=sweep_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_long) ? sweep_bar_long : bar_index
-    line.new(sl_anchor, sl, r_end, sl, color=_sl_col, width=2, style=sweep_lstyle)
-    box.new(bar_index, entry, r_end, sl,  border_color=_risk_br, bgcolor=_risk_bg)
-    box.new(bar_index, tp,    r_end, entry, border_color=_rew_br,  bgcolor=_rew_bg)
-    line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    // T-Spot zone — log midpoint to sweep close
+    f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_sl_col, width=2, style=sweep_lstyle))
+    f_reg_box(box.new(bar_index, entry, r_end, sl,  border_color=_risk_br, bgcolor=_risk_bg))
+    f_reg_box(box.new(bar_index, tp,    r_end, entry, border_color=_rew_br,  bgcolor=_rew_bg))
+    f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(sweep_logmid_long) and not na(sweep_close_long)
         tspot_top  = math.max(sweep_logmid_long, sweep_close_long)
         tspot_bot  = math.min(sweep_logmid_long, sweep_close_long)
         sb = not na(sweep_bar_long) ? sweep_bar_long : bar_index
-        box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.teal, tspot_transp), border_color=color.new(color.teal, tspot_transp + 5))
-        line.new(sb, sweep_logmid_long, r_end, sweep_logmid_long, color=color.teal, width=1, style=line.style_dotted)
-    // C2 label at the swept level (prior TF low)
+        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.teal, tspot_transp), border_color=color.new(color.teal, tspot_transp + 5)))
+        f_reg_line(line.new(sb, sweep_logmid_long, r_end, sweep_logmid_long, color=color.teal, width=1, style=line.style_dotted))
     if show_c_labels
-        label.new(anc_lo_bar, anc_lo, "C2", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small)
-        label.new(bar_index, cisd_long_lvl, "C3", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small)
-    // T-Spot type label
+        f_reg_label(label.new(anc_lo_bar, anc_lo, "C2", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small))
+        f_reg_label(label.new(bar_index, cisd_long_lvl, "C3", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small))
     if show_tspot_type and not na(sweep_pct_long)
         ttype = sweep_pct_long < 0.30 ? "ProTrend" : sweep_pct_long < 0.80 ? "Normal" : "Expansive"
-        label.new(bar_index, tp, ttype + " LONG", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_down, size=size.tiny)
-    // CISD series projections
+        f_reg_label(label.new(bar_index, tp, ttype + " LONG", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_down, size=size.tiny))
     if show_proj and cisd_long_off > 0
         series_hi = high[cisd_long_off]
         series_lo = low[cisd_long_off]
@@ -621,8 +652,9 @@ if long_valid
                     lv = str.tonumber(lv_str)
                     if not na(lv)
                         proj_price = cisd_long_lvl + s_range * lv
-                        line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted)
-                        label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny)
+                        f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
+                        f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
+    f_trim_fired()
     alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
@@ -647,41 +679,36 @@ if short_valid
     _swp_col  = _is_q1_s ? color.red      : color.orange
     _cisd_col = _is_q1_s ? color.blue     : #eab308
     cisd_bar = bar_index - cisd_short_off
-    line.new(cisd_bar, cisd_short_lvl, r_end, cisd_short_lvl, color=_cisd_col, width=2, style=cisd_lstyle)
+    f_reg_line(line.new(cisd_bar, cisd_short_lvl, r_end, cisd_short_lvl, color=_cisd_col, width=2, style=cisd_lstyle))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
-    label.new(cisd_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl + (_is_q1_s ? "" : " *"), color=color.new(_cisd_col, 100), textcolor=_cisd_col, style=cisd_lbl_style, size=size.small)
-    // redraw sweep line from anchor candle to r_end (may have been deleted by Q1 cleanup)
+    f_reg_label(label.new(cisd_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl + (_is_q1_s ? "" : " *"), color=color.new(_cisd_col, 100), textcolor=_cisd_col, style=cisd_lbl_style, size=size.small))
     if not na(sweep_line_short)
         line.delete(sweep_line_short)
     if not na(sweep_lbl_short)
         label.delete(sweep_lbl_short)
-    line.new(anc_hi_bar, anc_hi, r_end, anc_hi, color=_swp_col, width=2, style=sweep_lstyle)
+    f_reg_line(line.new(anc_hi_bar, anc_hi, r_end, anc_hi, color=_swp_col, width=2, style=sweep_lstyle))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : anc_hi_bar
-    label.new(sweep_x, anc_hi, sweep_text + " " + sweep_tf_lbl + (_is_q1_s ? "" : " *"), color=color.new(_swp_col, 100), textcolor=_swp_col, style=sweep_lbl_style, size=size.small)
+    f_reg_label(label.new(sweep_x, anc_hi, sweep_text + " " + sweep_tf_lbl + (_is_q1_s ? "" : " *"), color=color.new(_swp_col, 100), textcolor=_swp_col, style=sweep_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_short) ? sweep_bar_short : bar_index
-    line.new(sl_anchor, sl, r_end, sl, color=_sl_col, width=2, style=sweep_lstyle)
-    box.new(bar_index, sl,    r_end, entry, border_color=_risk_br, bgcolor=_risk_bg)
-    box.new(bar_index, entry, r_end, tp,    border_color=_rew_br,  bgcolor=_rew_bg)
-    line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
-    // T-Spot zone — log midpoint to sweep close
+    f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_sl_col, width=2, style=sweep_lstyle))
+    f_reg_box(box.new(bar_index, sl,    r_end, entry, border_color=_risk_br, bgcolor=_risk_bg))
+    f_reg_box(box.new(bar_index, entry, r_end, tp,    border_color=_rew_br,  bgcolor=_rew_bg))
+    f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(sweep_logmid_short) and not na(sweep_close_short)
         tspot_top  = math.max(sweep_logmid_short, sweep_close_short)
         tspot_bot  = math.min(sweep_logmid_short, sweep_close_short)
         sb = not na(sweep_bar_short) ? sweep_bar_short : bar_index
-        box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.red, tspot_transp), border_color=color.new(color.red, tspot_transp + 5))
-        line.new(sb, sweep_logmid_short, r_end, sweep_logmid_short, color=color.red, width=1, style=line.style_dotted)
-    // C2 label at the swept level (prior TF high)
+        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.red, tspot_transp), border_color=color.new(color.red, tspot_transp + 5)))
+        f_reg_line(line.new(sb, sweep_logmid_short, r_end, sweep_logmid_short, color=color.red, width=1, style=line.style_dotted))
     if show_c_labels
-        label.new(anc_hi_bar, anc_hi, "C2", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small)
-        label.new(bar_index, cisd_short_lvl, "C3", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small)
-    // T-Spot type label
+        f_reg_label(label.new(anc_hi_bar, anc_hi, "C2", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small))
+        f_reg_label(label.new(bar_index, cisd_short_lvl, "C3", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small))
     if show_tspot_type and not na(sweep_pct_short)
         ttype = sweep_pct_short < 0.30 ? "ProTrend" : sweep_pct_short < 0.80 ? "Normal" : "Expansive"
-        label.new(bar_index, tp, ttype + " SHORT", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_up, size=size.tiny)
-    // CISD series projections
+        f_reg_label(label.new(bar_index, tp, ttype + " SHORT", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_up, size=size.tiny))
     if show_proj and cisd_short_off > 0
         series_hi = high[cisd_short_off]
         series_lo = low[cisd_short_off]
@@ -700,6 +727,7 @@ if short_valid
                     lv = str.tonumber(lv_str)
                     if not na(lv)
                         proj_price = cisd_short_lvl - s_range * lv
-                        line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted)
-                        label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny)
+                        f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
+                        f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
+    f_trim_fired()
     alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
