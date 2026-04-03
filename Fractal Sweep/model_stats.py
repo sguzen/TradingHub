@@ -1437,9 +1437,10 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
                    'mae_pct','mfe_pct']
     recent_rows = (wl[recent_cols]
                    .sort_values('date', ascending=False)
-                   .head(500)
                    .copy())
     recent_rows['dow_name'] = recent_rows['dow'].map(lambda d: DOW_NAMES.get(int(d), '?'))
+    recent_rows['classification'] = recent_rows['date'].astype(str).str[:10].map(
+        lambda d: DATE_CLASSIFICATION.get(d, 'Unclassified'))
     recent_trades = recent_rows.to_dict('records')
     for t in recent_trades:
         t['date'] = str(t['date'])[:10]
@@ -1858,6 +1859,8 @@ def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
         available = [c for c in recent_cols if c in wl_sub.columns]
         rt = wl_sub[available].sort_values('date', ascending=False).copy()
         rt['dow_name'] = rt['dow'].map(lambda d: dow_names.get(int(d), '?'))
+        rt['classification'] = rt['date'].astype(str).str[:10].map(
+            lambda d: DATE_CLASSIFICATION.get(d, 'Unclassified'))
         recent_trades = rt.to_dict('records')
         for t in recent_trades:
             t['date'] = str(t['date'])[:10]
