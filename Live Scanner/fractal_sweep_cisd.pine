@@ -186,6 +186,20 @@ var float sweep_pct_short    = na
 // bar index where return-to-range happened (CISD scans backward from here)
 var int   ret_bar_long       = na
 var int   ret_bar_short      = na
+// track which bar makes the running high/low during the current HTF period
+var int   _running_hi_bar    = na
+var int   _running_lo_bar    = na
+var float _running_hi        = na
+var float _running_lo        = na
+
+// ── RUNNING HIGH/LOW TRACKER — updates every bar to track where the HTF high/low is made ─
+if tf_supported
+    if na(_running_hi) or high >= _running_hi
+        _running_hi     := high
+        _running_hi_bar := bar_index
+    if na(_running_lo) or low <= _running_lo
+        _running_lo     := low
+        _running_lo_bar := bar_index
 
 // ── ANCHOR RESET ──────────────────────────────────────────────────────────────
 if is_new_anchor and tf_supported
@@ -216,18 +230,14 @@ if is_new_anchor and tf_supported
     alerted_short   := false
     q1_sweep_long   := false
     q1_sweep_short  := false
-    // find the most recent bar that made the anchor high/low
-    // Scan backward, break on first match — most recent bar at that level
-    anc_hi_bar := bar_index - 1
-    anc_lo_bar := bar_index - 1
-    for k = 1 to 50
-        if high[k] >= anc_hi
-            anc_hi_bar := bar_index - k
-            break
-    for k = 1 to 50
-        if low[k] <= anc_lo
-            anc_lo_bar := bar_index - k
-            break
+    // Use the running tracker from the just-completed HTF period
+    anc_hi_bar := not na(_running_hi_bar) ? _running_hi_bar : bar_index - 1
+    anc_lo_bar := not na(_running_lo_bar) ? _running_lo_bar : bar_index - 1
+    // Reset tracker for the new period
+    _running_hi     := na
+    _running_lo     := na
+    _running_hi_bar := na
+    _running_lo_bar := na
     // ── Pre-seed: did the prior candle itself sweep beyond the prev-prev range? ─
     // If the just-closed HTF candle swept above prev2_high and closed back below,
     // that IS a valid sweep+return — pre-seed state so only CISD is needed.
