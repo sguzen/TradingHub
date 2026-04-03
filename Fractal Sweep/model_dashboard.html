@@ -898,25 +898,14 @@ let activeProfile = 'structural_dynamic';
 let activeTF      = 'all';  // 'all' | '2y' | '1y' | '6m' | '3m' | '1m'
 
 const RR_PROFILES = [
-  'sl_026_tp_018','sl_026_tp_019','sl_021_tp_018',
   'structural_dynamic',
   'split_80_20',
 ];
 const PROFILE_LABELS = {
-  'sl_026_tp_018':      'SL 0.26% / TP 0.18%  (R:R 0.69)',
-  'sl_026_tp_019':      'SL 0.26% / TP 0.19%  (R:R 0.73)',
-  'sl_021_tp_018':      'SL 0.21% / TP 0.18%  (R:R 0.86)',
-  'sl_020_tp_018':      'SL 0.20% / TP 0.18%  (R:R 0.90)',
-  'sl_018_tp_018':      'SL 0.18% / TP 0.18%  (R:R 1.00)',
-  'sl_019_tp_018':      'SL 0.19% / TP 0.18%  (R:R 0.95)',
-  'sl_020_tp_021':      'SL 0.20% / TP 0.21%  (R:R 1.05)',
-  'sl_020_tp_019':      'SL 0.20% / TP 0.19%  (R:R 0.95)',
-  'sl_018_tp_019':      'SL 0.18% / TP 0.19%  (R:R 1.06)',
-  'sl_019_tp_019':      'SL 0.19% / TP 0.19%  (R:R 1.00)',
   'structural_dynamic': 'Structural Dynamic — TP1 @ 1R · 50% exit · Runner Free',
   'split_80_20':        'Split Exit — TP1 @ PTQ level (90%) · Runner Free (10%) · BE stop after TP1',
 };
-const PCT_PROFILES = new Set(RR_PROFILES.filter(k => k !== 'structural_dynamic' && k !== 'split_80_20'));
+const PCT_PROFILES = new Set();
 const STRUCTURAL_PROFILE = 'structural_dynamic';
 const SPLIT_PROFILES = new Set(['split_80_20']);
 
@@ -933,90 +922,8 @@ function getProfileData(fullKey, profile) {
   return null;
 }
 
-// ── CLASSIFICATION DATA (from FractalSweep2_0327_0555_DDLI.xlsx) ────────────
-// null = combo was blown/filtered on that day type
-const CLASSIFICATION_DATA = {
-  sl_026_tp_018: {
-    combined:     {trades:8050, wr:64.5, pf:1.260, pnl:166846, sharpe:5.38, max_dd:6.71},
-    dwp:          {trades:3256, wr:66.6, pf:1.379, pnl:92908,  sharpe:4.75, max_dd:9.12},
-    dnp:          {trades:1167, wr:63.8, pf:1.218, pnl:20717,  sharpe:1.85, max_dd:21.33},
-    r1:           {trades:2009, wr:63.1, pf:1.182, pnl:30410,  sharpe:1.88, max_dd:17.15},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_026_tp_019: {
-    combined:     {trades:8050, wr:63.2, pf:1.253, pnl:168966, sharpe:5.29, max_dd:6.39},
-    dwp:          {trades:3256, wr:65.1, pf:1.366, pnl:93366,  sharpe:4.62, max_dd:9.90},
-    dnp:          {trades:1167, wr:63.1, pf:1.248, pnl:24040,  sharpe:2.09, max_dd:17.88},
-    r1:           {trades:2009, wr:61.1, pf:1.149, pnl:26187,  sharpe:1.57, max_dd:24.32},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_021_tp_018: {
-    combined:     {trades:8050, wr:59.2, pf:1.246, pnl:181511, sharpe:5.20, max_dd:8.00},
-    dwp:          {trades:3256, wr:61.9, pf:1.390, pnl:108964, sharpe:4.93, max_dd:6.23},
-    dnp:          {trades:1167, wr:58.3, pf:1.197, pnl:21568,  sharpe:1.71, max_dd:26.72},
-    r1:           {trades:2009, wr:56.9, pf:1.131, pnl:25586,  sharpe:1.41, max_dd:23.79},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_020_tp_018: {
-    combined:     {trades:8050, wr:58.0, pf:1.243, pnl:184748, sharpe:5.15, max_dd:7.23},
-    dwp:          {trades:3256, wr:60.6, pf:1.386, pnl:111285, sharpe:4.89, max_dd:5.87},
-    dnp:          {trades:1167, wr:57.1, pf:1.196, pnl:22140,  sharpe:1.71, max_dd:27.36},
-    r1:           {trades:2009, wr:55.5, pf:1.125, pnl:25065,  sharpe:1.34, max_dd:26.29},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_018_tp_018: {
-    combined:     {trades:8050, wr:55.3, pf:1.237, pnl:191700, sharpe:5.04, max_dd:5.60},
-    dwp:          {trades:3256, wr:58.1, pf:1.385, pnl:118350, sharpe:4.89, max_dd:5.31},
-    dnp:          {trades:1167, wr:54.1, pf:1.177, pnl:21375,  sharpe:1.56, max_dd:26.00},
-    r1:           {trades:2009, wr:52.7, pf:1.113, pnl:24075,  sharpe:1.22, max_dd:36.43},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_019_tp_018: {
-    combined:     {trades:8050, wr:56.6, pf:1.237, pnl:186312, sharpe:5.04, max_dd:6.03},
-    dwp:          {trades:3256, wr:59.3, pf:1.379, pnl:113045, sharpe:4.82, max_dd:5.50},
-    dnp:          {trades:1167, wr:55.2, pf:1.167, pnl:19599,  sharpe:1.47, max_dd:31.57},
-    r1:           {trades:2009, wr:54.2, pf:1.121, pnl:25129,  sharpe:1.31, max_dd:26.46},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_020_tp_021: {
-    combined:     {trades:8050, wr:54.0, pf:1.234, pnl:194726, sharpe:4.98, max_dd:6.57},
-    dwp:          {trades:3256, wr:56.5, pf:1.364, pnl:116100, sharpe:4.66, max_dd:6.16},
-    dnp:          {trades:1167, wr:53.8, pf:1.223, pnl:27090,  sharpe:1.93, max_dd:25.95},
-    r1:           {trades:2009, wr:50.3, pf:1.062, pnl:13838,  sharpe:0.68, max_dd:54.99},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_020_tp_019: {
-    combined:     {trades:8050, wr:56.6, pf:1.238, pnl:187256, sharpe:5.06, max_dd:7.44},
-    dwp:          {trades:3256, wr:59.4, pf:1.388, pnl:115504, sharpe:4.92, max_dd:6.37},
-    dnp:          {trades:1167, wr:55.7, pf:1.194, pnl:22612,  sharpe:1.70, max_dd:25.50},
-    r1:           {trades:2009, wr:53.7, pf:1.100, pnl:20948,  sharpe:1.09, max_dd:41.35},
-    r2:           null,
-    unclassified: null,
-  },
-  sl_018_tp_019: {
-    combined:     {trades:8050, wr:53.9, pf:1.233, pnl:194612, sharpe:4.96, max_dd:7.03},
-    dwp:          {trades:3256, wr:56.8, pf:1.389, pnl:123025, sharpe:4.93, max_dd:5.55},
-    dnp:          {trades:1167, wr:52.8, pf:1.180, pnl:22325,  sharpe:1.58, max_dd:25.02},
-    r1:           null,
-    r2:           null,
-    unclassified: null,
-  },
-  sl_019_tp_019: {
-    combined:     {trades:8050, wr:55.2, pf:1.234, pnl:189900, sharpe:4.99, max_dd:6.58},
-    dwp:          {trades:3256, wr:58.0, pf:1.382, pnl:117450, sharpe:4.86, max_dd:5.90},
-    dnp:          {trades:1167, wr:54.0, pf:1.173, pnl:20925,  sharpe:1.52, max_dd:28.67},
-    r1:           {trades:2009, wr:52.4, pf:1.099, pnl:21375,  sharpe:1.08, max_dd:37.31},
-    r2:           null,
-    unclassified: null,
-  },
-};
+// ── CLASSIFICATION DATA ────────────
+const CLASSIFICATION_DATA = {};
 
 const CLS_META = {
   dwp:          {label:'DWP',    sub:'Directional With Pullback', dot:'#22d3ee', color:'var(--blue)'},

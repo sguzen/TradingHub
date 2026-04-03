@@ -106,24 +106,13 @@ UNSWEPT_LOOKBACK = 10
 # profile_type='pct'   → stop/target distances = entry_price × val / 100
 #                         (fixed % of entry price, independent of sweep size)
 RR_PROFILES = [
-    # --- DDLI Weighted Top 10 (Sharpe 25% · PF 20% · EV 15% · SQN 15% · MaxDD 10% · RoR 10% · CE 5%) ---
-    (0.26, 0.18, 'sl_026_tp_018', 'pct'),
-    (0.26, 0.19, 'sl_026_tp_019', 'pct'),
-    (0.21, 0.18, 'sl_021_tp_018', 'pct'),
-    (0.20, 0.18, 'sl_020_tp_018', 'pct'),
-    (0.18, 0.18, 'sl_018_tp_018', 'pct'),
-    (0.19, 0.18, 'sl_019_tp_018', 'pct'),
-    (0.20, 0.21, 'sl_020_tp_021', 'pct'),
-    (0.20, 0.19, 'sl_020_tp_019', 'pct'),
-    (0.18, 0.19, 'sl_018_tp_019', 'pct'),
-    (0.19, 0.19, 'sl_019_tp_019', 'pct'),
     # --- Structural Dynamic: SL = sweep extreme (1×base_risk), TP1 = 1R, 50% exit; runner with BE stop ---
     (1.0, 1.0, 'structural_dynamic', 'structural'),
     # --- Split-exit: TP1 @ structural PTQ level (90% off), 10% runner free with BE stop ---
     # target_val is a placeholder; overridden per-model with structural ptq_level at runtime
     (1.0, 0.0, 'split_80_20', 'split_tp'),
 ]
-DEFAULT_PROFILE = 'sl_026_tp_018'
+DEFAULT_PROFILE = 'structural_dynamic'
 
 DOW_NAMES = {0:'Sun', 1:'Mon', 2:'Tue', 3:'Wed', 4:'Thu', 5:'Fri', 6:'Sat'}
 HR_LABELS = {h: f"{h:02d}:00" for h in range(0, 24)}
