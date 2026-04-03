@@ -626,9 +626,9 @@ if (localStorage.getItem('hub-theme') === 'light') applyTheme(false);
 let activePageTab = 'overview';
 function switchPageTab(tab){
   activePageTab = tab;
-  document.querySelectorAll('.page-pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page-pane').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
   const pane = document.getElementById('pane-' + tab);
-  if(pane) pane.classList.add('active');
+  if(pane){ pane.classList.add('active'); pane.style.display = ''; }
   document.querySelectorAll('.page-tab').forEach(b => b.classList.remove('active'));
   const btn = [...document.querySelectorAll('.page-tab')].find(b => b.textContent.toLowerCase().replace(/\s+/g,'').includes(tab.replace('-','')));
   if(btn) btn.classList.add('active');
