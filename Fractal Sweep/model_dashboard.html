@@ -1334,6 +1334,29 @@ function saveAndRenderRanges(){
   renderRangeSlots();
 }
 
+function computeKDE(values, nPoints){
+  nPoints = nPoints || 200;
+  if(values.length < 2) return [];
+  const sorted = values.slice().sort((a,b) => a-b);
+  const n = sorted.length;
+  const mean = sorted.reduce((s,v)=>s+v,0)/n;
+  const std = Math.sqrt(sorted.reduce((s,v)=>s+(v-mean)**2,0)/(n-1));
+  const iqr = sorted[Math.floor(n*0.75)] - sorted[Math.floor(n*0.25)];
+  const h = 0.9 * Math.min(std, iqr/1.34) * Math.pow(n, -0.2);
+  if(h <= 0) return [];
+  const min = sorted[0] - 3*h, max = sorted[n-1] + 3*h;
+  const step = (max - min) / nPoints;
+  const points = [];
+  for(let i = 0; i < nPoints; i++){
+    const x = min + i * step;
+    let density = 0;
+    for(const v of sorted) density += Math.exp(-0.5 * ((x - v) / h) ** 2);
+    density /= n * h * Math.sqrt(2 * Math.PI);
+    points.push({x, y: density});
+  }
+  return points;
+}
+
 function computeRangeStats(trades){
   const n = trades.length;
   if(n === 0) return null;
@@ -1346,14 +1369,30 @@ function computeRangeStats(trades){
   const ev_r = n > 0 ? (sumWinR - sumLossR) / n : 0;
   const pf = sumLossR > 0 ? sumWinR / sumLossR : 0;
   const ce = ev_r * pf;
-  let mcl = 0, run = 0;
-  trades.forEach(t => { if(t.outcome==='LOSS'){run++;mcl=Math.max(mcl,run)}else{run=0} });
+  const avgWinR = nWins > 0 ? sumWinR / nWins : 0;
+
+  // Streaks
+  let mcl = 0, mcw = 0, lRun = 0, wRun = 0;
+  const winStreaks = [], lossStreaks = [];
+  trades.forEach(t => {
+    if(t.outcome === 'LOSS'){ lRun++; mcl = Math.max(mcl, lRun); if(wRun > 0) winStreaks.push(wRun); wRun = 0; }
+    else { wRun++; mcw = Math.max(mcw, wRun); if(lRun > 0) lossStreaks.push(lRun); lRun = 0; }
+  });
+  if(wRun > 0) winStreaks.push(wRun);
+  if(lRun > 0) lossStreaks.push(lRun);
+  const avgWinStreak = winStreaks.length > 0 ? winStreaks.reduce((s,v)=>s+v,0)/winStreaks.length : 0;
+  const avgLossStreak = lossStreaks.length > 0 ? lossStreaks.reduce((s,v)=>s+v,0)/lossStreaks.length : 0;
+
+  // Equity curve
   const ACCT = 4500, RPT = 225;
   let eq = ACCT, peak = ACCT, minEq = ACCT, maxDD = 0;
   const dailyPnl = {};
-  trades.slice().sort((a,b) => a.date.localeCompare(b.date)).forEach(t => {
+  const equityCurve = [ACCT];
+  const sortedTrades = trades.slice().sort((a,b) => a.date.localeCompare(b.date));
+  sortedTrades.forEach(t => {
     const pnl = t.r * RPT;
     eq += pnl;
+    equityCurve.push(eq);
     if(eq < minEq) minEq = eq;
     if(eq > peak) peak = eq;
     const dd = peak > 0 ? (peak - eq) / peak : 0;
@@ -1370,6 +1409,8 @@ function computeRangeStats(trades){
     if(sd > 0) sharpe = Math.round(mu / sd * Math.sqrt(252) * 100) / 100;
   }
   const maxDDPct = Math.round(maxDD * 10000) / 100;
+
+  // By class
   const byClass = {};
   trades.forEach(t => {
     const cls = t.classification || 'Unclassified';
@@ -1378,6 +1419,19 @@ function computeRangeStats(trades){
     if(t.outcome === 'WIN') byClass[cls].wins++;
   });
   Object.values(byClass).forEach(c => { c.wr = c.n > 0 ? c.wins / c.n : 0; });
+
+  // By hour
+  const byHour = {};
+  for(let h = 7; h <= 16; h++) byHour[h] = {n:0, wins:0, wr:0};
+  trades.forEach(t => {
+    const h = t.hr != null ? t.hr : null;
+    if(h == null || h < 7 || h > 16) return;
+    byHour[h].n++;
+    if(t.outcome === 'WIN') byHour[h].wins++;
+  });
+  Object.values(byHour).forEach(b => { b.wr = b.n > 0 ? b.wins / b.n : 0; });
+
+  // MAE/MFE distributions
   const maeVals = trades.map(t => t.mae_pct).filter(v => v != null && v > 0);
   const mfeVals = trades.map(t => t.mfe_pct).filter(v => v != null && v > 0);
   function distStats(vals){
@@ -1396,11 +1450,78 @@ function computeRangeStats(trades){
   const maeDist = distStats(maeVals);
   const mfeDist = distStats(mfeVals);
   const mfeMaeRatio = maeDist.median > 0 ? Math.round(mfeDist.median / maeDist.median * 100) / 100 : 0;
+
+  // Percentiles helper
+  function percentiles(sorted){
+    if(sorted.length === 0) return {p5:0,p10:0,p25:0,p50:0,p75:0,p90:0,p95:0};
+    const p = q => { const i = q * (sorted.length - 1); const lo = Math.floor(i); const hi = Math.ceil(i); return lo === hi ? sorted[lo] : sorted[lo] * (hi - i) + sorted[hi] * (i - lo); };
+    return {p5:+p(0.05).toFixed(4),p10:+p(0.10).toFixed(4),p25:+p(0.25).toFixed(4),p50:+p(0.50).toFixed(4),p75:+p(0.75).toFixed(4),p90:+p(0.90).toFixed(4),p95:+p(0.95).toFixed(4)};
+  }
+  const maePercentiles = percentiles(maeDist.values);
+  const mfePercentiles = percentiles(mfeDist.values);
+
+  // R-distribution
+  const rDist = {'-1':0, '0-1':0, '1-2':0, '2-3':0, '3-5':0, '5+':0};
+  trades.forEach(t => {
+    const r = t.r;
+    if(r <= -0.5) rDist['-1']++;
+    else if(r < 1) rDist['0-1']++;
+    else if(r < 2) rDist['1-2']++;
+    else if(r < 3) rDist['2-3']++;
+    else if(r < 5) rDist['3-5']++;
+    else rDist['5+']++;
+  });
+
+  // Risk pts stats
+  const riskVals = trades.map(t => t.risk_pts).filter(v => v != null && v > 0).sort((a,b)=>a-b);
+  const riskMean = riskVals.length > 0 ? riskVals.reduce((s,v)=>s+v,0)/riskVals.length : 0;
+  function quartileStats(vals, allTrades){
+    if(vals.length < 4) return {low:{n:0,wr:0,ev:0},medLow:{n:0,wr:0,ev:0},medHigh:{n:0,wr:0,ev:0},high:{n:0,wr:0,ev:0}};
+    const q1 = vals[Math.floor(vals.length*0.25)], q2 = vals[Math.floor(vals.length*0.5)], q3 = vals[Math.floor(vals.length*0.75)];
+    function bucket(lo, hi){
+      const bt = allTrades.filter(t => t.risk_pts != null && t.risk_pts >= lo && t.risk_pts < hi);
+      const bw = bt.filter(t => t.outcome === 'WIN').length;
+      const bwr = bt.length > 0 ? bw / bt.length : 0;
+      const bev = bt.length > 0 ? (bt.filter(t=>t.outcome==='WIN').reduce((s,t)=>s+t.r,0) - bt.filter(t=>t.outcome==='LOSS').reduce((s,t)=>s+Math.abs(t.r),0)) / bt.length : 0;
+      return {n: bt.length, wr: bwr, ev: +bev.toFixed(3)};
+    }
+    return {low: bucket(0, q1), medLow: bucket(q1, q2), medHigh: bucket(q2, q3), high: bucket(q3, Infinity)};
+  }
+  const riskPtsStats = {mean: +riskMean.toFixed(2), quartiles: quartileStats(riskVals, trades)};
+
+  // Direction stats
   const longs = trades.filter(t => t.direction === 'LONG');
   const shorts = trades.filter(t => t.direction === 'SHORT');
   const longWR = longs.length > 0 ? longs.filter(t=>t.outcome==='WIN').length / longs.length : 0;
   const shortWR = shorts.length > 0 ? shorts.filter(t=>t.outcome==='WIN').length / shorts.length : 0;
-  return { n, nWins, nLosses, wr, ev_r: Math.round(ev_r*1000)/1000, pf: Math.round(pf*1000)/1000, ce: Math.round(ce*1000)/1000, mcl, maxDDPct, totalPnl: Math.round(totalPnl), sharpe, blown, byClass, maeDist, mfeDist, mfeMaeRatio, longN: longs.length, shortN: shorts.length, longWR, shortWR, dateRange: trades.length > 0 ? trades.map(t=>t.date).sort()[0] + ' to ' + trades.map(t=>t.date).sort().pop() : '' };
+  const longWins = longs.filter(t=>t.outcome==='WIN');
+  const longLosses = longs.filter(t=>t.outcome==='LOSS');
+  const longEV = longs.length > 0 ? (longWins.reduce((s,t)=>s+t.r,0) - longLosses.reduce((s,t)=>s+Math.abs(t.r),0)) / longs.length : 0;
+  const shortWins = shorts.filter(t=>t.outcome==='WIN');
+  const shortLosses = shorts.filter(t=>t.outcome==='LOSS');
+  const shortEV = shorts.length > 0 ? (shortWins.reduce((s,t)=>s+t.r,0) - shortLosses.reduce((s,t)=>s+Math.abs(t.r),0)) / shorts.length : 0;
+
+  // KDE and scatter
+  const maeDensity = computeKDE(maeVals);
+  const mfeDensity = computeKDE(mfeVals);
+  const scatterPoints = trades.filter(t => t.mae_pct != null && t.mfe_pct != null).map(t => ({mae: t.mae_pct, mfe: t.mfe_pct}));
+
+  return {
+    n, nWins, nLosses, wr, ev_r: Math.round(ev_r*1000)/1000, pf: Math.round(pf*1000)/1000,
+    ce: Math.round(ce*1000)/1000, mcl, maxDDPct, totalPnl: Math.round(totalPnl), sharpe, blown,
+    byClass, byHour, maeDist, mfeDist, mfeMaeRatio,
+    longN: longs.length, shortN: shorts.length, longWR, shortWR, longEV: +longEV.toFixed(3), shortEV: +shortEV.toFixed(3),
+    avgWinR: +avgWinR.toFixed(3),
+    maePercentiles, mfePercentiles,
+    rDistribution: rDist,
+    riskPtsStats,
+    winStreaks, lossStreaks,
+    maxWinStreak: mcw, maxLossStreak: mcl,
+    avgWinStreak: +avgWinStreak.toFixed(1), avgLossStreak: +avgLossStreak.toFixed(1),
+    equityCurve,
+    maeDensity, mfeDensity, scatterPoints,
+    dateRange: trades.length > 0 ? trades.map(t=>t.date).sort()[0] + ' to ' + trades.map(t=>t.date).sort().pop() : ''
+  };
 }
 
 function applyCustomRanges(){
@@ -1415,10 +1536,189 @@ function applyCustomRanges(){
   }).filter(Boolean);
   const allFiltered = rangeResults.flatMap(r => r.trades);
   const combinedStats = computeRangeStats(allFiltered);
-  renderCustomView(rangeResults, combinedStats);
+  renderCustomViewV2(rangeResults, combinedStats);
 }
 
-function renderCustomView(rangeResults, combinedStats){
+function drawGroupedBars(canvas, groups, opts){
+  if(!canvas || groups.length === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const pad = {l:50, r:16, t:16, b:36};
+  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || 'rgba(255,255,255,0.04)';
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#4a6480';
+  // Compute max
+  let maxVal = 0;
+  groups.forEach(g => g.values.forEach(v => { if(Math.abs(v.value) > maxVal) maxVal = Math.abs(v.value); }));
+  maxVal = maxVal * 1.2 || 1;
+  const hasNeg = groups.some(g => g.values.some(v => v.value < 0));
+  const baseY = hasNeg ? pad.t + plotH * 0.6 : pad.t + plotH;
+  const posH = hasNeg ? plotH * 0.6 : plotH;
+  const negH = hasNeg ? plotH * 0.4 : 0;
+  // Grid
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+  ctx.font = '9px IBM Plex Mono'; ctx.fillStyle = mutedColor; ctx.textAlign = 'right';
+  for(let i = 0; i <= 4; i++){
+    const y = pad.t + (1 - i/4) * posH;
+    const val = (maxVal * i / 4);
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+    ctx.fillText(opts && opts.formatY ? opts.formatY(val) : val.toFixed(2), pad.l - 4, y + 3);
+  }
+  if(hasNeg){
+    ctx.beginPath(); ctx.moveTo(pad.l, baseY); ctx.lineTo(w-pad.r, baseY); ctx.stroke();
+    for(let i = 1; i <= 2; i++){
+      const y = baseY + (i/2) * negH;
+      const val = -(maxVal * i / 2 * (negH/posH));
+      ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+      ctx.fillText(opts && opts.formatY ? opts.formatY(val) : val.toFixed(2), pad.l - 4, y + 3);
+    }
+  }
+  // Bars
+  const groupW = plotW / groups.length;
+  groups.forEach((g, gi) => {
+    const nBars = g.values.length;
+    const barW = Math.min((groupW - 10) / nBars, 40);
+    const totalW = barW * nBars;
+    const startX = pad.l + gi * groupW + (groupW - totalW) / 2;
+    g.values.forEach((v, vi) => {
+      const x = startX + vi * barW;
+      const barH = Math.abs(v.value) / maxVal * posH;
+      ctx.fillStyle = v.color;
+      ctx.globalAlpha = 0.75;
+      if(v.value >= 0){
+        ctx.fillRect(x + 1, baseY - barH, barW - 2, barH);
+      } else {
+        ctx.fillRect(x + 1, baseY, barW - 2, barH * (negH/posH));
+      }
+      ctx.globalAlpha = 1;
+      // Value label
+      ctx.fillStyle = v.color;
+      ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+      const valStr = opts && opts.formatVal ? opts.formatVal(v.value) : v.value.toFixed(2);
+      if(v.value >= 0){
+        ctx.fillText(valStr, x + barW/2, baseY - barH - 3);
+      } else {
+        ctx.fillText(valStr, x + barW/2, baseY + barH * (negH/posH) + 10);
+      }
+    });
+    // Group label
+    ctx.fillStyle = mutedColor;
+    ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+    const label = g.label.length > 12 ? g.label.slice(0,10)+'..' : g.label;
+    ctx.fillText(label, pad.l + gi * groupW + groupW/2, h - pad.b + 12);
+  });
+  // Title
+  if(opts && opts.title){
+    ctx.fillStyle = mutedColor; ctx.font = 'bold 10px IBM Plex Mono'; ctx.textAlign = 'left';
+    ctx.fillText(opts.title, pad.l, pad.t - 4);
+  }
+}
+
+function drawLineChart(canvas, series, opts){
+  if(!canvas || series.length === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const pad = {l:60, r:16, t:16, b:36};
+  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || 'rgba(255,255,255,0.04)';
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#4a6480';
+  let allX = [], allY = [];
+  series.forEach(s => s.points.forEach(p => { allX.push(p.x); allY.push(p.y); }));
+  if(allX.length === 0) return;
+  const xMin = opts && opts.xMin != null ? opts.xMin : Math.min(...allX);
+  const xMax = opts && opts.xMax != null ? opts.xMax : Math.max(...allX);
+  const yMin = opts && opts.yMin != null ? opts.yMin : Math.min(...allY);
+  const yMax = opts && opts.yMax != null ? opts.yMax : Math.max(...allY);
+  const xRange = xMax - xMin || 1;
+  const yRange = yMax - yMin || 1;
+  function toX(v){ return pad.l + ((v - xMin) / xRange) * plotW; }
+  function toY(v){ return pad.t + plotH - ((v - yMin) / yRange) * plotH; }
+  // Grid
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+  ctx.font = '9px IBM Plex Mono'; ctx.fillStyle = mutedColor;
+  for(let i = 0; i <= 4; i++){
+    const y = pad.t + (i/4) * plotH;
+    const val = yMax - (i/4) * yRange;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText(opts && opts.formatY ? opts.formatY(val) : val.toFixed(2), pad.l - 4, y + 3);
+  }
+  // Lines
+  series.forEach(s => {
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    s.points.forEach((p, i) => {
+      const x = toX(p.x), y = toY(p.y);
+      if(i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  });
+  // X-axis label
+  if(opts && opts.xLabel){
+    ctx.fillStyle = mutedColor; ctx.font = '9px IBM Plex Mono'; ctx.textAlign = 'center';
+    ctx.fillText(opts.xLabel, pad.l + plotW/2, h - 4);
+  }
+}
+
+function drawScatterPlot(canvas, datasets, opts){
+  if(!canvas || datasets.length === 0) return;
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.clientWidth, h = canvas.clientHeight;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const pad = {l:56, r:16, t:16, b:40};
+  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+  const gridColor = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || 'rgba(255,255,255,0.04)';
+  const mutedColor = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#4a6480';
+  let allX = [], allY = [];
+  datasets.forEach(d => d.points.forEach(p => { allX.push(p.x); allY.push(p.y); }));
+  if(allX.length === 0) return;
+  const xMax = Math.max(...allX) * 1.1 || 1;
+  const yMax = Math.max(...allY) * 1.1 || 1;
+  function toX(v){ return pad.l + (v / xMax) * plotW; }
+  function toY(v){ return pad.t + plotH - (v / yMax) * plotH; }
+  // Grid
+  ctx.strokeStyle = gridColor; ctx.lineWidth = 1;
+  ctx.font = '9px IBM Plex Mono'; ctx.fillStyle = mutedColor;
+  for(let i = 0; i <= 4; i++){
+    const y = pad.t + (i/4) * plotH;
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w-pad.r, y); ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.fillText((yMax * (4-i)/4).toFixed(2)+'%', pad.l - 4, y + 3);
+    const x = pad.l + (i/4) * plotW;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t+plotH); ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillText((xMax * i/4).toFixed(2)+'%', x, h - pad.b + 14);
+  }
+  // Points
+  datasets.forEach(d => {
+    ctx.fillStyle = d.color;
+    ctx.globalAlpha = 0.5;
+    d.points.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(toX(p.x), toY(p.y), 3, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  });
+  // Axis labels
+  ctx.fillStyle = mutedColor; ctx.font = '10px IBM Plex Mono'; ctx.textAlign = 'center';
+  ctx.fillText(opts && opts.xLabel || 'MAE%', pad.l + plotW/2, h - 2);
+  ctx.save(); ctx.translate(12, pad.t + plotH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText(opts && opts.yLabel || 'MFE%', 0, 0); ctx.restore();
+}
+
+function renderCustomViewV2(rangeResults, combinedStats){
   const cv = document.getElementById('custom-view');
   if(!cv) return;
   const validRanges = rangeResults.filter(r => r.stats);
@@ -1432,6 +1732,7 @@ function renderCustomView(rangeResults, combinedStats){
     return val >= threshGood ? 'var(--green)' : val <= threshBad ? 'var(--red)' : 'var(--amber)';
   }
   function pct(v){ return (v*100).toFixed(1)+'%'; }
+  function secHeader(title){ return `<div style="font-family:var(--font-data);font-size:10px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);padding-bottom:6px;margin-bottom:16px;margin-top:32px">${title}</div>`; }
   function heroTile(lbl, val, color, sub){
     return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden">
       <div style="position:absolute;top:0;left:0;width:100%;height:3px;background:${color};border-radius:10px 10px 0 0"></div>
@@ -1441,28 +1742,32 @@ function renderCustomView(rangeResults, combinedStats){
     </div>`;
   }
 
+  // Build all groups for charts (ranges + combined)
+  const chartGroups = validRanges.map(r => ({label: r.label.split(' to ')[0], color: r.color, stats: r.stats}));
+  if(combinedStats) chartGroups.push({label: 'Combined', color: COMBINED_COLOR, stats: combinedStats});
+
   let html = '';
 
-  // Section A: Combined Hero Tiles
+  // ── SECTION A: Combined Hero Tiles ────────────────────────────────────────
   if(combinedStats){
     const cs = combinedStats;
-    html += `<div class="sec-label">Combined Stats (${cs.n} trades)</div>`;
+    html += secHeader('Combined Stats (' + cs.n + ' trades)');
     html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">`;
     html += heroTile('Win Rate', pct(cs.wr), statColor(cs.wr, 0.55, 0.45, false), `${cs.nWins}W / ${cs.nLosses}L`);
     html += heroTile('EV (R)', cs.ev_r.toFixed(3), statColor(cs.ev_r, 0.05, -0.05, false), '');
     html += heroTile('Profit Factor', cs.pf.toFixed(3), statColor(cs.pf, 1.5, 1.0, false), '');
     html += heroTile('CE', cs.ce.toFixed(3), statColor(cs.ce, 0.1, 0, false), 'EV x PF');
     html += heroTile('P&L', '$'+cs.totalPnl.toLocaleString(), statColor(cs.totalPnl, 0, -1, false), cs.blown ? 'ACCOUNT BLOWN' : '');
-    html += heroTile('Sharpe', cs.sharpe != null ? cs.sharpe.toFixed(2) : '—', cs.sharpe != null ? statColor(cs.sharpe, 1.5, 0.5, false) : 'var(--text-muted)', '');
+    html += heroTile('Sharpe', cs.sharpe != null ? cs.sharpe.toFixed(2) : '\u2014', cs.sharpe != null ? statColor(cs.sharpe, 1.5, 0.5, false) : 'var(--text-muted)', '');
     html += heroTile('Max DD', cs.maxDDPct.toFixed(2)+'%', statColor(cs.maxDDPct, 10, 25, true), '');
     html += heroTile('Max L Run', cs.mcl, statColor(cs.mcl, 5, 10, true), '');
     html += `</div>`;
   }
 
-  // Section B: Side-by-side hero tiles per range
+  // ── SECTION B: Side-by-Side Range Cards ────────────────────────────────────
   if(validRanges.length > 1){
-    html += `<div class="sec-label">Range Comparison</div>`;
-    html += `<div style="display:grid;grid-template-columns:repeat(${validRanges.length},1fr);gap:14px;margin-bottom:20px">`;
+    html += secHeader('Range Comparison');
+    html += `<div style="display:grid;grid-template-columns:repeat(${Math.min(validRanges.length,4)},1fr);gap:14px;margin-bottom:20px">`;
     validRanges.forEach(r => {
       const s = r.stats;
       html += `<div style="border:2px solid ${r.color};border-radius:12px;padding:16px;background:var(--bg-card)">`;
@@ -1474,7 +1779,7 @@ function renderCustomView(rangeResults, combinedStats){
       html += miniTile('PF', s.pf.toFixed(3), statColor(s.pf, 1.5, 1.0, false));
       html += miniTile('CE', s.ce.toFixed(3), statColor(s.ce, 0.1, 0, false));
       html += miniTile('P&L', '$'+s.totalPnl.toLocaleString(), statColor(s.totalPnl, 0, -1, false));
-      html += miniTile('Sharpe', s.sharpe != null ? s.sharpe.toFixed(2) : '—', s.sharpe != null ? statColor(s.sharpe, 1.5, 0.5, false) : 'var(--text-muted)');
+      html += miniTile('Sharpe', s.sharpe != null ? s.sharpe.toFixed(2) : '\u2014', s.sharpe != null ? statColor(s.sharpe, 1.5, 0.5, false) : 'var(--text-muted)');
       html += miniTile('Max DD', s.maxDDPct.toFixed(2)+'%', statColor(s.maxDDPct, 10, 25, true));
       html += miniTile('MCL', s.mcl, statColor(s.mcl, 5, 10, true));
       html += `</div></div>`;
@@ -1482,226 +1787,248 @@ function renderCustomView(rangeResults, combinedStats){
     html += `</div>`;
   }
 
-  // Section C: Classification breakdown
-  const allClasses = ['DWP','DNP','R1','R2','Unclassified'];
-  const classHeaders = validRanges.map((r,i) => `<th style="color:${r.color}">${r.label.split(' to ')[0]}</th>`).join('');
-  html += `<div class="sec-label">Classification Breakdown</div>`;
-  html += `<div class="panel"><div class="ph"><span class="ph-title">Win Rate by Classification</span></div><div class="pb">`;
-  html += `<table class="ct"><thead><tr><th>Class</th>${classHeaders}${combinedStats ? '<th style="color:'+COMBINED_COLOR+'">Combined</th>' : ''}</tr></thead><tbody>`;
-  allClasses.forEach(cls => {
-    let row = `<tr><td style="font-weight:600">${cls}</td>`;
-    validRanges.forEach(r => {
-      const c = r.stats?.byClass[cls];
-      if(c && c.n > 0){
-        const col = statColor(c.wr, 0.55, 0.45, false);
-        row += `<td><span style="color:${col};font-weight:600">${pct(c.wr)}</span> <span style="color:var(--text-muted);font-size:10px">(${c.n})</span></td>`;
+  // ── SECTION C: Stability Dashboard ────────────────────────────────────────
+  html += secHeader('Stability Dashboard');
+  const chartIds = ['stab-wr','stab-ev','stab-pf','stab-ce','stab-dd','stab-mcl','stab-sharpe','stab-avgwinr','stab-longwr-shortwr','stab-longev-shortev'];
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">`;
+  ['Win Rate %','EV (R)','Profit Factor','CE'].forEach((t,i) => {
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="${chartIds[i]}" style="width:100%;height:160px"></canvas></div>`;
+  });
+  html += `</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px">`;
+  ['Max DD%','Max Consec Losses','Sharpe','Avg Win R'].forEach((t,i) => {
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="${chartIds[i+4]}" style="width:100%;height:160px"></canvas></div>`;
+  });
+  html += `</div><div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-bottom:20px">`;
+  ['Long WR vs Short WR','Long EV vs Short EV'].forEach((t,i) => {
+    html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="${chartIds[i+8]}" style="width:100%;height:160px"></canvas></div>`;
+  });
+  html += `</div>`;
+
+  // ── SECTION D: Hourly Edge Persistence ────────────────────────────────────
+  html += secHeader('Hourly Edge Persistence');
+  html += `<div style="overflow-x:auto;margin-bottom:20px"><table class="ct" style="width:100%"><thead><tr><th style="text-align:left">Hour</th>`;
+  chartGroups.forEach(g => { html += `<th style="color:${g.color}">${g.label}</th>`; });
+  html += `</tr></thead><tbody>`;
+  for(let h = 7; h <= 16; h++){
+    html += `<tr><td style="font-weight:600;font-family:var(--font-data);font-size:11px">${String(h).padStart(2,'0')}:00</td>`;
+    chartGroups.forEach(g => {
+      const b = g.stats.byHour[h];
+      if(b && b.n > 0){
+        const wrVal = b.wr * 100;
+        const bg = wrVal > 60 ? 'rgba(34,197,94,0.2)' : wrVal >= 50 ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)';
+        const col = wrVal > 60 ? 'var(--green)' : wrVal >= 50 ? 'var(--amber)' : 'var(--red)';
+        html += `<td style="background:${bg};text-align:center"><span style="color:${col};font-weight:600;font-family:var(--font-data);font-size:11px">${wrVal.toFixed(1)}%</span> <span style="color:var(--text-muted);font-size:9px">(${b.n})</span></td>`;
       } else {
-        row += `<td style="color:var(--text-muted)">—</td>`;
+        html += `<td style="text-align:center;color:var(--text-muted);font-size:10px">\u2014</td>`;
       }
     });
-    if(combinedStats){
-      const c = combinedStats.byClass[cls];
-      if(c && c.n > 0){
-        const col = statColor(c.wr, 0.55, 0.45, false);
-        row += `<td><span style="color:${col};font-weight:600">${pct(c.wr)}</span> <span style="color:var(--text-muted);font-size:10px">(${c.n})</span></td>`;
-      } else {
-        row += `<td style="color:var(--text-muted)">—</td>`;
-      }
-    }
-    row += `</tr>`;
-    html += row;
-  });
-  html += `</tbody></table></div></div>`;
-
-  // Section D & E: MAE and MFE Distribution
-  function renderDistCard(type, dist, color, label){
-    const id = 'hist-'+type+'-'+label.replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'');
-    return `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px;box-shadow:var(--shadow);min-width:200px;flex:1">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <div style="width:8px;height:8px;border-radius:2px;background:${color}"></div>
-        <span style="font-family:var(--font-data);font-size:10px;font-weight:600;letter-spacing:0.06em;color:var(--text-muted);text-transform:uppercase">${label}</span>
-      </div>
-      <canvas class="mini-hist" data-type="${type}" data-label="${label}" data-color="${color}" width="280" height="100" style="width:100%;height:100px;border-radius:6px;background:var(--bg-raised)"></canvas>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px">
-        <div style="text-align:center"><div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase">Mode</div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:${color}">${dist.mode.toFixed(4)}</div></div>
-        <div style="text-align:center"><div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase">Median</div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:${color}">${dist.median.toFixed(4)}</div></div>
-        <div style="text-align:center"><div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase">Mean</div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:${color}">${dist.mean.toFixed(4)}</div></div>
-        <div style="text-align:center"><div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase">Std</div><div style="font-family:var(--font-display);font-size:14px;font-weight:700;color:var(--text-secondary)">${dist.std.toFixed(4)}</div></div>
-      </div>
-    </div>`;
+    html += `</tr>`;
   }
+  html += `</tbody></table></div>`;
 
-  ['MAE','MFE'].forEach(type => {
-    const key = type.toLowerCase()+'Dist';
-    html += `<div class="sec-label">${type} Distribution</div>`;
-    html += `<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px">`;
-    validRanges.forEach(r => {
-      if(r.stats) html += renderDistCard(type, r.stats[key], r.color, r.label);
-    });
-    if(combinedStats) html += renderDistCard(type, combinedStats[key], COMBINED_COLOR, 'Combined');
-    html += `</div>`;
+  // ── SECTION E: MAE Deep Study ─────────────────────────────────────────────
+  html += secHeader('MAE Deep Study');
+  // E1: Percentile table
+  html += `<div style="overflow-x:auto;margin-bottom:16px"><table class="ct" style="width:100%"><thead><tr><th>Percentile</th>`;
+  chartGroups.forEach(g => { html += `<th style="color:${g.color}">${g.label}</th>`; });
+  html += `</tr></thead><tbody>`;
+  ['p5','p10','p25','p50','p75','p90','p95'].forEach(p => {
+    html += `<tr><td style="font-weight:600;font-family:var(--font-data);font-size:11px">${p.toUpperCase()}</td>`;
+    chartGroups.forEach(g => { html += `<td style="font-family:var(--font-data);font-size:11px;text-align:center">${g.stats.maePercentiles[p].toFixed(4)}</td>`; });
+    html += `</tr>`;
   });
+  html += `</tbody></table></div>`;
+  // E2-E4: Mode, Median, Std bar charts + E5: KDE
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mae-mode-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mae-median-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mae-std-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mae-kde-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `</div>`;
 
-  // Section F: Variance comparison chart
-  html += `<div class="sec-label">Variance Comparison</div>`;
-  html += `<div class="panel"><div class="ph"><span class="ph-title">MAE / MFE / Ratio — Mode, Median, Std</span>`;
-  html += `<div style="display:flex;gap:14px;align-items:center">`;
-  html += `<span style="display:flex;align-items:center;gap:5px;font-family:var(--font-data);font-size:10px;color:var(--text-muted)"><span style="width:10px;height:10px;border-radius:2px;background:#f87171;display:inline-block"></span>MAE</span>`;
-  html += `<span style="display:flex;align-items:center;gap:5px;font-family:var(--font-data);font-size:10px;color:var(--text-muted)"><span style="width:10px;height:10px;border-radius:2px;background:#34d399;display:inline-block"></span>MFE</span>`;
-  html += `<span style="display:flex;align-items:center;gap:5px;font-family:var(--font-data);font-size:10px;color:var(--text-muted)"><span style="width:10px;height:10px;border-radius:2px;background:#60a5fa;display:inline-block"></span>Ratio</span>`;
-  html += `</div></div>`;
-  html += `<div class="pb"><canvas id="variance-chart" width="800" height="320" style="width:100%;height:320px"></canvas></div></div>`;
+  // ── SECTION F: MFE Deep Study ─────────────────────────────────────────────
+  html += secHeader('MFE Deep Study');
+  html += `<div style="overflow-x:auto;margin-bottom:16px"><table class="ct" style="width:100%"><thead><tr><th>Percentile</th>`;
+  chartGroups.forEach(g => { html += `<th style="color:${g.color}">${g.label}</th>`; });
+  html += `</tr></thead><tbody>`;
+  ['p5','p10','p25','p50','p75','p90','p95'].forEach(p => {
+    html += `<tr><td style="font-weight:600;font-family:var(--font-data);font-size:11px">${p.toUpperCase()}</td>`;
+    chartGroups.forEach(g => { html += `<td style="font-family:var(--font-data);font-size:11px;text-align:center">${g.stats.mfePercentiles[p].toFixed(4)}</td>`; });
+    html += `</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mfe-mode-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mfe-median-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mfe-std-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="mfe-kde-chart" style="width:100%;height:160px"></canvas></div>`;
+  html += `</div>`;
+
+  // ── SECTION G: MFE/MAE Efficiency ─────────────────────────────────────────
+  html += secHeader('MFE/MAE Efficiency');
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="efficiency-ratio-chart" style="width:100%;height:220px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="efficiency-scatter-chart" style="width:100%;height:220px"></canvas></div>`;
+  html += `</div>`;
+
+  // ── SECTION H: R-Distribution ─────────────────────────────────────────────
+  html += secHeader('R-Distribution');
+  html += `<div style="display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:20px">`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="rdist-hist-chart" style="width:100%;height:220px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="rdist-avgwin-chart" style="width:100%;height:220px"></canvas></div>`;
+  html += `</div>`;
+
+  // ── SECTION I: Equity Curve Overlay ────────────────────────────────────────
+  html += secHeader('Equity Curve Overlay');
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:20px"><canvas id="equity-overlay-chart" style="width:100%;height:280px"></canvas></div>`;
+
+  // ── SECTION J: Volatility Regime ──────────────────────────────────────────
+  html += secHeader('Volatility Regime (Risk Size)');
+  // J1: Quartile stats table
+  html += `<div style="overflow-x:auto;margin-bottom:16px"><table class="ct" style="width:100%"><thead><tr><th>Quartile</th>`;
+  chartGroups.forEach(g => { html += `<th colspan="3" style="color:${g.color};text-align:center">${g.label}</th>`; });
+  html += `</tr><tr><th></th>`;
+  chartGroups.forEach(() => { html += `<th style="font-size:9px;color:var(--text-muted)">n</th><th style="font-size:9px;color:var(--text-muted)">WR</th><th style="font-size:9px;color:var(--text-muted)">EV</th>`; });
+  html += `</tr></thead><tbody>`;
+  [{key:'low',label:'Low'},{key:'medLow',label:'Med-Low'},{key:'medHigh',label:'Med-High'},{key:'high',label:'High'}].forEach(q => {
+    html += `<tr><td style="font-weight:600;font-family:var(--font-data);font-size:11px">${q.label}</td>`;
+    chartGroups.forEach(g => {
+      const b = g.stats.riskPtsStats.quartiles[q.key];
+      html += `<td style="text-align:center;font-family:var(--font-data);font-size:11px">${b.n}</td>`;
+      html += `<td style="text-align:center;font-family:var(--font-data);font-size:11px;color:${statColor(b.wr, 0.55, 0.45, false)}">${pct(b.wr)}</td>`;
+      html += `<td style="text-align:center;font-family:var(--font-data);font-size:11px;color:${statColor(b.ev, 0.05, -0.05, false)}">${b.ev.toFixed(3)}</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  // J2: Avg risk_pts bar chart
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:20px;max-width:400px"><canvas id="vol-avgrisk-chart" style="width:100%;height:180px"></canvas></div>`;
+
+  // ── SECTION K: Streak Analysis ────────────────────────────────────────────
+  html += secHeader('Streak Analysis');
+  html += `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="streak-maxwin-chart" style="width:100%;height:180px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="streak-maxloss-chart" style="width:100%;height:180px"></canvas></div>`;
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:10px"><canvas id="streak-avg-chart" style="width:100%;height:180px"></canvas></div>`;
+  html += `</div>`;
+
+  // Legend
+  html += `<div style="display:flex;gap:16px;justify-content:center;margin-bottom:32px;flex-wrap:wrap">`;
+  chartGroups.forEach(g => {
+    html += `<span style="display:flex;align-items:center;gap:6px;font-family:var(--font-data);font-size:10px;color:var(--text-muted)"><span style="width:10px;height:10px;border-radius:3px;background:${g.color};display:inline-block"></span>${g.label}</span>`;
+  });
+  html += `</div>`;
 
   cv.innerHTML = html;
 
-  // Draw mini histograms
-  cv.querySelectorAll('canvas.mini-hist').forEach(canvas => {
-    const type = canvas.dataset.type;
-    const label = canvas.dataset.label;
-    const color = canvas.dataset.color;
-    let vals = [];
-    if(label === 'Combined' && combinedStats){
-      vals = combinedStats[type.toLowerCase()+'Dist'].values;
-    } else {
-      const r = validRanges.find(r => r.label === label);
-      if(r && r.stats) vals = r.stats[type.toLowerCase()+'Dist'].values;
-    }
-    drawMiniHist(canvas, vals, color);
-  });
+  // ── DRAW ALL CHARTS ───────────────────────────────────────────────────────
 
-  // Draw variance chart
-  drawVarianceChart(validRanges, combinedStats);
-}
-
-function drawMiniHist(canvas, values, color){
-  if(!values || values.length === 0) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const numBins = Math.min(30, Math.max(8, Math.ceil(Math.sqrt(values.length))));
-  const min = values[0], max = values[values.length-1];
-  const range = max - min || 1;
-  const binW = range / numBins;
-  const bins = new Array(numBins).fill(0);
-  values.forEach(v => {
-    let b = Math.floor((v - min) / binW);
-    if(b >= numBins) b = numBins - 1;
-    bins[b]++;
-  });
-  const maxCount = Math.max(...bins);
-  const pad = {l:4, r:4, t:4, b:4};
-  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
-  const barW = plotW / numBins;
-
-  ctx.globalAlpha = 0.6;
-  bins.forEach((count, i) => {
-    const barH = maxCount > 0 ? (count / maxCount) * plotH : 0;
-    ctx.fillStyle = color;
-    ctx.fillRect(pad.l + i * barW, pad.t + plotH - barH, barW - 1, barH);
-  });
-  ctx.globalAlpha = 1;
-}
-
-function drawVarianceChart(ranges, combined){
-  const canvas = document.getElementById('variance-chart');
-  if(!canvas) return;
-  const dpr = window.devicePixelRatio || 1;
-  const w = canvas.clientWidth, h = canvas.clientHeight;
-  canvas.width = w * dpr; canvas.height = h * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  const validRanges = ranges.filter(r => r.stats);
-  const groups = [];
-  validRanges.forEach(r => groups.push({label: r.label.split(' to ')[0], color: r.color, stats: r.stats}));
-  if(combined) groups.push({label: 'Combined', color: COMBINED_COLOR, stats: combined});
-  if(groups.length === 0) return;
-
-  const pad = {l:60, r:20, t:30, b:50};
-  const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
-  const groupW = plotW / groups.length;
-  const barTypes = [
-    {key:'mae', color:'#f87171', label:'MAE', getValue: s => s.maeDist},
-    {key:'mfe', color:'#34d399', label:'MFE', getValue: s => s.mfeDist},
-    {key:'ratio', color:'#60a5fa', label:'Ratio', getValue: s => ({mode: s.mfeMaeRatio, median: s.mfeMaeRatio, std: 0})}
+  // Section C: Stability charts
+  const stabMetrics = [
+    {id:'stab-wr', get: s=>s.wr*100, title:'Win Rate %', fmt: v=>v.toFixed(1)+'%'},
+    {id:'stab-ev', get: s=>s.ev_r, title:'EV (R)', fmt: v=>v.toFixed(3)},
+    {id:'stab-pf', get: s=>s.pf, title:'Profit Factor', fmt: v=>v.toFixed(2)},
+    {id:'stab-ce', get: s=>s.ce, title:'CE', fmt: v=>v.toFixed(3)},
+    {id:'stab-dd', get: s=>s.maxDDPct, title:'Max DD%', fmt: v=>v.toFixed(1)+'%'},
+    {id:'stab-mcl', get: s=>s.mcl, title:'Max Consec Losses', fmt: v=>String(v)},
+    {id:'stab-sharpe', get: s=>s.sharpe||0, title:'Sharpe', fmt: v=>v.toFixed(2)},
+    {id:'stab-avgwinr', get: s=>s.avgWinR, title:'Avg Win R', fmt: v=>v.toFixed(3)},
   ];
-
-  // Find max value for scale
-  let maxVal = 0;
-  groups.forEach(g => {
-    barTypes.forEach(bt => {
-      const d = bt.getValue(g.stats);
-      const top = d.mode + (bt.key !== 'ratio' ? d.std : 0);
-      if(top > maxVal) maxVal = top;
-    });
+  stabMetrics.forEach(m => {
+    const c = document.getElementById(m.id);
+    if(!c) return;
+    const groups = chartGroups.map(g => ({label: g.label, values: [{value: m.get(g.stats), color: g.color, name: g.label}]}));
+    drawGroupedBars(c, groups, {title: m.title, formatVal: m.fmt, formatY: m.fmt});
   });
-  maxVal = maxVal * 1.15 || 1;
-
-  // Grid lines
-  const gridStyle = getComputedStyle(document.documentElement).getPropertyValue('--grid-line').trim() || 'rgba(255,255,255,0.04)';
-  const numGrid = 5;
-  ctx.strokeStyle = gridStyle;
-  ctx.lineWidth = 1;
-  ctx.font = '10px IBM Plex Mono';
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#4a6480';
-  ctx.textAlign = 'right';
-  for(let i = 0; i <= numGrid; i++){
-    const y = pad.t + plotH - (i / numGrid) * plotH;
-    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
-    ctx.fillText((maxVal * i / numGrid).toFixed(3), pad.l - 6, y + 3);
+  // Long WR vs Short WR
+  const lwsw = document.getElementById('stab-longwr-shortwr');
+  if(lwsw){
+    const groups = chartGroups.map(g => ({label: g.label, values: [
+      {value: g.stats.longWR*100, color: 'var(--green)', name: 'Long'},
+      {value: g.stats.shortWR*100, color: 'var(--red)', name: 'Short'}
+    ]}));
+    drawGroupedBars(lwsw, groups, {title: 'Long WR vs Short WR', formatVal: v=>v.toFixed(1)+'%', formatY: v=>v.toFixed(0)+'%'});
+  }
+  // Long EV vs Short EV
+  const lese = document.getElementById('stab-longev-shortev');
+  if(lese){
+    const groups = chartGroups.map(g => ({label: g.label, values: [
+      {value: g.stats.longEV, color: 'var(--green)', name: 'Long'},
+      {value: g.stats.shortEV, color: 'var(--red)', name: 'Short'}
+    ]}));
+    drawGroupedBars(lese, groups, {title: 'Long EV vs Short EV', formatVal: v=>v.toFixed(3), formatY: v=>v.toFixed(2)});
   }
 
-  // Draw bars
-  const barsPerGroup = barTypes.length;
-  const barGap = 4;
-  const totalBarW = (groupW - 20) / barsPerGroup;
-
-  groups.forEach((g, gi) => {
-    const groupX = pad.l + gi * groupW;
-
-    barTypes.forEach((bt, bi) => {
-      const d = bt.getValue(g.stats);
-      const x = groupX + 10 + bi * totalBarW;
-      const barW = totalBarW - barGap;
-      const barH = (d.mode / maxVal) * plotH;
-
-      // Bar (mode height)
-      ctx.globalAlpha = 0.5;
-      ctx.fillStyle = bt.color;
-      ctx.fillRect(x, pad.t + plotH - barH, barW, barH);
-      ctx.globalAlpha = 1;
-
-      // Median line
-      if(d.median > 0){
-        const medY = pad.t + plotH - (d.median / maxVal) * plotH;
-        ctx.strokeStyle = bt.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, medY); ctx.lineTo(x + barW, medY); ctx.stroke();
-      }
-
-      // Std dev whiskers (not for ratio)
-      if(bt.key !== 'ratio' && d.std > 0){
-        const centerX = x + barW / 2;
-        const modeY = pad.t + plotH - (d.mode / maxVal) * plotH;
-        const topY = pad.t + plotH - (Math.min(d.mode + d.std, maxVal) / maxVal) * plotH;
-        const botY = pad.t + plotH - (Math.max(d.mode - d.std, 0) / maxVal) * plotH;
-        ctx.strokeStyle = bt.color;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(centerX, topY); ctx.lineTo(centerX, botY); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(centerX - 4, topY); ctx.lineTo(centerX + 4, topY); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(centerX - 4, botY); ctx.lineTo(centerX + 4, botY); ctx.stroke();
-      }
-    });
-
-    // Group label
-    ctx.fillStyle = g.color;
-    ctx.font = '10px IBM Plex Mono';
-    ctx.textAlign = 'center';
-    ctx.fillText(g.label, groupX + groupW / 2, h - pad.b + 16);
+  // Section E: MAE charts
+  ['mae','mfe'].forEach(type => {
+    const key = type+'Dist';
+    const pKey = type+'Percentiles';
+    const dKey = type+'Density';
+    // Mode
+    const modeC = document.getElementById(type+'-mode-chart');
+    if(modeC) drawGroupedBars(modeC, chartGroups.map(g => ({label: g.label, values: [{value: g.stats[key].mode, color: g.color}]})), {title: type.toUpperCase()+' Mode', formatVal: v=>v.toFixed(4)});
+    // Median
+    const medC = document.getElementById(type+'-median-chart');
+    if(medC) drawGroupedBars(medC, chartGroups.map(g => ({label: g.label, values: [{value: g.stats[key].median, color: g.color}]})), {title: type.toUpperCase()+' Median', formatVal: v=>v.toFixed(4)});
+    // Std
+    const stdC = document.getElementById(type+'-std-chart');
+    if(stdC) drawGroupedBars(stdC, chartGroups.map(g => ({label: g.label, values: [{value: g.stats[key].std, color: g.color}]})), {title: type.toUpperCase()+' Std Dev', formatVal: v=>v.toFixed(4)});
+    // KDE overlay
+    const kdeC = document.getElementById(type+'-kde-chart');
+    if(kdeC){
+      const series = chartGroups.filter(g => g.stats[dKey] && g.stats[dKey].length > 0).map(g => ({color: g.color, points: g.stats[dKey]}));
+      drawLineChart(kdeC, series, {title: type.toUpperCase()+' Density (KDE)', xLabel: type.toUpperCase()+' %', formatY: v=>v.toFixed(3)});
+    }
   });
+
+  // Section G: Efficiency
+  const effRatio = document.getElementById('efficiency-ratio-chart');
+  if(effRatio) drawGroupedBars(effRatio, chartGroups.map(g => ({label: g.label, values: [{value: g.stats.mfeMaeRatio, color: g.color}]})), {title: 'MFE/MAE Ratio (Median)', formatVal: v=>v.toFixed(2)});
+  const effScatter = document.getElementById('efficiency-scatter-chart');
+  if(effScatter){
+    const datasets = chartGroups.filter(g => g.stats.scatterPoints && g.stats.scatterPoints.length > 0).map(g => ({color: g.color, points: g.stats.scatterPoints.map(p => ({x: p.mae, y: p.mfe}))}));
+    drawScatterPlot(effScatter, datasets, {xLabel: 'MAE%', yLabel: 'MFE%'});
+  }
+
+  // Section H: R-distribution
+  const rBuckets = ['-1','0-1','1-2','2-3','3-5','5+'];
+  const rdistHist = document.getElementById('rdist-hist-chart');
+  if(rdistHist){
+    const groups = rBuckets.map(b => ({label: b+'R', values: chartGroups.map(g => ({value: g.stats.rDistribution[b], color: g.color, name: g.label}))}));
+    drawGroupedBars(rdistHist, groups, {title: 'R-Distribution', formatVal: v=>String(Math.round(v)), formatY: v=>String(Math.round(v))});
+  }
+  const rdistAvgWin = document.getElementById('rdist-avgwin-chart');
+  if(rdistAvgWin) drawGroupedBars(rdistAvgWin, chartGroups.map(g => ({label: g.label, values: [{value: g.stats.avgWinR, color: g.color}]})), {title: 'Avg Win R', formatVal: v=>v.toFixed(3)});
+
+  // Section I: Equity curve overlay
+  const eqChart = document.getElementById('equity-overlay-chart');
+  if(eqChart){
+    const series = chartGroups.filter(g => g.stats.equityCurve && g.stats.equityCurve.length > 1).map(g => ({
+      color: g.color,
+      points: g.stats.equityCurve.map((v,i) => ({x:i, y:v}))
+    }));
+    let yMin = Infinity, yMax = -Infinity;
+    series.forEach(s => s.points.forEach(p => { if(p.y < yMin) yMin = p.y; if(p.y > yMax) yMax = p.y; }));
+    drawLineChart(eqChart, series, {xLabel: 'Trade #', yMin: Math.min(yMin, 0), yMax: yMax * 1.05, formatY: v=>'$'+Math.round(v).toLocaleString()});
+  }
+
+  // Section J: Avg risk_pts
+  const volAvg = document.getElementById('vol-avgrisk-chart');
+  if(volAvg) drawGroupedBars(volAvg, chartGroups.map(g => ({label: g.label, values: [{value: g.stats.riskPtsStats.mean, color: g.color}]})), {title: 'Avg Risk (pts)', formatVal: v=>v.toFixed(1)});
+
+  // Section K: Streak charts
+  const streakMaxW = document.getElementById('streak-maxwin-chart');
+  if(streakMaxW) drawGroupedBars(streakMaxW, chartGroups.map(g => ({label: g.label, values: [{value: g.stats.maxWinStreak, color: g.color}]})), {title: 'Max Win Streak', formatVal: v=>String(Math.round(v)), formatY: v=>String(Math.round(v))});
+  const streakMaxL = document.getElementById('streak-maxloss-chart');
+  if(streakMaxL) drawGroupedBars(streakMaxL, chartGroups.map(g => ({label: g.label, values: [{value: g.stats.maxLossStreak, color: g.color}]})), {title: 'Max Loss Streak', formatVal: v=>String(Math.round(v)), formatY: v=>String(Math.round(v))});
+  const streakAvg = document.getElementById('streak-avg-chart');
+  if(streakAvg){
+    const groups = chartGroups.map(g => ({label: g.label, values: [
+      {value: g.stats.avgWinStreak, color: 'var(--green)', name: 'Win'},
+      {value: g.stats.avgLossStreak, color: 'var(--red)', name: 'Loss'}
+    ]}));
+    drawGroupedBars(streakAvg, groups, {title: 'Avg Win / Loss Streak', formatVal: v=>v.toFixed(1), formatY: v=>v.toFixed(1)});
+  }
 }
 
 // ── MAIN RENDER ────────────────────────────────────────────────────────────
