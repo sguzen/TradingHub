@@ -70,6 +70,12 @@ MAE/MFE are normalized by the entry hour's range to be comparable across volatil
 - `max_dd_usd` — dollar amount of the worst peak-to-trough drawdown
 - `max_dd_pct` — percentage drawdown from running peak
 
+### Walk-Forward Regime Analysis
+Custom date ranges view pairs consecutive ranges into train→test walk-forward pairs.
+Train period derives MAE stop variants (max, p90, p85, p50) and MFE targets (PTQ, p50) from winners.
+Test period resolves trades with each variant. Overfitting score = Test EV / Train EV × 100.
+All computation is client-side in `model_dashboard.html` — no Python changes needed.
+
 ## Analysis Scripts Convention
 - Reference point for candle analysis: use `close` of the anchor candle
 - Scan window: anchor+1 bar through 16:00 ET same day
