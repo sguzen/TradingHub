@@ -2475,8 +2475,12 @@ function renderRecentTrades(page) {
       <th style="padding:8px 6px;text-align:left;">Dir</th>
       <th style="padding:8px 6px;text-align:right;">Entry</th>
       <th style="padding:8px 6px;text-align:right;">Stop</th>
+      <th style="padding:8px 6px;text-align:right;">SL %</th>
       <th style="padding:8px 6px;text-align:right;">Target</th>
+      <th style="padding:8px 6px;text-align:right;">TP %</th>
       <th style="padding:8px 6px;text-align:right;">Risk</th>
+      <th style="padding:8px 6px;text-align:right;">MAE %</th>
+      <th style="padding:8px 6px;text-align:right;">MFE %</th>
       <th style="padding:8px 6px;text-align:center;">Result</th>
     </tr></thead><tbody>`;
 
@@ -2495,8 +2499,12 @@ function renderRecentTrades(page) {
       <td style="padding:7px 6px;color:${dirColor};font-weight:700;">${dirArrow} ${t.direction}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--text-primary);">${t.entry_price != null ? t.entry_price.toFixed(2) : '—'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--red);">${t.sweep_extreme != null ? t.sweep_extreme.toFixed(2) : '—'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--red);font-size:11px;">${t.entry_price && t.sweep_extreme ? (Math.abs(t.entry_price - t.sweep_extreme) / t.entry_price * 100).toFixed(2) + '%' : '—'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--green);">${t.target_price != null ? t.target_price.toFixed(2) : '—'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--green);font-size:11px;">${t.entry_price && t.target_price ? (Math.abs(t.target_price - t.entry_price) / t.entry_price * 100).toFixed(2) + '%' : '—'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--text-primary);">${t.risk_pts != null ? t.risk_pts.toFixed(1) : '—'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--red);font-size:11px;">${t.mae_pct != null ? t.mae_pct.toFixed(4) + '%' : '—'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--green);font-size:11px;">${t.mfe_pct != null ? t.mfe_pct.toFixed(4) + '%' : '—'}</td>
       <td style="padding:7px 6px;text-align:center;font-weight:700;color:${resColor};">${isWin ? '✓ WIN' : '✗ LOSS'}</td>
     </tr>`;
   });
