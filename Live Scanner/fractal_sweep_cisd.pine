@@ -193,29 +193,47 @@ var int   ret_bar_short      = na
 var fired_lines  = array.new_line()
 var fired_labels = array.new_label()
 var fired_boxes  = array.new_box()
+// per-setup drawing counts: [nLines, nLabels, nBoxes] for each setup
+var setup_line_counts  = array.new_int()
+var setup_label_counts = array.new_int()
+var setup_box_counts   = array.new_int()
+
+// snapshot sizes before registering a new setup's drawings
+var int _snap_lines  = 0
+var int _snap_labels = 0
+var int _snap_boxes  = 0
 
 // helper: register a fired drawing for later cleanup
 f_reg_line(line l)   => array.push(fired_lines, l)
 f_reg_label(label l) => array.push(fired_labels, l)
 f_reg_box(box b)     => array.push(fired_boxes, b)
 
-// helper: trim oldest drawings to keep only max_setups worth
-// Per setup (all features on): 5 base lines + 1 tspot + 4 proj = 10 lines
-//   5 base labels + 2 C-labels + 1 tspot-type + 4 proj = 12 labels
-//   2 base boxes + 1 tspot = 3 boxes
-f_trim_fired() =>
-    _per_setup_lines  = 10
-    _per_setup_labels = 12
-    _per_setup_boxes  = 3
-    _max_lines  = max_setups * _per_setup_lines
-    _max_labels = max_setups * _per_setup_labels
-    _max_boxes  = max_setups * _per_setup_boxes
-    while array.size(fired_lines) > _max_lines
-        line.delete(array.shift(fired_lines))
-    while array.size(fired_labels) > _max_labels
-        label.delete(array.shift(fired_labels))
-    while array.size(fired_boxes) > _max_boxes
-        box.delete(array.shift(fired_boxes))
+// call BEFORE registering a new setup's drawings
+f_setup_begin() =>
+    _snap_lines  := array.size(fired_lines)
+    _snap_labels := array.size(fired_labels)
+    _snap_boxes  := array.size(fired_boxes)
+
+// call AFTER registering all drawings for this setup, then trim
+f_setup_end() =>
+    // record how many drawings this setup added
+    array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
+    array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
+    array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    // trim oldest setups beyond max_setups
+    while array.size(setup_line_counts) > max_setups
+        _nl = array.shift(setup_line_counts)
+        _nb = array.shift(setup_label_counts)
+        _nx = array.shift(setup_box_counts)
+        for _i = 1 to _nl
+            if array.size(fired_lines) > 0
+                line.delete(array.shift(fired_lines))
+        for _i = 1 to _nb
+            if array.size(fired_labels) > 0
+                label.delete(array.shift(fired_labels))
+        for _i = 1 to _nx
+            if array.size(fired_boxes) > 0
+                box.delete(array.shift(fired_boxes))
 
 // ── ANCHOR RESET ──────────────────────────────────────────────────────────────
 if is_new_anchor and tf_supported
@@ -566,6 +584,7 @@ if long_valid
         cisd_prev_short := na
         label.delete(cisd_prev_lbl_short)
         cisd_prev_lbl_short := na
+    f_setup_begin()
     entry = close
     sl    = sweep_ext_long
     risk  = entry - sl
@@ -631,7 +650,7 @@ if long_valid
                         proj_price = cisd_long_lvl + s_range * lv
                         f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
                         f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
-    f_trim_fired()
+    f_setup_end()
     alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
@@ -652,6 +671,7 @@ if short_valid
         cisd_prev_long := na
         label.delete(cisd_prev_lbl_long)
         cisd_prev_lbl_long := na
+    f_setup_begin()
     entry = close
     sl    = sweep_ext_short
     risk  = sl - entry
@@ -717,5 +737,5 @@ if short_valid
                         proj_price = cisd_short_lvl - s_range * lv
                         f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
                         f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
-    f_trim_fired()
+    f_setup_end()
     alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
