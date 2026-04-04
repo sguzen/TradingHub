@@ -109,6 +109,13 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .page-tab{font-family:var(--font-body);font-size:13px;font-weight:500;padding:11px 16px 10px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap;user-select:none;background:none;border-top:none;border-left:none;border-right:none}
 .page-tab:hover{color:var(--text-secondary)}
 .page-tab.active{color:var(--text-primary);border-bottom-color:var(--blue)}
+.seg-btn{font-family:var(--font-data);font-size:11px;font-weight:500;padding:6px 14px;color:var(--text-muted);cursor:pointer;border:1px solid var(--border-mid);border-radius:6px;background:var(--bg-raised);transition:all .15s;user-select:none}
+.seg-btn:hover{color:var(--text-secondary);border-color:var(--text-muted)}
+.seg-btn.active{font-weight:700}
+.seg-btn.active[data-accent="green"]{color:var(--green);border-color:var(--green);background:var(--green-tint)}
+.seg-btn.active[data-accent="red"]{color:var(--red);border-color:var(--red);background:var(--red-tint)}
+.seg-btn.active[data-accent="blue"]{color:var(--blue);border-color:var(--blue);background:rgba(59,130,246,.1)}
+.seg-btn.active[data-accent="amber"]{color:var(--amber);border-color:var(--amber);background:var(--amber-tint)}
 .page-pane{display:none}
 .page-pane.active{display:block}
 
@@ -621,6 +628,35 @@ function applyTheme(dark){
 }
 themeBtn.addEventListener('click', () => applyTheme(!isDark));
 if (localStorage.getItem('hub-theme') === 'light') applyTheme(false);
+
+// ── MAE/MFE SEGMENT STATE ─────────────────────────────────────────────────
+var _maeSegment = 'wins';  // 'wins' | 'losses' | 'all'
+var _mfeSegment = 'wins';  // 'wins' | 'losses' | 'all'
+
+function _getActiveD() {
+  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
+  const baseD = getProfileData(fullKey, activeProfile);
+  if (!baseD) return null;
+  return getActiveTFData(baseD);
+}
+
+function switchMAESeg(seg) {
+  _maeSegment = seg;
+  document.querySelectorAll('.mae-seg').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.mae-seg')].find(b => b.dataset.seg === seg);
+  if (btn) btn.classList.add('active');
+  const D = _getActiveD();
+  if (D) renderMAEStudy(D);
+}
+
+function switchMFESeg(seg) {
+  _mfeSegment = seg;
+  document.querySelectorAll('.mfe-seg').forEach(b => b.classList.remove('active'));
+  const btn = [...document.querySelectorAll('.mfe-seg')].find(b => b.dataset.seg === seg);
+  if (btn) btn.classList.add('active');
+  const D = _getActiveD();
+  if (D) renderMFEStudy(D);
+}
 
 // ── PAGE TAB NAVIGATION ────────────────────────────────────────────────────
 let activePageTab = 'overview';
@@ -3074,12 +3110,30 @@ function _drawDistHist(canvas, hist, which, label, color){
 function renderMAEStudy(D) {
   const el = document.getElementById('mae-study-panel');
   if (!el) return;
-  const dist = D?.rich_mae;
+
+  // Pick data source based on segment
+  const dist = _maeSegment === 'wins' ? (D?.rich_mae_wins || D?.rich_mae)
+             : _maeSegment === 'losses' ? (D?.rich_mae_losses || D?.rich_mae)
+             : D?.rich_mae;
   const ce   = dist?.ce ?? D?.risk_stats?.ce;
   if (!dist) {
     el.innerHTML = `<div style="padding:24px;font-family:var(--font-data);font-size:12px;color:var(--text-muted)">No MAE study data — run <code>python3 model_stats.py</code> first.</div>`;
     return;
   }
+
+  // Segment-specific accent and callout
+  const segAccent = _maeSegment === 'wins' ? 'green' : _maeSegment === 'losses' ? 'red' : 'blue';
+  const segColor  = _maeSegment === 'wins' ? 'var(--green)' : _maeSegment === 'losses' ? 'var(--red)' : 'var(--blue)';
+  const segBg     = _maeSegment === 'wins' ? 'var(--green-tint)' : _maeSegment === 'losses' ? 'var(--red-tint)' : 'rgba(59,130,246,.08)';
+  const segBorder = _maeSegment === 'wins' ? 'var(--green-border)' : _maeSegment === 'losses' ? 'var(--red-border)' : 'rgba(59,130,246,.2)';
+  const fmtPctCb  = v => v != null ? (+v).toFixed(4) + '%' : '--';
+  const segTitle  = _maeSegment === 'wins' ? 'Optimal Stop Placement' : _maeSegment === 'losses' ? 'Stop Validation' : 'Combined MAE Distribution';
+  const segDetail = _maeSegment === 'wins'
+    ? `90% of winners stay within ${fmtPctCb((dist.percentiles||{}).p90)} MAE · Median dip: ${fmtPctCb(dist.median)}${dist.opt_sl != null ? ' · Optimal SL: ' + fmtPctCb(dist.opt_sl) : ''}`
+    : _maeSegment === 'losses'
+    ? `Losers MAE median: ${fmtPctCb(dist.median)} confirms SL placement · Mean: ${fmtPctCb(dist.mean)} · ${dist.n||0} losing trades`
+    : `${dist.n||0} trades · Median MAE: ${fmtPctCb(dist.median)} · Mean: ${fmtPctCb(dist.mean)}`;
+  const segLabel  = _maeSegment === 'wins' ? 'Winners' : _maeSegment === 'losses' ? 'Losers' : 'All Trades';
   const p   = dist.percentiles || {};
   const ln  = dist.lognorm || {};
   const clus = dist.clusters || [];
@@ -3121,8 +3175,17 @@ function renderMAEStudy(D) {
   ];
 
   el.innerHTML = `
+  <div style="display:flex;gap:6px;margin-bottom:14px;">
+    <button class="seg-btn mae-seg ${_maeSegment==='wins'?'active':''}" data-seg="wins" data-accent="green" onclick="switchMAESeg('wins')">Winners</button>
+    <button class="seg-btn mae-seg ${_maeSegment==='losses'?'active':''}" data-seg="losses" data-accent="red" onclick="switchMAESeg('losses')">Losers</button>
+    <button class="seg-btn mae-seg ${_maeSegment==='all'?'active':''}" data-seg="all" data-accent="blue" onclick="switchMAESeg('all')">All Trades</button>
+  </div>
+  <div style="background:${segBg};border:1px solid ${segBorder};border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+    <div style="font-family:var(--font-data);font-size:13px;font-weight:700;color:${segColor};">${segTitle}</div>
+    <div style="font-family:var(--font-data);font-size:11px;color:var(--text-secondary);margin-top:4px;">${segDetail}</div>
+  </div>
   <div class="panel" style="margin-bottom:14px">
-    <div class="ph"><span class="ph-title">MAE Distribution Analysis</span><span class="ph-note">Max Adverse Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
+    <div class="ph"><span class="ph-title">MAE Distribution Analysis · ${segLabel}</span><span class="ph-note">Max Adverse Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
     <div class="pb">
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
         ${statTiles.map(s=>`
@@ -3158,7 +3221,7 @@ function renderMAEStudy(D) {
   </div>
 
   <div class="panel" style="margin-bottom:14px">
-    <div class="ph"><span class="ph-title">MAE Natural Clusters</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
+    <div class="ph"><span class="ph-title">MAE Natural Clusters · ${segLabel}</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
     <div class="pb">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
         ${clus.map((c,i)=>`
@@ -3241,27 +3304,44 @@ function renderMAEStudy(D) {
     </div>
   </div>
 
-  <div style="background:var(--red-tint);border:1.5px solid var(--red-border);border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
-    <div style="font-size:28px;flex-shrink:0">🛡</div>
+  <div style="background:${segBg};border:1.5px solid ${segBorder};border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-size:28px;flex-shrink:0">${_maeSegment==='wins'?'🎯':_maeSegment==='losses'?'🛡':'📊'}</div>
     <div style="flex:1">
-      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:#f87171;margin-bottom:6px">Stop Loss Insight</div>
-      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
-        Across all SL levels tested, <strong style="color:var(--text-primary)">P(false stop)</strong> never drops below
-        <strong style="color:#f87171">${sweep.length?(Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%':'—'}</strong>.
-        Even at the widest level tested (<strong style="color:var(--text-primary)">${sweep.length?sweep[0].threshold.toFixed(4)+'%':'—'}</strong>),
-        <strong style="color:var(--red)">${sweep.length?(sweep[0].p_recovered*100).toFixed(1)+'%':'—'}</strong> of touched trades still recover.
-        This confirms the <strong style="color:var(--text-primary)">structural stop (sweep extreme) is the natural boundary</strong> — any tighter fixed-% stop cuts legitimate winners.
-        MAE is tightly clustered (σ=${fmt(dist.std,4)}%) relative to MFE, confirming clean directional entries.
-      </div>
+      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:${segColor};margin-bottom:6px">${
+        _maeSegment==='wins' ? 'Stop Placement Insight — Winners Only'
+        : _maeSegment==='losses' ? 'Stop Confirmation — Losers Only'
+        : 'Stop Loss Insight — All Trades'
+      }</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">${
+        _maeSegment==='wins'
+        ? `Winners dip a median of <strong style="color:var(--text-primary)">${fmtPct(dist.median)}</strong> before winning.
+           90% of winners stay within <strong style="color:var(--green)">${fmtPct((dist.percentiles||{}).p90)}</strong> MAE —
+           place your stop beyond this to keep 90% of wins.
+           ${dist.opt_sl!=null?`Optimal SL at <strong style="color:var(--green)">${fmtPct(dist.opt_sl)}</strong> balances false-stop risk vs loss capture.`:''}
+           Tight clustering (σ=${fmt(dist.std,4)}%) confirms clean directional entries.`
+        : _maeSegment==='losses'
+        ? `Losers hit a median MAE of <strong style="color:var(--text-primary)">${fmtPct(dist.median)}</strong> before expiring —
+           this is the full depth of adverse excursion on losing trades.
+           ${sweep.length?`Even at the widest SL tested (<strong style="color:var(--text-primary)">${sweep[0].threshold.toFixed(4)}%</strong>),
+           <strong style="color:var(--red)">${(sweep[0].p_recovered*100).toFixed(1)}%</strong> of touched losers still recover.`:''}
+           Compare with winners MAE to confirm your SL sits between the two distributions.`
+        : `Across all SL levels tested, <strong style="color:var(--text-primary)">P(false stop)</strong> never drops below
+           <strong style="color:#f87171">${sweep.length?(Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%':'—'}</strong>.
+           Even at the widest level tested (<strong style="color:var(--text-primary)">${sweep.length?sweep[0].threshold.toFixed(4)+'%':'—'}</strong>),
+           <strong style="color:var(--red)">${sweep.length?(sweep[0].p_recovered*100).toFixed(1)+'%':'—'}</strong> of touched trades still recover.
+           MAE is tightly clustered (σ=${fmt(dist.std,4)}%) relative to MFE, confirming clean directional entries.`
+      }</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0">
       ${[
         {lbl:'Median MAE', v:fmtPct(dist.median),  c:'#fb923c'},
         {lbl:'Mean MAE',   v:fmtPct(dist.mean),    c:'#fbbf24'},
-        {lbl:'Min False%', v:sweep.length?(Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%':'—', c:'#f87171'},
-        {lbl:'CE Score',   v:ce!=null?ce.toFixed(2):'—', c:ce>=1.5?'#10b981':'#fbbf24'},
+        {lbl: _maeSegment==='wins'?'p90 MAE':_maeSegment==='losses'?'p90 MAE':'Min False%',
+         v: _maeSegment==='all'&&sweep.length ? (Math.min(...sweep.map(s=>s.p_recovered))*100).toFixed(1)+'%' : fmtPct((dist.percentiles||{}).p90),
+         c: _maeSegment==='wins'?'#10b981':'#f87171'},
+        {lbl:'N trades',   v:(dist.n||0).toLocaleString(), c:'#94a3b8'},
       ].map(s=>`
-      <div style="background:var(--bg-card);border:1px solid var(--red-border);border-radius:8px;padding:10px 14px;text-align:center">
+      <div style="background:var(--bg-card);border:1px solid ${segBorder};border-radius:8px;padding:10px 14px;text-align:center">
         <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
         <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:${s.c}">${s.v}</div>
       </div>`).join('')}
@@ -3313,11 +3393,29 @@ function renderMAEStudy(D) {
 function renderMFEStudy(D) {
   const el = document.getElementById('mfe-study-panel');
   if (!el) return;
-  const dist = D?.rich_mfe;
+
+  // Pick data source based on segment
+  const dist = _mfeSegment === 'wins' ? (D?.rich_mfe_wins || D?.rich_mfe)
+             : _mfeSegment === 'losses' ? (D?.rich_mfe_losses || D?.rich_mfe)
+             : D?.rich_mfe;
   if (!dist) {
     el.innerHTML = `<div style="padding:24px;font-family:var(--font-data);font-size:12px;color:var(--text-muted)">No MFE study data — run <code>python3 model_stats.py</code> first.</div>`;
     return;
   }
+
+  // Segment-specific accent and callout
+  const segAccent = _mfeSegment === 'wins' ? 'green' : _mfeSegment === 'losses' ? 'amber' : 'blue';
+  const segColor  = _mfeSegment === 'wins' ? 'var(--green)' : _mfeSegment === 'losses' ? 'var(--amber)' : 'var(--blue)';
+  const segBg     = _mfeSegment === 'wins' ? 'var(--green-tint)' : _mfeSegment === 'losses' ? 'var(--amber-tint)' : 'rgba(59,130,246,.08)';
+  const segBorder = _mfeSegment === 'wins' ? 'var(--green-border)' : _mfeSegment === 'losses' ? 'rgba(245,158,11,.25)' : 'rgba(59,130,246,.2)';
+  const fmtPctCb  = v => v != null ? (+v).toFixed(4) + '%' : '--';
+  const segTitle  = _mfeSegment === 'wins' ? 'Optimal Take Profit' : _mfeSegment === 'losses' ? 'Rescue Opportunity' : 'Combined MFE Distribution';
+  const segDetail = _mfeSegment === 'wins'
+    ? `Median winner runs ${fmtPctCb(dist.median)}${dist.ptq_level != null ? ' · PTQ at ' + fmtPctCb(dist.ptq_level) : ''}${dist.ptq_reach_rate != null ? ' · ' + dist.ptq_reach_rate + '% reach rate' : ''}`
+    : _mfeSegment === 'losses'
+    ? `50% of losers reached ${fmtPctCb(dist.median)} favorable before reversing · ${dist.n||0} losing trades`
+    : `${dist.n||0} trades · Median MFE: ${fmtPctCb(dist.median)} · Mean: ${fmtPctCb(dist.mean)}`;
+  const segLabel  = _mfeSegment === 'wins' ? 'Winners' : _mfeSegment === 'losses' ? 'Losers' : 'All Trades';
   const p       = dist.percentiles || {};
   const ln      = dist.lognorm || {};
   const clus    = dist.clusters || [];
@@ -3360,8 +3458,17 @@ function renderMFEStudy(D) {
   ];
 
   el.innerHTML = `
+  <div style="display:flex;gap:6px;margin-bottom:14px;">
+    <button class="seg-btn mfe-seg ${_mfeSegment==='wins'?'active':''}" data-seg="wins" data-accent="green" onclick="switchMFESeg('wins')">Winners</button>
+    <button class="seg-btn mfe-seg ${_mfeSegment==='losses'?'active':''}" data-seg="losses" data-accent="amber" onclick="switchMFESeg('losses')">Losers</button>
+    <button class="seg-btn mfe-seg ${_mfeSegment==='all'?'active':''}" data-seg="all" data-accent="blue" onclick="switchMFESeg('all')">All Trades</button>
+  </div>
+  <div style="background:${segBg};border:1px solid ${segBorder};border-radius:8px;padding:12px 16px;margin-bottom:16px;">
+    <div style="font-family:var(--font-data);font-size:13px;font-weight:700;color:${segColor};">${segTitle}</div>
+    <div style="font-family:var(--font-data);font-size:11px;color:var(--text-secondary);margin-top:4px;">${segDetail}</div>
+  </div>
   <div class="panel" style="margin-bottom:14px">
-    <div class="ph"><span class="ph-title">MFE Distribution Analysis</span><span class="ph-note">Max Favorable Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
+    <div class="ph"><span class="ph-title">MFE Distribution Analysis · ${segLabel}</span><span class="ph-note">Max Favorable Excursion · ${dist.n||''} resolved trades · log-normal fit r=${fmt(ln.goodness,4)}</span></div>
     <div class="pb">
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px">
         ${statTiles.map(s=>`
@@ -3397,7 +3504,7 @@ function renderMFEStudy(D) {
   </div>
 
   <div class="panel" style="margin-bottom:14px">
-    <div class="ph"><span class="ph-title">MFE Natural Clusters</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
+    <div class="ph"><span class="ph-title">MFE Natural Clusters · ${segLabel}</span><span class="ph-note">3-tier segmentation at p33 and p75 breakpoints</span></div>
     <div class="pb">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
         ${clus.map((c,i)=>`
@@ -3487,32 +3594,62 @@ function renderMFEStudy(D) {
     </div>
   </div>
 
-  ${ptq!=null?`
-  <div style="background:var(--green-tint);border:1.5px solid var(--green-border);border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
-    <div style="font-size:28px;flex-shrink:0">♛</div>
+  <div style="background:${segBg};border:1.5px solid ${segBorder};border-radius:12px;padding:20px 24px;margin-bottom:14px;display:flex;gap:24px;align-items:flex-start">
+    <div style="font-size:28px;flex-shrink:0">${_mfeSegment==='wins'?'♛':_mfeSegment==='losses'?'🔄':'📊'}</div>
     <div style="flex:1">
-      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:#10b981;margin-bottom:6px">Protect the Queen — Recommended BE Trigger: ${fmtPct(ptq)}</div>
-      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">
-        When MFE reaches <strong style="color:#10b981">${fmtPct(ptq)}</strong>, move your stop to breakeven (entry price).
-        This level is reached by <strong style="color:var(--text-primary)">${ptqRR}%</strong> of all trades.
-        Once reached, <strong style="color:#10b981">${((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)}%</strong> of those trades exit positively — the first level where odds flip in your favour.
-        Moving to BE saves approximately <strong style="color:var(--text-primary)">${triggers.find(t=>t.trigger_pct===ptq)?.n_rescued||'—'} trades</strong> from negative exits
-        and improves EV by <strong style="color:#10b981">+${(+(triggers.find(t=>t.trigger_pct===ptq)||{}).ev_delta||0).toFixed(4)}R per trade</strong>.
-      </div>
+      <div style="font-family:var(--font-data);font-size:16px;font-weight:800;color:${segColor};margin-bottom:6px">${
+        _mfeSegment==='wins'
+        ? (ptq!=null ? 'Protect the Queen — Recommended BE Trigger: '+fmtPct(ptq) : 'Winners MFE Insight')
+        : _mfeSegment==='losses'
+        ? 'Rescue Opportunity — Losers Favorable Excursion'
+        : (ptq!=null ? 'Protect the Queen — All Trades · BE Trigger: '+fmtPct(ptq) : 'MFE Insight — All Trades')
+      }</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.8">${
+        _mfeSegment==='wins'
+        ? (ptq!=null
+          ? `When MFE reaches <strong style="color:#10b981">${fmtPct(ptq)}</strong>, move your stop to breakeven.
+             This level is reached by <strong style="color:var(--text-primary)">${ptqRR}%</strong> of winning trades.
+             Once reached, <strong style="color:#10b981">${((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)}%</strong> exit positively.
+             Median winner runs <strong style="color:var(--green)">${fmtPct(dist.median)}</strong> — this is your optimal TP zone.`
+          : `Median winner runs <strong style="color:var(--green)">${fmtPct(dist.median)}</strong>.
+             Mean: <strong style="color:var(--text-primary)">${fmtPct(dist.mean)}</strong> · N: ${dist.n||0} winning trades.`)
+        : _mfeSegment==='losses'
+        ? `50% of losers ran <strong style="color:var(--amber)">${fmtPct(dist.median)}</strong> in your favour before reversing.
+           Mean favorable excursion on losers: <strong style="color:var(--text-primary)">${fmtPct(dist.mean)}</strong>.
+           This is your rescue window — if price reaches this level on a losing trade, consider partial exit or tightening stops.
+           ${(dist.percentiles||{}).p75 != null ? `25% of losers ran at least <strong style="color:var(--amber)">${fmtPct((dist.percentiles||{}).p75)}</strong> before dying.` : ''}`
+        : (ptq!=null
+          ? `When MFE reaches <strong style="color:#10b981">${fmtPct(ptq)}</strong>, move your stop to breakeven (entry price).
+             This level is reached by <strong style="color:var(--text-primary)">${ptqRR}%</strong> of all trades.
+             Once reached, <strong style="color:#10b981">${((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)}%</strong> of those trades exit positively.
+             Moving to BE saves approximately <strong style="color:var(--text-primary)">${triggers.find(t=>t.trigger_pct===ptq)?.n_rescued||'—'} trades</strong> from negative exits
+             and improves EV by <strong style="color:#10b981">+${(+(triggers.find(t=>t.trigger_pct===ptq)||{}).ev_delta||0).toFixed(4)}R per trade</strong>.`
+          : `Median MFE: <strong style="color:var(--text-primary)">${fmtPct(dist.median)}</strong> · Mean: ${fmtPct(dist.mean)} · ${dist.n||0} trades.`)
+      }</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0">
-      ${[
-        {lbl:'Trigger',    v:fmtPct(ptq),                                                                                             c:'#10b981'},
-        {lbl:'Reach Rate', v:(ptqRR||'—')+'%',                                                                                        c:'#fbbf24'},
-        {lbl:'P(+exit)',   v:((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)+'%',                         c:'#10b981'},
-        {lbl:'New EV',     v:'+'+((triggers.find(t=>t.trigger_pct===ptq)||{}).new_ev||0).toFixed(4)+'R',                              c:'#10b981'},
-      ].map(s=>`
-      <div style="background:var(--bg-card);border:1px solid var(--green-border);border-radius:8px;padding:10px 14px;text-align:center">
+      ${(_mfeSegment==='wins' ? [
+        {lbl:'Median MFE', v:fmtPct(dist.median), c:'#10b981'},
+        {lbl:'PTQ Level',  v:ptq!=null?fmtPct(ptq):'—', c:'#10b981'},
+        {lbl:'Reach Rate', v:ptqRR!=null?ptqRR+'%':'—', c:'#fbbf24'},
+        {lbl:'N Winners',  v:(dist.n||0).toLocaleString(), c:'#94a3b8'},
+      ] : _mfeSegment==='losses' ? [
+        {lbl:'Median MFE', v:fmtPct(dist.median), c:'#f59e0b'},
+        {lbl:'Mean MFE',   v:fmtPct(dist.mean),   c:'#fbbf24'},
+        {lbl:'p75 MFE',    v:fmtPct((dist.percentiles||{}).p75), c:'#f59e0b'},
+        {lbl:'N Losers',   v:(dist.n||0).toLocaleString(), c:'#94a3b8'},
+      ] : [
+        {lbl:'Trigger',    v:ptq!=null?fmtPct(ptq):'—', c:'#10b981'},
+        {lbl:'Reach Rate', v:ptqRR!=null?ptqRR+'%':'—', c:'#fbbf24'},
+        {lbl:'P(+exit)',   v:ptq!=null?((triggers.find(t=>t.trigger_pct===ptq)||{}).p_pos_given*100||0).toFixed(1)+'%':'—', c:'#10b981'},
+        {lbl:'New EV',     v:ptq!=null?'+'+((triggers.find(t=>t.trigger_pct===ptq)||{}).new_ev||0).toFixed(4)+'R':'—', c:'#10b981'},
+      ]).map(s=>`
+      <div style="background:var(--bg-card);border:1px solid ${segBorder};border-radius:8px;padding:10px 14px;text-align:center">
         <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">${s.lbl}</div>
         <div style="font-family:var(--font-display);font-size:18px;font-weight:800;color:${s.c}">${s.v}</div>
       </div>`).join('')}
     </div>
-  </div>`:''}
+  </div>
   `;
 
   // Draw MFE histogram
