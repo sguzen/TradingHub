@@ -11,6 +11,10 @@ max_risk      = input.float(112.5, "Max Risk (pts)", group=G2, tooltip="MNQ: $22
 min_range     = input.float(12.0,  "Min Prior Range (pts)", group=G2, tooltip="Reject setups where prior candle range < this. Backtest: 4H=30, 1H=12, 30M=8")
 cisd_lookback = input.int(100,    "CISD Lookback Bars", group=G2, tooltip="Max bars to scan for CISD delivery run. 100 = effectively unlimited.")
 
+var string G10 = "SMT Divergence"
+show_smt      = input.bool(true,    "Show SMT Labels", group=G10, tooltip="Check ES for divergence when NQ sweeps")
+smt_symbol    = input.string("ES1!", "ES Symbol", group=G10, tooltip="Continuous ES contract for SMT comparison")
+
 var string G8 = "Display"
 show_debug    = input.bool(false, "Show Debug Labels", group=G8)
 max_setups    = input.int(1, "Max Setups to Show", group=G8, minval=1, maxval=20, tooltip="Only the N most recent fired setups are kept; older ones are removed")
@@ -148,6 +152,23 @@ at_30  = request.security(syminfo.tickerid, "30",  time,    lookahead=barmerge.l
 ph2_30 = request.security(syminfo.tickerid, "30",  high[2], lookahead=barmerge.lookahead_on)
 pl2_30 = request.security(syminfo.tickerid, "30",  low[2],  lookahead=barmerge.lookahead_on)
 
+// ── ES ANCHOR CANDLE — for SMT divergence check ─────────────────────────────
+// ES prior HTF high/low + ES LTF high/low (to check if ES swept at same time as NQ)
+es_ph_1D  = request.security(smt_symbol, "1D",  high[1], lookahead=barmerge.lookahead_on)
+es_pl_1D  = request.security(smt_symbol, "1D",  low[1],  lookahead=barmerge.lookahead_on)
+es_ph_240 = request.security(smt_symbol, "240", high[1], lookahead=barmerge.lookahead_on)
+es_pl_240 = request.security(smt_symbol, "240", low[1],  lookahead=barmerge.lookahead_on)
+es_ph_60  = request.security(smt_symbol, "60",  high[1], lookahead=barmerge.lookahead_on)
+es_pl_60  = request.security(smt_symbol, "60",  low[1],  lookahead=barmerge.lookahead_on)
+es_ph_30  = request.security(smt_symbol, "30",  high[1], lookahead=barmerge.lookahead_on)
+es_pl_30  = request.security(smt_symbol, "30",  low[1],  lookahead=barmerge.lookahead_on)
+// ES LTF bar data — high/low on the same timeframe as the chart
+es_ltf_high = request.security(smt_symbol, timeframe.period, high)
+es_ltf_low  = request.security(smt_symbol, timeframe.period, low)
+
+es_prior_high = timeframe.period == "60" ? es_ph_1D : timeframe.period == "15" ? es_ph_240 : timeframe.period == "5" ? es_ph_60 : es_ph_30
+es_prior_low  = timeframe.period == "60" ? es_pl_1D : timeframe.period == "15" ? es_pl_240 : timeframe.period == "5" ? es_pl_60 : es_pl_30
+
 prior_high    = timeframe.period == "60" ? ph_1D : timeframe.period == "15" ? ph_240 : timeframe.period == "5" ? ph_60 : ph_30
 prior_low     = timeframe.period == "60" ? pl_1D : timeframe.period == "15" ? pl_240 : timeframe.period == "5" ? pl_60 : pl_30
 prior_close   = timeframe.period == "60" ? pc_1D : timeframe.period == "15" ? pc_240 : timeframe.period == "5" ? pc_60 : pc_30
@@ -196,6 +217,9 @@ var float sweep_pct_short    = na
 // bar index where return-to-range happened (CISD scans backward from here)
 var int   ret_bar_long       = na
 var int   ret_bar_short      = na
+// SMT divergence — true if ES did NOT sweep its corresponding level when NQ swept
+var bool  smt_long           = false
+var bool  smt_short          = false
 // arrays to track fired setup drawings for cleanup when exceeding max_setups
 var fired_lines  = array.new_line()
 var fired_labels = array.new_label()
@@ -237,6 +261,8 @@ if is_new_anchor and tf_supported
     sweep_pct_short    := na
     ret_bar_long       := na
     ret_bar_short      := na
+    smt_long        := false
+    smt_short       := false
     ret_long        := false
     ret_short       := false
     alerted_long    := false
@@ -389,6 +415,10 @@ if tf_supported and not na(anc_hi) and not na(anc_lo)
                     if low[k] < anc_lo and low[k] < sweep_ext_long
                         sweep_ext_long := low[k]
                         sweep_bar_long := bar_index - k
+                // SMT check: NQ swept low — did ES also sweep its prior low?
+                // If ES did NOT sweep = SMT divergence (bullish confirmation)
+                if show_smt and not na(es_prior_low)
+                    smt_long := es_ltf_low > es_prior_low  // ES held above its prior low = divergence
         if not swept_short
             ext = high - anc_hi
             if high > anc_hi and ext / ref_range <= sweep_max
@@ -408,6 +438,10 @@ if tf_supported and not na(anc_hi) and not na(anc_lo)
                     if high[k] > anc_hi and high[k] > sweep_ext_short
                         sweep_ext_short := high[k]
                         sweep_bar_short := bar_index - k
+                // SMT check: NQ swept high — did ES also sweep its prior high?
+                // If ES did NOT sweep = SMT divergence (bearish confirmation)
+                if show_smt and not na(es_prior_high)
+                    smt_short := es_ltf_high < es_prior_high  // ES held below its prior high = divergence
 
 // Sweep extreme is locked at detection time — matches backtest which computes
 // the extreme once over the Q1 window. No continuous tracking after detection.
@@ -649,6 +683,12 @@ if long_valid
                         proj_price = cisd_long_lvl + s_range * lv
                         f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
                         f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
+    // SMT divergence label
+    if show_smt
+        if smt_long
+            f_reg_label(label.new(bar_index, sl - (entry - sl) * 0.15, "SMT", color=color.new(color.green, 10), textcolor=color.white, style=label.style_label_up, size=size.small))
+        else
+            f_reg_label(label.new(bar_index, sl - (entry - sl) * 0.15, "NO SMT", color=color.new(color.gray, 40), textcolor=color.white, style=label.style_label_up, size=size.small))
     // Record drawing counts for this setup and trim oldest if needed
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
@@ -669,8 +709,9 @@ if long_valid
             for _i = 1 to _nx
                 if array.size(fired_boxes) > 0
                     box.delete(array.shift(fired_boxes))
+    _smt_str = show_smt ? (smt_long ? " | SMT" : " | NO SMT") : ""
     _alert_tp = use_split ? "TP1 " + str.tostring(tp, "#.##") + " (" + str.tostring(split_tp1_size, "#") + "%) | TP2 " + str.tostring(_tp2, "#.##") + " (runner)" : "TP " + str.tostring(tp, "#.##")
-    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
+    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo + _smt_str, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
 if short_valid
@@ -768,6 +809,12 @@ if short_valid
                         proj_price = cisd_short_lvl - s_range * lv
                         f_reg_line(line.new(bar_index, proj_price, r_end, proj_price, color=proj_color, width=1, style=line.style_dotted))
                         f_reg_label(label.new(r_end, proj_price, str.tostring(lv), color=color.new(proj_color, 100), textcolor=proj_color, style=label.style_label_left, size=size.tiny))
+    // SMT divergence label
+    if show_smt
+        if smt_short
+            f_reg_label(label.new(bar_index, sl + (sl - entry) * 0.15, "SMT", color=color.new(color.red, 10), textcolor=color.white, style=label.style_label_down, size=size.small))
+        else
+            f_reg_label(label.new(bar_index, sl + (sl - entry) * 0.15, "NO SMT", color=color.new(color.gray, 40), textcolor=color.white, style=label.style_label_down, size=size.small))
     // Record drawing counts for this setup and trim oldest if needed
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
@@ -788,8 +835,9 @@ if short_valid
             for _i = 1 to _nx
                 if array.size(fired_boxes) > 0
                     box.delete(array.shift(fired_boxes))
+    _smt_str = show_smt ? (smt_short ? " | SMT" : " | NO SMT") : ""
     _alert_tp = use_split ? "TP1 " + str.tostring(tp, "#.##") + " (" + str.tostring(split_tp1_size, "#") + "%) | TP2 " + str.tostring(_tp2, "#.##") + " (runner)" : "TP " + str.tostring(tp, "#.##")
-    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
+    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo + _smt_str, alert.freq_once_per_bar_close)
 
 // ── FIRE: OVER-RISK LONG ─────────────────────────────────────────────────────
 // Setup is valid but risk exceeds max_risk — drawn muted (gray, dashed, no R:R box)
