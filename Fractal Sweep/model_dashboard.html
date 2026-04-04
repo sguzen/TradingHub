@@ -1641,10 +1641,10 @@ function computeOverfitScore(trainEV, testEV) {
 }
 
 function findBestVariant(pairs) {
-  const names = ['Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
+  const names = ['Structural', 'Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
   let bestIdx = 0, bestCV = Infinity;
 
-  for (let vi = 0; vi < 4; vi++) {
+  for (let vi = 0; vi < 5; vi++) {
     const testEVs = pairs.map(p => p.variants[vi].test.ev_r).filter(v => v != null);
     if (testEVs.length < 2) continue;
     const mean = testEVs.reduce((s, v) => s + v, 0) / testEVs.length;
@@ -1660,7 +1660,7 @@ function findBestVariant(pairs) {
 function buildWalkForwardPairs(rangeResults) {
   // Rolling walk-forward: R1→R2, R2→R3, R3→R4, etc.
   const pairs = [], unpaired = [];
-  const capNames = ['Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
+  const capNames = ['Structural', 'Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
 
   if (rangeResults.length < 2) {
     unpaired.push(...rangeResults);
@@ -1677,7 +1677,7 @@ function buildWalkForwardPairs(rangeResults) {
       continue;
     }
 
-    const caps = [trainParams.mae.max, trainParams.mae.p90, trainParams.mae.p85, trainParams.mae.p50];
+    const caps = [Infinity, trainParams.mae.max, trainParams.mae.p90, trainParams.mae.p85, trainParams.mae.p50];
     const variants = caps.map((cap, ci) => {
       const trainResolved = resolveWithStopCap(train.trades, cap);
       const testResolved = resolveWithStopCap(test.trades, cap);
@@ -2052,7 +2052,7 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
     html += `</tbody></table></div>`;
 
     // Stop variant cards (4 in a row)
-    html += `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">`;
+    html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">`;
     pair.variants.forEach((v, vi) => {
       const isBest = vi === pair.bestVariantIdx;
       const tr = v.train, te = v.test;
@@ -2061,7 +2061,7 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
       // Card header
       html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">`;
       html += `<div><div style="font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${v.name}</div>`;
-      html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">SL cap: ${fmtPct(v.cap)}</div></div>`;
+      html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">SL: ${v.cap === Infinity ? 'sweep extreme' : fmtPct(v.cap)}</div></div>`;
       if(isBest) html += `<span style="font-family:var(--font-data);font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;background:var(--green-tint);border:1px solid var(--green-border);color:var(--green)">BEST</span>`;
       html += `</div>`;
       // Column headers
