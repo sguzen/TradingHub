@@ -15,9 +15,16 @@ var string G8 = "Display"
 show_debug    = input.bool(false, "Show Debug Labels", group=G8)
 max_setups    = input.int(1, "Max Setups to Show", group=G8, minval=1, maxval=20, tooltip="Only the N most recent fired setups are kept; older ones are removed")
 
+var string G9 = "Split Profile"
+use_split       = input.bool(false,   "Use Split Profile", group=G9, tooltip="TP1 @ PTQ%, SL = min(struct, MAE p90%). Values from backtest dashboard.")
+split_ptq_pct   = input.float(0.42,   "TP1 PTQ %", group=G9, step=0.01, tooltip="PTQ level from MFE study (e.g. 0.42 = 0.42% of entry price)")
+split_p50_pct   = input.float(1.12,   "TP2 p50 MFE %", group=G9, step=0.01, tooltip="Median winner MFE — runner target (10% position)")
+split_mae_pct   = input.float(0.36,   "SL MAE p90 %", group=G9, step=0.01, tooltip="MAE p90 of winners — SL cap. SL = min(sweep extreme, entry × MAE p90%)")
+split_tp1_size  = input.float(90.0,   "TP1 Exit %", group=G9, step=5.0, minval=50, maxval=100, tooltip="% of position to exit at TP1")
+
 var string G3 = "R:R Box"
 rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
-rr_ratio       = input.float(1.0, "R:R Target", group=G3, step=0.5, minval=0.5, tooltip="e.g. 2 = TP at 2R")
+rr_ratio       = input.float(1.0, "R:R Target", group=G3, step=0.5, minval=0.5, tooltip="e.g. 2 = TP at 2R. Ignored when Split Profile is on.")
 rr_risk_col    = input.color(color.new(color.red,  85), "Risk Zone Fill",    group=G3)
 rr_risk_border = input.color(color.new(color.red,  40), "Risk Zone Border",  group=G3)
 rr_rew_col     = input.color(color.new(color.teal, 85), "Reward Zone Fill",  group=G3)
@@ -560,9 +567,14 @@ if long_valid
     _snap_labels := array.size(fired_labels)
     _snap_boxes  := array.size(fired_boxes)
     entry = close
-    sl    = sweep_ext_long
+    // Split profile: SL = min(sweep extreme, entry × MAE p90%)
+    _struct_sl = sweep_ext_long
+    sl = use_split ? math.max(_struct_sl, entry - entry * split_mae_pct / 100) : _struct_sl
     risk  = entry - sl
-    tp    = entry + risk * rr_ratio
+    // Split profile: TP1 = entry + entry × PTQ%, TP2 = entry + entry × p50%
+    tp    = use_split ? entry + entry * split_ptq_pct / 100 : entry + risk * rr_ratio
+    _tp2  = use_split ? entry + entry * split_p50_pct / 100 : na(0.0)
+    _tp1_r = risk > 0 ? (tp - entry) / risk : 0.0
     r_end = bar_index + rr_extend
     // Non-Q1 uses amber/yellow palette
     _is_q1_l  = q1_sweep_long
@@ -589,9 +601,14 @@ if long_valid
     f_reg_box(box.new(bar_index, entry, r_end, sl,  border_color=_risk_br, bgcolor=_risk_bg))
     f_reg_box(box.new(bar_index, tp,    r_end, entry, border_color=_rew_br,  bgcolor=_rew_bg))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    _tp_lbl = use_split ? "TP1  +" + str.tostring(tp - entry, "#.##") + " pts  " + str.tostring(_tp1_r, "#.#") + "R  (" + str.tostring(split_tp1_size, "#") + "%)" : "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    // TP2 runner target (split profile only)
+    if use_split and not na(_tp2)
+        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(color.purple, 30), width=1, style=line.style_dotted))
+        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(_tp2 - entry, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(color.purple, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(sweep_logmid_long) and not na(sweep_close_long)
         tspot_top  = math.max(sweep_logmid_long, sweep_close_long)
         tspot_bot  = math.min(sweep_logmid_long, sweep_close_long)
@@ -644,7 +661,8 @@ if long_valid
             for _i = 1 to _nx
                 if array.size(fired_boxes) > 0
                     box.delete(array.shift(fired_boxes))
-    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
+    _alert_tp = use_split ? "TP1 " + str.tostring(tp, "#.##") + " (" + str.tostring(split_tp1_size, "#") + "%) | TP2 " + str.tostring(_tp2, "#.##") + " (runner)" : "TP " + str.tostring(tp, "#.##")
+    alert("LONG " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(long_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
 
 // ── FIRE: SHORT ───────────────────────────────────────────────────────────────
 if short_valid
@@ -668,9 +686,14 @@ if short_valid
     _snap_labels := array.size(fired_labels)
     _snap_boxes  := array.size(fired_boxes)
     entry = close
-    sl    = sweep_ext_short
+    // Split profile: SL = min(sweep extreme, entry + entry × MAE p90%)
+    _struct_sl = sweep_ext_short
+    sl = use_split ? math.min(_struct_sl, entry + entry * split_mae_pct / 100) : _struct_sl
     risk  = sl - entry
-    tp    = entry - risk * rr_ratio
+    // Split profile: TP1 = entry - entry × PTQ%, TP2 = entry - entry × p50%
+    tp    = use_split ? entry - entry * split_ptq_pct / 100 : entry - risk * rr_ratio
+    _tp2  = use_split ? entry - entry * split_p50_pct / 100 : na(0.0)
+    _tp1_r = risk > 0 ? (entry - tp) / risk : 0.0
     r_end = bar_index + rr_extend
     // Non-Q1 uses amber/yellow palette
     _is_q1_s  = q1_sweep_short
@@ -697,9 +720,14 @@ if short_valid
     f_reg_box(box.new(bar_index, sl,    r_end, entry, border_color=_risk_br, bgcolor=_risk_bg))
     f_reg_box(box.new(bar_index, entry, r_end, tp,    border_color=_rew_br,  bgcolor=_rew_bg))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp,    "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    _tp_lbl = use_split ? "TP1  +" + str.tostring(entry - tp, "#.##") + " pts  " + str.tostring(_tp1_r, "#.#") + "R  (" + str.tostring(split_tp1_size, "#") + "%)" : "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    // TP2 runner target (split profile only)
+    if use_split and not na(_tp2)
+        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(color.purple, 30), width=1, style=line.style_dotted))
+        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(entry - _tp2, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(color.purple, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(sweep_logmid_short) and not na(sweep_close_short)
         tspot_top  = math.max(sweep_logmid_short, sweep_close_short)
         tspot_bot  = math.min(sweep_logmid_short, sweep_close_short)
@@ -752,4 +780,5 @@ if short_valid
             for _i = 1 to _nx
                 if array.size(fired_boxes) > 0
                     box.delete(array.shift(fired_boxes))
-    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | TP " + str.tostring(tp, "#.##") + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
+    _alert_tp = use_split ? "TP1 " + str.tostring(tp, "#.##") + " (" + str.tostring(split_tp1_size, "#") + "%) | TP2 " + str.tostring(_tp2, "#.##") + " (runner)" : "TP " + str.tostring(tp, "#.##")
+    alert("SHORT " + syminfo.ticker + " | Entry " + str.tostring(entry, "#.##") + " | SL " + str.tostring(sl, "#.##") + " | " + _alert_tp + " | Risk " + str.tostring(short_risk, "#.#") + " pts | " + combo, alert.freq_once_per_bar_close)
