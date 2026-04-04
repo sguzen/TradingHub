@@ -1658,20 +1658,22 @@ function findBestVariant(pairs) {
 }
 
 function buildWalkForwardPairs(rangeResults) {
+  // Rolling walk-forward: R1→R2, R2→R3, R3→R4, etc.
   const pairs = [], unpaired = [];
   const capNames = ['Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
 
-  for (let i = 0; i < rangeResults.length; i += 2) {
+  if (rangeResults.length < 2) {
+    unpaired.push(...rangeResults);
+    return { pairs, unpaired };
+  }
+
+  for (let i = 0; i < rangeResults.length - 1; i++) {
     const train = rangeResults[i];
     const test = rangeResults[i + 1];
 
-    // Odd last range → unpaired
-    if (!test) { unpaired.push(train); continue; }
-
     const trainParams = computeTrainParams(train.trades);
     if (!trainParams) {
-      // Too few winners — both go to unpaired
-      unpaired.push(train, test);
+      // Too few winners to derive parameters — skip this pair
       continue;
     }
 
