@@ -499,6 +499,9 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
         <div class="pb"><div id="worst-combos"></div></div>
       </div>
     </div>
+
+    <div class="sec-label">Filter Variant Analysis</div>
+    <div id="filter-variants-panel"></div>
   </div>
 
   <!-- ══ TAB: RISK ══════════════════════════════════════════════════════════ -->
@@ -693,6 +696,7 @@ function switchPageTab(tab){
     barChart(document.getElementById('hour-chart'),(D.by_hour||[]).map(d=>({group:d.hr_label||`${d.hr}:00`,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),260,25,75);
     barChart(document.getElementById('sess-chart'),(D.by_session||[]).map(d=>({group:d.session,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,30,70);
     barChart(document.getElementById('dow-chart'), (D.by_dow||[]).map(d=>({group:d.dow_name,key:d.direction,val:+(d.wr*100).toFixed(1),n:d.n,ev:d.ev,pf:d.pf,avg_mae:d.avg_mae,avg_mfe:d.avg_mfe,avg_mae_hr:d.avg_mae_hr,avg_mfe_hr:d.avg_mfe_hr})),200,35,70);
+    renderFilterVariants(D);
   }
   if(tab === 'risk'){
     filterWaterfall(document.getElementById('filter-waterfall'),D.filter_impact||[]);
@@ -3647,6 +3651,7 @@ function renderModel(D){
   comboTable(document.getElementById('top-combos'),(D.top_combos||[]).slice(0,12));
   comboTable(document.getElementById('worst-combos'),D.worst_combos||[]);
   filterWaterfall(document.getElementById('filter-waterfall'),D.filter_impact||[]);
+  renderFilterVariants(D);
   rDistChart(document.getElementById('rdist-chart'),D.r_hist||[]);
   lineChart(document.getElementById('year-chart'),D.by_year||[],200,40,75,'wr','yr');
 
@@ -4800,6 +4805,130 @@ function computeRichStudy(trades, field) {
 
 
 // ── MAE STUDY (FPFVG-style) ───────────────────────────────────────────────────
+function renderFilterVariants(D) {
+  const el = document.getElementById('filter-variants-panel');
+  if (!el) return;
+  const fv = D.filter_variants;
+  if (!fv || !fv.all_combinations) {
+    el.innerHTML = '<div style="padding:16px;font-family:var(--font-data);font-size:12px;color:var(--text-muted)">Run model_stats.py to see filter variant analysis.</div>';
+    return;
+  }
+
+  const ACCT = 4500, RPT = 225;
+  const combos = fv.all_combinations;
+  const best = fv.best_combination;
+  const baseline = fv.baseline;
+
+  function sc(val, good, bad, inv) {
+    if (inv) return val <= good ? 'var(--green)' : val >= bad ? 'var(--red)' : 'var(--amber)';
+    return val >= good ? 'var(--green)' : val <= bad ? 'var(--red)' : 'var(--amber)';
+  }
+
+  let html = '';
+
+  // Best combo callout
+  if (best) {
+    const isCurrent = best.label === baseline.label;
+    html += `<div style="background:${isCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(245,158,11,0.08)'};border:1px solid ${isCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'};border-radius:10px;padding:14px 18px;margin-bottom:16px;font-family:var(--font-data)">
+      <div style="font-size:11px;font-weight:700;color:${isCurrent ? 'var(--green)' : 'var(--amber)'};text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px">${isCurrent ? 'Current filters are optimal' : 'Better filter combination found'}</div>
+      <div style="font-size:13px;color:var(--text-primary);font-weight:600">${best.label}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px">N=${best.n} · WR=${(best.wr*100).toFixed(1)}% · EV=${best.ev.toFixed(3)}R · PF=${best.pf.toFixed(2)} · Max DD=${best.max_dd_pct.toFixed(1)}%</div>
+    </div>`;
+  }
+
+  // Individual removal table
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Individual Filter Removal — What happens when you remove one filter?</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;color:var(--text-muted)">Remove This Filter</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">Trades</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">Added</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">WR</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">WR \u0394</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">EV (R)</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">EV \u0394</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">PF</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">Max DD</th>
+        <th style="padding:8px 6px;text-align:center;color:var(--text-muted)">Verdict</th>
+      </tr></thead><tbody>`;
+
+  // Current baseline row
+  html += `<tr style="background:rgba(59,130,246,0.06);border-bottom:1px solid var(--border)">
+    <td style="padding:6px 10px;font-weight:700;color:var(--blue,#3b82f6)">Current (all filters)</td>
+    <td style="padding:6px;text-align:right;color:var(--text-primary)">${baseline.n}</td>
+    <td style="padding:6px;text-align:right;color:var(--text-muted)">\u2014</td>
+    <td style="padding:6px;text-align:right;font-weight:600;color:var(--text-primary)">${(baseline.wr*100).toFixed(1)}%</td>
+    <td style="padding:6px;text-align:right;color:var(--text-muted)">\u2014</td>
+    <td style="padding:6px;text-align:right;font-weight:600;color:var(--text-primary)">${baseline.ev.toFixed(3)}</td>
+    <td style="padding:6px;text-align:right;color:var(--text-muted)">\u2014</td>
+    <td style="padding:6px;text-align:right;color:var(--text-primary)">${baseline.pf.toFixed(2)}</td>
+    <td style="padding:6px;text-align:right;color:var(--text-primary)">${baseline.max_dd_pct.toFixed(1)}%</td>
+    <td style="padding:6px;text-align:center;color:var(--blue,#3b82f6);font-weight:700">BASELINE</td>
+  </tr>`;
+
+  (fv.individual_removal || []).forEach((r, i) => {
+    const bg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb,var(--bg-raised) 60%,transparent)';
+    const evBetter = r.ev_delta > 0;
+    const verdict = r.ev_delta > 0.02 ? 'REMOVE' : r.ev_delta < -0.05 ? 'KEEP' : 'NEUTRAL';
+    const verdictColor = verdict === 'REMOVE' ? 'var(--green)' : verdict === 'KEEP' ? 'var(--red)' : 'var(--text-muted)';
+    html += `<tr style="background:${bg}">
+      <td style="padding:6px 10px;color:var(--text-primary)">${r.label}</td>
+      <td style="padding:6px;text-align:right;color:var(--text-primary)">${r.n}</td>
+      <td style="padding:6px;text-align:right;color:${r.n_added > 0 ? 'var(--green)' : 'var(--text-muted)'}">${r.n_added > 0 ? '+' : ''}${r.n_added}</td>
+      <td style="padding:6px;text-align:right;color:${sc(r.wr, baseline.wr, baseline.wr - 0.1, false)}">${(r.wr*100).toFixed(1)}%</td>
+      <td style="padding:6px;text-align:right;color:${r.wr_delta >= 0 ? 'var(--green)' : 'var(--red)'}">${r.wr_delta >= 0 ? '+' : ''}${r.wr_delta.toFixed(1)}%</td>
+      <td style="padding:6px;text-align:right;font-weight:600;color:${sc(r.ev, baseline.ev, 0, false)}">${r.ev.toFixed(3)}</td>
+      <td style="padding:6px;text-align:right;font-weight:600;color:${evBetter ? 'var(--green)' : 'var(--red)'}">${r.ev_delta >= 0 ? '+' : ''}${r.ev_delta.toFixed(3)}</td>
+      <td style="padding:6px;text-align:right;color:var(--text-primary)">${r.pf.toFixed(2)}</td>
+      <td style="padding:6px;text-align:right;color:${sc(r.max_dd_pct, 15, 30, true)}">${r.max_dd_pct.toFixed(1)}%</td>
+      <td style="padding:6px;text-align:center;font-weight:700;color:${verdictColor}">${verdict}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  // All combinations table
+  html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:var(--shadow)">
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">All Filter Combinations (2\u00B3 = 8 variants, sorted by EV)</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="border-bottom:2px solid var(--border)">
+        <th style="padding:8px 10px;text-align:left;color:var(--text-muted)">Filter Combination</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">N</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">WR</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">EV (R)</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">PF</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">Max DD</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">Sharpe</th>
+        <th style="padding:8px 6px;text-align:right;color:var(--text-muted)">SPD</th>
+        <th style="padding:8px 6px;text-align:left;color:var(--text-muted)">EV Bar</th>
+      </tr></thead><tbody>`;
+
+  const maxEV = Math.max(...combos.map(c => Math.abs(c.ev)));
+  combos.forEach((c, i) => {
+    const isBest = best && c.label === best.label;
+    const isCurrent = c.label === baseline.label;
+    const bg = isBest ? 'rgba(16,185,129,0.06)' : isCurrent ? 'rgba(59,130,246,0.06)' : i % 2 === 0 ? 'transparent' : 'color-mix(in srgb,var(--bg-raised) 60%,transparent)';
+    const badge = isBest ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981">BEST</span>' : isCurrent ? ' <span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;background:rgba(59,130,246,0.15);border:1px solid rgba(59,130,246,0.4);color:#3b82f6">CURRENT</span>' : '';
+    const barW = maxEV > 0 ? Math.abs(c.ev) / maxEV * 100 : 0;
+    const barColor = c.ev >= 0 ? 'var(--green)' : 'var(--red)';
+    html += `<tr style="background:${bg}">
+      <td style="padding:6px 10px;color:var(--text-primary);font-weight:${isBest || isCurrent ? '700' : '400'}">${c.label || 'No Filters'}${badge}</td>
+      <td style="padding:6px;text-align:right;color:var(--text-primary)">${c.n}</td>
+      <td style="padding:6px;text-align:right;color:${sc(c.wr, 0.80, 0.60, false)}">${(c.wr*100).toFixed(1)}%</td>
+      <td style="padding:6px;text-align:right;font-weight:600;color:${sc(c.ev, 0.5, 0, false)}">${c.ev.toFixed(3)}</td>
+      <td style="padding:6px;text-align:right;color:${sc(c.pf, 3, 1.5, false)}">${c.pf.toFixed(2)}</td>
+      <td style="padding:6px;text-align:right;color:${sc(c.max_dd_pct, 15, 30, true)}">${c.max_dd_pct.toFixed(1)}%</td>
+      <td style="padding:6px;text-align:right;color:var(--text-primary)">${c.sharpe != null ? c.sharpe.toFixed(2) : '\u2014'}</td>
+      <td style="padding:6px;text-align:right;color:var(--text-muted)">${c.spd}</td>
+      <td style="padding:6px"><div style="height:12px;width:${barW}%;background:${barColor};border-radius:2px;opacity:0.6"></div></td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  el.innerHTML = html;
+}
+
+
 function renderMAEStudy(D) {
   const el = document.getElementById('mae-study-panel');
   if (!el) return;

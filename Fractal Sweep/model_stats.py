@@ -1543,6 +1543,7 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
     spd      = round(len(ny_setup) / max(trading_days, 1), 2)
 
     filter_impact = compute_filter_impact(df_raw)
+    filter_variants = compute_filter_variants(df_raw)
 
     # ── T-Spot breakdown: stats per variant × DOW × Hour ─────────────────────
     TSPOT_KEYS = ['Normal_BULL','Normal_BEAR','Expansive_BULL',
@@ -1818,6 +1819,7 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         'smt_summary':   smt_summary,
         'risk_dist':     risk_dist,
         'filter_impact': filter_impact,
+        'filter_variants': filter_variants,
         'lookback_dist':    [],
         'mae_dist':         mae_dist_legacy,
         'mfe_dist':         mfe_dist_legacy,
@@ -2127,6 +2129,140 @@ def compute_filter_impact(df_all):
                             filter_code=fcode, n=n, wr=wr, ev=ev_v, pf=pf,
                             removed=len(removed)))
     return results
+
+
+def compute_filter_variants(df_all):
+    """Analyze each filter's individual contribution to model performance.
+
+    Returns dict with:
+      - individual_removal: what happens when you remove just ONE filter (keep all others)
+      - individual_only: what happens when you apply ONLY this filter (remove everything else)
+      - cumulative_additive: adding filters one at a time in optimal order
+      - best_combo: the filter combination that maximizes EV
+    """
+    FILTERS = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK']
+    FILTER_LABELS = {
+        'F1_SMALL_RANGE':    'F1: Prior Range Floor',
+        'F3_SWEEP_TOO_LARGE':'F3: Sweep Max Cap',
+        'F4_NO_CLOSE_BACK':  'F4: Close-Back Required',
+    }
+
+    def stats_of(df):
+        wl = df[df['outcome'].isin(['WIN', 'LOSS'])].copy()
+        if len(wl) == 0:
+            return dict(n=0, wr=0, ev=0, pf=0, spd=0,
+                        avg_risk=0, max_dd_pct=0, sharpe=None)
+        wl['win'] = (wl['outcome'] == 'WIN').astype(int)
+        n = len(wl)
+        wins = int(wl['win'].sum())
+        wr = round(wins / n, 4)
+        win_r = float(wl.loc[wl['win'] == 1, 'r'].sum())
+        loss_r = float(abs(wl.loc[wl['win'] == 0, 'r'].sum()))
+        ev = round(float(wl['r'].sum()) / n, 3)
+        pf = round(win_r / max(loss_r, 0.001), 3)
+        avg_risk = round(float(wl['risk_pts'].mean()), 1) if 'risk_pts' in wl.columns and wl['risk_pts'].notna().any() else 0
+        # Equity curve for max DD
+        eq = float(ACCOUNT_SIZE); peak = eq; max_dd = 0.0
+        for r_val in wl['r'].values:
+            eq += float(r_val) * RISK_PER_TRADE
+            if eq > peak: peak = eq
+            dd = (peak - eq) / peak if peak > 0 else 0
+            if dd > max_dd: max_dd = dd
+        # Sharpe
+        daily_pnl = {}
+        for _, row in wl.iterrows():
+            d = str(row['date'])[:10]
+            daily_pnl[d] = daily_pnl.get(d, 0) + float(row['r']) * RISK_PER_TRADE
+        dp = list(daily_pnl.values())
+        sharpe = None
+        if len(dp) > 1:
+            mu = sum(dp) / len(dp)
+            sd = (sum((v - mu)**2 for v in dp) / (len(dp) - 1)) ** 0.5
+            if sd > 0:
+                sharpe = round(mu / sd * (252 ** 0.5), 2)
+        # SPD
+        dates = wl['date'].astype(str).str[:10].nunique()
+        spd = round(n / max(dates, 1), 2) if dates else 0
+
+        return dict(n=n, wr=wr, ev=ev, pf=pf, spd=spd,
+                    avg_risk=avg_risk, max_dd_pct=round(max_dd * 100, 2),
+                    sharpe=sharpe)
+
+    # Base: all valid trades (no rejected_by filters — SKIP/INVALID already excluded)
+    all_valid = df_all[~df_all['outcome'].isin(['SKIP', 'INVALID'])].copy()
+
+    # Fully filtered (current production)
+    fully_filtered = all_valid[all_valid['rejected_by'] == '']
+    baseline = stats_of(fully_filtered)
+    baseline['label'] = 'All Filters (current)'
+    baseline['filters'] = list(FILTERS)
+
+    # Unfiltered (no rejection filters applied — all valid setups)
+    unfiltered = stats_of(all_valid)
+    unfiltered['label'] = 'No Filters (raw)'
+    unfiltered['filters'] = []
+
+    # ── Individual removal: remove ONE filter, keep all others ────────────────
+    individual_removal = []
+    for f in FILTERS:
+        # Keep trades that passed all filters OR were only rejected by this one filter
+        kept = all_valid[(all_valid['rejected_by'] == '') | (all_valid['rejected_by'] == f)]
+        s = stats_of(kept)
+        s['label'] = f'Without {FILTER_LABELS.get(f, f)}'
+        s['removed_filter'] = f
+        s['ev_delta'] = round(s['ev'] - baseline['ev'], 3)
+        s['wr_delta'] = round((s['wr'] - baseline['wr']) * 100, 2)
+        s['n_added'] = s['n'] - baseline['n']
+        individual_removal.append(s)
+
+    # ── Individual only: apply ONLY this filter ──────────────────────────────
+    individual_only = []
+    for f in FILTERS:
+        # Keep trades that are NOT rejected by this filter (but may be rejected by others)
+        kept = all_valid[all_valid['rejected_by'] != f]
+        # Actually: "only this filter" means remove everything rejected by other filters too
+        # but keep things rejected by THIS filter included
+        # Simpler: what if ONLY this filter existed? = remove those rejected by this filter from all_valid
+        only_this = all_valid[all_valid['rejected_by'].isin(['', f]) == False]
+        only_this = all_valid[~all_valid['rejected_by'].isin([ff for ff in FILTERS if ff != f]) | (all_valid['rejected_by'] == '')]
+        # Actually simplest: apply only this one filter
+        kept = all_valid[(all_valid['rejected_by'] == '') | (~all_valid['rejected_by'].isin([f]))]
+        # This is same as individual_removal. Let me do it differently:
+        # "Only F1" means: from unfiltered, remove only F1 rejects
+        kept = all_valid[all_valid['rejected_by'] != f]
+        s = stats_of(kept)
+        s['label'] = f'Only {FILTER_LABELS.get(f, f)}'
+        s['filter'] = f
+        individual_only.append(s)
+
+    # ── All combinations (2^3 = 8) ───────────────────────────────────────────
+    from itertools import combinations
+    combos = []
+    for r in range(len(FILTERS) + 1):
+        for combo in combinations(FILTERS, r):
+            # Apply these filters: remove trades rejected by any of them
+            active_filters = set(combo)
+            # Keep trades where rejected_by is '' OR rejected_by is a filter NOT in active set
+            kept = all_valid[(all_valid['rejected_by'] == '') |
+                             (~all_valid['rejected_by'].isin(active_filters))]
+            s = stats_of(kept)
+            s['filters'] = list(combo)
+            s['label'] = ' + '.join(FILTER_LABELS.get(f, f) for f in combo) if combo else 'No Filters'
+            s['n_filters'] = len(combo)
+            combos.append(s)
+
+    # Sort by EV descending
+    combos.sort(key=lambda x: x['ev'], reverse=True)
+    best = combos[0] if combos else None
+
+    return dict(
+        baseline=baseline,
+        unfiltered=unfiltered,
+        individual_removal=individual_removal,
+        individual_only=individual_only,
+        all_combinations=combos,
+        best_combination=best,
+    )
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
