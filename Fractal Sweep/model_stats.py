@@ -39,6 +39,7 @@ Usage:
 """
 
 import argparse
+import sys
 import duckdb
 import pandas as pd
 import numpy as np
@@ -52,9 +53,43 @@ OUT_PATH  = Path(__file__).parent / 'model_stats.json'
 TABLE     = 'nq_1m'
 PHASE1_XL = Path(__file__).parent.parent / 'archive' / 'Fractal Sweep' / 'fractal_phase1_results.xlsx'
 
-# ── DATE → CLASSIFICATION MAP (from fractal_phase1_results.xlsx) ──────────────
+# ── DATE → CLASSIFICATION MAP ────────────────────────────────────────────────
+# Uses the daily_classifier engine to classify dates directly from DuckDB.
+# Falls back to the Excel file if the classifier or DB is unavailable.
 def _load_date_classification():
-    """Build {date_str: cls_key} from phase1 classification data sheets."""
+    """Build {date_str: cls_key} by running the daily classifier on DB data."""
+    # Try live classification from DuckDB first
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'NY1 FPFVG'))
+        from daily_classifier import classify_day
+        import duckdb
+
+        con = duckdb.connect(str(DB_PATH), read_only=True)
+        df = con.execute("""
+            SELECT
+                timezone('America/New_York', timestamp) AS datetime,
+                open::DOUBLE AS open, high::DOUBLE AS high,
+                low::DOUBLE  AS low,  close::DOUBLE AS close
+            FROM nq_1m
+            ORDER BY timestamp
+        """).df()
+        con.close()
+
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df['date'] = df['datetime'].dt.date
+
+        mapping = {}
+        for day, grp in df.groupby('date'):
+            grp = grp.reset_index(drop=True)
+            day_class, _ = classify_day(grp)
+            mapping[str(day)] = day_class
+
+        print(f'  Classified {len(mapping)} dates from DuckDB (live)')
+        return mapping
+    except Exception as e:
+        print(f'  [info] Live classification unavailable ({e}), trying Excel fallback...')
+
+    # Fallback: load from Excel
     try:
         import openpyxl
         wb = openpyxl.load_workbook(PHASE1_XL, read_only=True, data_only=True)
