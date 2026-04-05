@@ -3292,7 +3292,40 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
     }
   }
 
+  // ── SECTION: FILTER ANALYSIS (from main profile data) ───────────────────
+  // Fetch the full profile data to get filter_impact and filter_variants
+  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
+  const _profileD = getProfileData(fullKey, activeProfile);
+  if(_profileD){
+    // Filter Impact Waterfall
+    const fi = _profileD.filter_impact;
+    if(fi && fi.length > 1){
+      html += secHeader('Filter Impact · EV Waterfall');
+      html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)">
+        <div id="custom-filter-waterfall"></div>
+      </div>`;
+    }
+
+    // Filter Variant Analysis — reuse renderFilterVariants by embedding a container
+    const fv = _profileD.filter_variants;
+    if(fv && fv.all_combinations){
+      html += secHeader('Filter Variant Analysis');
+      html += `<div id="custom-filter-variants"></div>`;
+    }
+  }
+
   cv.innerHTML = html;
+
+  // Render filter waterfall and variants after DOM is set
+  if(_profileD){
+    if(_profileD.filter_impact && _profileD.filter_impact.length > 1){
+      filterWaterfall(document.getElementById('custom-filter-waterfall'), _profileD.filter_impact);
+    }
+    if(_profileD.filter_variants && _profileD.filter_variants.all_combinations){
+      const customPanel = document.getElementById('custom-filter-variants');
+      if(customPanel) renderFilterVariants(_profileD, customPanel);
+    }
+  }
 
   // Render canvases after DOM is ready
   if(combinedStats && combinedStats._mcRender){
@@ -4815,8 +4848,8 @@ function computeRichStudy(trades, field) {
 
 
 // ── MAE STUDY (FPFVG-style) ───────────────────────────────────────────────────
-function renderFilterVariants(D) {
-  const el = document.getElementById('filter-variants-panel');
+function renderFilterVariants(D, targetEl) {
+  const el = targetEl || document.getElementById('filter-variants-panel');
   if (!el) return;
   const fv = D.filter_variants;
   if (!fv || !fv.all_combinations) {
