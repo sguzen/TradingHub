@@ -2529,47 +2529,59 @@
               "ev_delta": 0.018,
               "wr_delta": 0.68,
               "n_added": 562
-            }
-          ],
-          "individual_only": [
-            {
-              "n": 3714,
-              "wr": 0.7316,
-              "ev": 0.524,
-              "pf": 2.953,
-              "spd": 2.45,
-              "avg_risk": 54.3,
-              "max_dd_pct": 14.68,
-              "sharpe": 9.18,
-              "label": "Only F1: Prior Range Floor",
-              "filter": "F1_SMALL_RANGE"
             },
             {
-              "n": 2788,
-              "wr": 0.7755,
-              "ev": 0.635,
-              "pf": 3.829,
-              "spd": 2.21,
-              "avg_risk": 38.0,
-              "max_dd_pct": 36.48,
-              "sharpe": 11.61,
-              "label": "Only F3: Sweep Max Cap",
-              "filter": "F3_SWEEP_TOO_LARGE"
-            },
-            {
-              "n": 4420,
-              "wr": 0.6955,
-              "ev": 0.44,
-              "pf": 2.446,
-              "spd": 2.74,
-              "avg_risk": 48.3,
-              "max_dd_pct": 31.82,
-              "sharpe": 7.55,
-              "label": "Only F4: Close-Back Required",
-              "filter": "F4_NO_CLOSE_BACK"
+              "n": 214,
+              "wr": 0.9019,
+              "ev": 0.908,
+              "pf": 10.249,
+              "spd": 1.11,
+              "avg_risk": 46.4,
+              "max_dd_pct": 3.98,
+              "sharpe": 20.37,
+              "label": "Add SMT Divergence",
+              "removed_filter": "SMT",
+              "ev_delta": 0.083,
+              "wr_delta": 4.49,
+              "n_added": -744
             }
           ],
           "all_combinations": [
+            {
+              "n": 214,
+              "wr": 0.9019,
+              "ev": 0.908,
+              "pf": 10.249,
+              "spd": 1.11,
+              "avg_risk": 46.4,
+              "max_dd_pct": 3.98,
+              "sharpe": 20.37,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F3_SWEEP_TOO_LARGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+              "n_filters": 4
+            },
+            {
+              "n": 306,
+              "wr": 0.8889,
+              "ev": 0.892,
+              "pf": 9.024,
+              "spd": 1.2,
+              "avg_risk": 48.3,
+              "max_dd_pct": 3.84,
+              "sharpe": 18.11,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F3_SWEEP_TOO_LARGE",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F3: Sweep Max Cap + SMT Divergence",
+              "n_filters": 3
+            },
             {
               "n": 1520,
               "wr": 0.8638,
@@ -2587,6 +2599,39 @@
               "n_filters": 2
             },
             {
+              "n": 423,
+              "wr": 0.8629,
+              "ev": 0.835,
+              "pf": 7.087,
+              "spd": 1.28,
+              "avg_risk": 41.8,
+              "max_dd_pct": 3.38,
+              "sharpe": 15.8,
+              "filters": [
+                "F3_SWEEP_TOO_LARGE",
+                "SMT"
+              ],
+              "label": "F3: Sweep Max Cap + SMT Divergence",
+              "n_filters": 2
+            },
+            {
+              "n": 331,
+              "wr": 0.864,
+              "ev": 0.829,
+              "pf": 7.1,
+              "spd": 1.2,
+              "avg_risk": 38.8,
+              "max_dd_pct": 5.17,
+              "sharpe": 16.09,
+              "filters": [
+                "F3_SWEEP_TOO_LARGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+              "n_filters": 3
+            },
+            {
               "n": 958,
               "wr": 0.857,
               "ev": 0.825,
@@ -2601,6 +2646,70 @@
                 "F4_NO_CLOSE_BACK"
               ],
               "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required",
+              "n_filters": 3
+            },
+            {
+              "n": 447,
+              "wr": 0.8098,
+              "ev": 0.705,
+              "pf": 4.71,
+              "spd": 1.31,
+              "avg_risk": 51.2,
+              "max_dd_pct": 5.29,
+              "sharpe": 13.38,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + SMT Divergence",
+              "n_filters": 2
+            },
+            {
+              "n": 564,
+              "wr": 0.8067,
+              "ev": 0.701,
+              "pf": 4.629,
+              "spd": 1.4,
+              "avg_risk": 45.7,
+              "max_dd_pct": 5.2,
+              "sharpe": 13.07,
+              "filters": [
+                "SMT"
+              ],
+              "label": "SMT Divergence",
+              "n_filters": 1
+            },
+            {
+              "n": 472,
+              "wr": 0.7966,
+              "ev": 0.672,
+              "pf": 4.302,
+              "spd": 1.33,
+              "avg_risk": 44.4,
+              "max_dd_pct": 7.59,
+              "sharpe": 12.49,
+              "filters": [
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F4: Close-Back Required + SMT Divergence",
+              "n_filters": 2
+            },
+            {
+              "n": 355,
+              "wr": 0.7972,
+              "ev": 0.667,
+              "pf": 4.288,
+              "spd": 1.25,
+              "avg_risk": 50.8,
+              "max_dd_pct": 6.95,
+              "sharpe": 12.69,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F4: Close-Back Required + SMT Divergence",
               "n_filters": 3
             },
             {
@@ -2695,20 +2804,22 @@
             }
           ],
           "best_combination": {
-            "n": 1520,
-            "wr": 0.8638,
-            "ev": 0.843,
-            "pf": 7.188,
-            "spd": 1.64,
-            "avg_risk": 44.6,
-            "max_dd_pct": 8.31,
-            "sharpe": 16.07,
+            "n": 214,
+            "wr": 0.9019,
+            "ev": 0.908,
+            "pf": 10.249,
+            "spd": 1.11,
+            "avg_risk": 46.4,
+            "max_dd_pct": 3.98,
+            "sharpe": 20.37,
             "filters": [
               "F1_SMALL_RANGE",
-              "F3_SWEEP_TOO_LARGE"
+              "F3_SWEEP_TOO_LARGE",
+              "F4_NO_CLOSE_BACK",
+              "SMT"
             ],
-            "label": "F1: Prior Range Floor + F3: Sweep Max Cap",
-            "n_filters": 2
+            "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+            "n_filters": 4
           }
         },
         "lookback_dist": [],
@@ -38787,47 +38898,76 @@
               "ev_delta": -0.037,
               "wr_delta": -0.92,
               "n_added": 729
-            }
-          ],
-          "individual_only": [
-            {
-              "n": 25568,
-              "wr": 0.4582,
-              "ev": 0.019,
-              "pf": 1.035,
-              "spd": 8.96,
-              "avg_risk": 44.6,
-              "max_dd_pct": 218.89,
-              "sharpe": 0.52,
-              "label": "Only F1: Prior Range Floor",
-              "filter": "F1_SMALL_RANGE"
             },
             {
-              "n": 6877,
-              "wr": 0.5302,
-              "ev": 0.277,
-              "pf": 1.59,
-              "spd": 3.24,
-              "avg_risk": 26.9,
-              "max_dd_pct": 79.79,
-              "sharpe": 4.55,
-              "label": "Only F3: Sweep Max Cap",
-              "filter": "F3_SWEEP_TOO_LARGE"
-            },
-            {
-              "n": 29717,
-              "wr": 0.4493,
-              "ev": 0.001,
-              "pf": 1.001,
-              "spd": 10.08,
-              "avg_risk": 41.0,
-              "max_dd_pct": 238.75,
-              "sharpe": 0.02,
-              "label": "Only F4: Close-Back Required",
-              "filter": "F4_NO_CLOSE_BACK"
+              "n": 259,
+              "wr": 0.7799,
+              "ev": 1.009,
+              "pf": 5.585,
+              "spd": 1.12,
+              "avg_risk": 39.2,
+              "max_dd_pct": 7.34,
+              "sharpe": 13.11,
+              "label": "Add SMT Divergence",
+              "removed_filter": "SMT",
+              "ev_delta": 0.087,
+              "wr_delta": 3.03,
+              "n_added": -1011
             }
           ],
           "all_combinations": [
+            {
+              "n": 259,
+              "wr": 0.7799,
+              "ev": 1.009,
+              "pf": 5.585,
+              "spd": 1.12,
+              "avg_risk": 39.2,
+              "max_dd_pct": 7.34,
+              "sharpe": 13.11,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F3_SWEEP_TOO_LARGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+              "n_filters": 4
+            },
+            {
+              "n": 414,
+              "wr": 0.7343,
+              "ev": 0.93,
+              "pf": 4.501,
+              "spd": 1.22,
+              "avg_risk": 32.0,
+              "max_dd_pct": 10.0,
+              "sharpe": 10.34,
+              "filters": [
+                "F3_SWEEP_TOO_LARGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+              "n_filters": 3
+            },
+            {
+              "n": 382,
+              "wr": 0.7487,
+              "ev": 0.926,
+              "pf": 4.684,
+              "spd": 1.21,
+              "avg_risk": 39.7,
+              "max_dd_pct": 6.79,
+              "sharpe": 11.56,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F3_SWEEP_TOO_LARGE",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F3: Sweep Max Cap + SMT Divergence",
+              "n_filters": 3
+            },
             {
               "n": 1270,
               "wr": 0.7496,
@@ -38846,6 +38986,22 @@
               "n_filters": 3
             },
             {
+              "n": 537,
+              "wr": 0.7225,
+              "ev": 0.889,
+              "pf": 4.204,
+              "spd": 1.31,
+              "avg_risk": 34.1,
+              "max_dd_pct": 10.0,
+              "sharpe": 10.07,
+              "filters": [
+                "F3_SWEEP_TOO_LARGE",
+                "SMT"
+              ],
+              "label": "F3: Sweep Max Cap + SMT Divergence",
+              "n_filters": 2
+            },
+            {
               "n": 1999,
               "wr": 0.7404,
               "ev": 0.885,
@@ -38860,6 +39016,70 @@
               ],
               "label": "F1: Prior Range Floor + F3: Sweep Max Cap",
               "n_filters": 2
+            },
+            {
+              "n": 947,
+              "wr": 0.6463,
+              "ev": 0.594,
+              "pf": 2.68,
+              "spd": 1.54,
+              "avg_risk": 37.5,
+              "max_dd_pct": 9.48,
+              "sharpe": 7.32,
+              "filters": [
+                "SMT"
+              ],
+              "label": "SMT Divergence",
+              "n_filters": 1
+            },
+            {
+              "n": 824,
+              "wr": 0.6408,
+              "ev": 0.571,
+              "pf": 2.589,
+              "spd": 1.48,
+              "avg_risk": 37.0,
+              "max_dd_pct": 10.23,
+              "sharpe": 7.0,
+              "filters": [
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F4: Close-Back Required + SMT Divergence",
+              "n_filters": 2
+            },
+            {
+              "n": 792,
+              "wr": 0.6439,
+              "ev": 0.554,
+              "pf": 2.557,
+              "spd": 1.45,
+              "avg_risk": 40.9,
+              "max_dd_pct": 9.16,
+              "sharpe": 7.26,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + SMT Divergence",
+              "n_filters": 2
+            },
+            {
+              "n": 669,
+              "wr": 0.6368,
+              "ev": 0.518,
+              "pf": 2.426,
+              "spd": 1.39,
+              "avg_risk": 40.9,
+              "max_dd_pct": 11.02,
+              "sharpe": 6.84,
+              "filters": [
+                "F1_SMALL_RANGE",
+                "F4_NO_CLOSE_BACK",
+                "SMT"
+              ],
+              "label": "F1: Prior Range Floor + F4: Close-Back Required + SMT Divergence",
+              "n_filters": 3
             },
             {
               "n": 6877,
@@ -38953,21 +39173,22 @@
             }
           ],
           "best_combination": {
-            "n": 1270,
-            "wr": 0.7496,
-            "ev": 0.922,
-            "pf": 4.684,
-            "spd": 1.45,
-            "avg_risk": 38.7,
-            "max_dd_pct": 9.06,
-            "sharpe": 11.53,
+            "n": 259,
+            "wr": 0.7799,
+            "ev": 1.009,
+            "pf": 5.585,
+            "spd": 1.12,
+            "avg_risk": 39.2,
+            "max_dd_pct": 7.34,
+            "sharpe": 13.11,
             "filters": [
               "F1_SMALL_RANGE",
               "F3_SWEEP_TOO_LARGE",
-              "F4_NO_CLOSE_BACK"
+              "F4_NO_CLOSE_BACK",
+              "SMT"
             ],
-            "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required",
-            "n_filters": 3
+            "label": "F1: Prior Range Floor + F3: Sweep Max Cap + F4: Close-Back Required + SMT Divergence",
+            "n_filters": 4
           }
         },
         "lookback_dist": [],

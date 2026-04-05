@@ -2139,11 +2139,12 @@ def compute_filter_variants(df_all):
       - cumulative_additive: adding filters one at a time in optimal order
       - best_combo: the filter combination that maximizes EV
     """
-    FILTERS = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK']
+    FILTERS = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK', 'SMT']
     FILTER_LABELS = {
         'F1_SMALL_RANGE':    'F1: Prior Range Floor',
         'F3_SWEEP_TOO_LARGE':'F3: Sweep Max Cap',
         'F4_NO_CLOSE_BACK':  'F4: Close-Back Required',
+        'SMT':               'SMT Divergence',
     }
 
     def stats_of(df):
@@ -2189,61 +2190,66 @@ def compute_filter_variants(df_all):
 
     # Base: all valid trades (no rejected_by filters — SKIP/INVALID already excluded)
     all_valid = df_all[~df_all['outcome'].isin(['SKIP', 'INVALID'])].copy()
+    has_smt = 'smt' in all_valid.columns
 
-    # Fully filtered (current production)
-    fully_filtered = all_valid[all_valid['rejected_by'] == '']
+    # Helper: apply a set of filters to all_valid
+    def apply_filters(active_set):
+        """Return trades that pass all filters in active_set."""
+        mask = pd.Series(True, index=all_valid.index)
+        for f in active_set:
+            if f == 'SMT':
+                # SMT filter: keep only smt=True trades
+                if has_smt:
+                    mask &= all_valid['smt'] == True
+            else:
+                # Standard rejection filter: remove trades rejected by this code
+                mask &= all_valid['rejected_by'] != f
+        return all_valid[mask]
+
+    # Standard filters (excluding SMT for baseline)
+    STD_FILTERS = [f for f in FILTERS if f != 'SMT']
+
+    # Current production baseline (F1 + F3 + F4, no SMT)
+    fully_filtered = apply_filters(STD_FILTERS)
     baseline = stats_of(fully_filtered)
     baseline['label'] = 'All Filters (current)'
-    baseline['filters'] = list(FILTERS)
+    baseline['filters'] = list(STD_FILTERS)
 
-    # Unfiltered (no rejection filters applied — all valid setups)
+    # Unfiltered
     unfiltered = stats_of(all_valid)
     unfiltered['label'] = 'No Filters (raw)'
     unfiltered['filters'] = []
 
-    # ── Individual removal: remove ONE filter, keep all others ────────────────
+    # ── Individual removal: remove ONE filter from current, keep all others ──
     individual_removal = []
     for f in FILTERS:
-        # Keep trades that passed all filters OR were only rejected by this one filter
-        kept = all_valid[(all_valid['rejected_by'] == '') | (all_valid['rejected_by'] == f)]
-        s = stats_of(kept)
-        s['label'] = f'Without {FILTER_LABELS.get(f, f)}'
-        s['removed_filter'] = f
-        s['ev_delta'] = round(s['ev'] - baseline['ev'], 3)
-        s['wr_delta'] = round((s['wr'] - baseline['wr']) * 100, 2)
-        s['n_added'] = s['n'] - baseline['n']
+        if f == 'SMT':
+            # "Add SMT" — apply all standard filters PLUS SMT
+            kept = apply_filters(STD_FILTERS + ['SMT'])
+            s = stats_of(kept)
+            s['label'] = f'Add {FILTER_LABELS.get(f, f)}'
+            s['removed_filter'] = f
+            s['ev_delta'] = round(s['ev'] - baseline['ev'], 3)
+            s['wr_delta'] = round((s['wr'] - baseline['wr']) * 100, 2)
+            s['n_added'] = s['n'] - baseline['n']  # negative = fewer trades
+        else:
+            # Remove this filter from the standard set
+            remaining = [ff for ff in STD_FILTERS if ff != f]
+            kept = apply_filters(remaining)
+            s = stats_of(kept)
+            s['label'] = f'Without {FILTER_LABELS.get(f, f)}'
+            s['removed_filter'] = f
+            s['ev_delta'] = round(s['ev'] - baseline['ev'], 3)
+            s['wr_delta'] = round((s['wr'] - baseline['wr']) * 100, 2)
+            s['n_added'] = s['n'] - baseline['n']
         individual_removal.append(s)
 
-    # ── Individual only: apply ONLY this filter ──────────────────────────────
-    individual_only = []
-    for f in FILTERS:
-        # Keep trades that are NOT rejected by this filter (but may be rejected by others)
-        kept = all_valid[all_valid['rejected_by'] != f]
-        # Actually: "only this filter" means remove everything rejected by other filters too
-        # but keep things rejected by THIS filter included
-        # Simpler: what if ONLY this filter existed? = remove those rejected by this filter from all_valid
-        only_this = all_valid[all_valid['rejected_by'].isin(['', f]) == False]
-        only_this = all_valid[~all_valid['rejected_by'].isin([ff for ff in FILTERS if ff != f]) | (all_valid['rejected_by'] == '')]
-        # Actually simplest: apply only this one filter
-        kept = all_valid[(all_valid['rejected_by'] == '') | (~all_valid['rejected_by'].isin([f]))]
-        # This is same as individual_removal. Let me do it differently:
-        # "Only F1" means: from unfiltered, remove only F1 rejects
-        kept = all_valid[all_valid['rejected_by'] != f]
-        s = stats_of(kept)
-        s['label'] = f'Only {FILTER_LABELS.get(f, f)}'
-        s['filter'] = f
-        individual_only.append(s)
-
-    # ── All combinations (2^3 = 8) ───────────────────────────────────────────
+    # ── All combinations (2^4 = 16 with SMT) ─────────────────────────────────
     from itertools import combinations
     combos = []
     for r in range(len(FILTERS) + 1):
         for combo in combinations(FILTERS, r):
-            # Apply these filters: remove trades rejected by any of them
-            active_filters = set(combo)
-            # Keep trades where rejected_by is '' OR rejected_by is a filter NOT in active set
-            kept = all_valid[(all_valid['rejected_by'] == '') |
-                             (~all_valid['rejected_by'].isin(active_filters))]
+            kept = apply_filters(list(combo))
             s = stats_of(kept)
             s['filters'] = list(combo)
             s['label'] = ' + '.join(FILTER_LABELS.get(f, f) for f in combo) if combo else 'No Filters'
@@ -2258,7 +2264,6 @@ def compute_filter_variants(df_all):
         baseline=baseline,
         unfiltered=unfiltered,
         individual_removal=individual_removal,
-        individual_only=individual_only,
         all_combinations=combos,
         best_combination=best,
     )
