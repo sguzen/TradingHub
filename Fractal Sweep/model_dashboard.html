@@ -1637,6 +1637,30 @@ function resolveWithStopCap(trades, slCapPct) {
   });
 }
 
+// Re-resolve trades with a fixed MFE-based take-profit cap.
+// Trades where mfe_pct >= tpLevelPct are converted to WIN with r = tpLevelPct / original_risk_pct.
+// Because risk_pts varies per trade we approximate the TP R-multiple as (tpLevelPct / original_mae_sl_pct)
+// but since we don't have a clean "risk_pct" field we use the trade's structural r on wins and keep losses.
+// Simpler and consistent with walk-forward logic: treat TP as a fixed fraction of the structural 1R.
+// Specifically: if mfe_pct >= tpLevelPct → WIN with r = tpLevelPct / mfe_pct * original_r  (scale winner's R)
+// For a structural-1R trade the original_r on a WIN is already 1.0, so scaled r = tpLevelPct / mfe_pct.
+// Trades that are already LOSSes and whose mfe_pct < tpLevelPct keep their original outcome.
+function resolveWithMFETarget(trades, tpLevelPct) {
+  if (tpLevelPct == null || tpLevelPct <= 0) return trades.map(t => Object.assign({}, t));
+  return trades.map(t => {
+    const mfe = t.mfe_pct;
+    if (mfe == null) return Object.assign({}, t);
+    if (mfe >= tpLevelPct) {
+      // This trade reached the TP — record as WIN with r scaled to TP level
+      const originalR = Math.abs(t.r);
+      const scaledR = originalR > 0 ? (tpLevelPct / mfe) * originalR : tpLevelPct / mfe;
+      return Object.assign({}, t, { outcome: 'WIN', r: Math.max(scaledR, 0.01) });
+    }
+    // Trade never reached TP — keep original outcome
+    return Object.assign({}, t);
+  });
+}
+
 function computeRegimeFingerprint(trades, startDate, endDate) {
   const n = trades.length;
   const avgRisk = n > 0 ? trades.reduce((s, t) => s + (t.risk_pts || 0), 0) / n : 0;
@@ -1723,6 +1747,42 @@ function buildWalkForwardPairs(rangeResults) {
           variants[vi].test.ev_r > variants[bestIdx].test.ev_r) bestIdx = vi;
     }
 
+    // MFE target variants — Structural (no TP cap), PTQ Level, P50 MFE, P75 MFE, P90 MFE
+    const mfeCapNames = ['Structural 1R', 'PTQ Level', 'P50 MFE', 'P75 MFE', 'P90 MFE'];
+
+    // Compute MFE percentiles from train winners
+    function pctlLocal(sorted, q) {
+      if (!sorted.length) return null;
+      const i = q * (sorted.length - 1);
+      const lo = Math.floor(i), hi = Math.ceil(i);
+      return lo === hi ? sorted[lo] : sorted[lo] * (hi - i) + sorted[hi] * (i - lo);
+    }
+    const trainWinners = train.trades.filter(t => t.outcome === 'WIN');
+    const trainMfeVals = trainWinners.map(t => t.mfe_pct).filter(v => v != null).sort((a, b) => a - b);
+    const mfeP50 = pctlLocal(trainMfeVals, 0.50);
+    const mfeP75 = pctlLocal(trainMfeVals, 0.75);
+    const mfeP90 = pctlLocal(trainMfeVals, 0.90);
+    const mfePtq = trainParams.mfe.ptq;
+
+    const mfeTpLevels = [null, mfePtq, mfeP50, mfeP75, mfeP90];
+    const mfeVariants = mfeTpLevels.map((tp, mi) => {
+      const trainResolved = tp != null ? resolveWithMFETarget(train.trades, tp) : train.trades.map(t => Object.assign({}, t));
+      const testResolved  = tp != null ? resolveWithMFETarget(test.trades, tp)  : test.trades.map(t => Object.assign({}, t));
+      return {
+        name: mfeCapNames[mi],
+        tp,
+        train: computeRangeStats(trainResolved),
+        test: computeRangeStats(testResolved)
+      };
+    });
+
+    // Best MFE variant for this pair: highest test EV
+    let bestMfeIdx = 0;
+    for (let mi = 1; mi < mfeVariants.length; mi++) {
+      if (mfeVariants[mi].test && mfeVariants[bestMfeIdx].test &&
+          mfeVariants[mi].test.ev_r > mfeVariants[bestMfeIdx].test.ev_r) bestMfeIdx = mi;
+    }
+
     // Extract date ranges from labels
     const trainDates = train.label.split(' to ');
     const testDates = test.label.split(' to ');
@@ -1737,6 +1797,7 @@ function buildWalkForwardPairs(rangeResults) {
     pairs.push({
       train, test, trainParams, variants,
       bestVariantIdx: bestIdx,
+      mfeVariants, bestMfeVariantIdx: bestMfeIdx,
       trainFingerprint: trainFP, testFingerprint: testFP,
       overfit
     });
@@ -2117,6 +2178,39 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
       html += `</div>`;
     });
     html += `</div>`;
+
+    // MFE Target Variant Cards (5 in a row)
+    if (pair.mfeVariants && pair.mfeVariants.length) {
+      html += `<div style="font-family:var(--font-data);font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;margin-top:4px;padding-bottom:4px;border-bottom:1px solid var(--border)">MFE Target Variants — TP Cap Analysis (Train-derived MFE levels)</div>`;
+      html += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">`;
+      pair.mfeVariants.forEach((v, mi) => {
+        const isBestMfe = mi === pair.bestMfeVariantIdx;
+        const tr = v.train, te = v.test;
+        if (!tr || !te) return;
+        const tpLabel = v.tp != null ? fmtPct(v.tp) : '1R structural';
+        html += `<div style="background:var(--bg-card);border:1px solid ${isBestMfe ? 'rgba(16,185,129,0.5)' : 'var(--border)'};border-radius:10px;overflow:hidden;${isBestMfe ? 'box-shadow:0 0 0 1px rgba(16,185,129,0.3);' : ''}">`;
+        // Card header
+        html += `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:${isBestMfe ? 'rgba(16,185,129,0.06)' : 'transparent'}">`;
+        html += `<div><div style="font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${v.name}</div>`;
+        html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">TP: ${tpLabel}</div></div>`;
+        if (isBestMfe) html += `<span style="font-family:var(--font-data);font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981">BEST</span>`;
+        html += `</div>`;
+        // Column headers
+        html += `<div style="display:flex;justify-content:flex-end;padding:6px 14px 2px;gap:8px;border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent)">`;
+        html += `<span style="width:68px;text-align:right;font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;opacity:0.5">Train</span>`;
+        html += `<span style="width:68px;text-align:right;font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Test</span>`;
+        html += `</div>`;
+        html += mRow('Win Rate %', (tr.wr*100).toFixed(1), (te.wr*100).toFixed(1), statColor(te.wr, 0.55, 0.45, false));
+        html += mRow('EV $/trade', fmtDol(tr.ev_r*RPT), fmtDol(te.ev_r*RPT), statColor(te.ev_r, 0.05, -0.05, false));
+        html += mRow('Sharpe', tr.sharpe != null ? tr.sharpe.toFixed(2) : '\u2014', te.sharpe != null ? te.sharpe.toFixed(2) : '\u2014', te.sharpe != null ? statColor(te.sharpe, 1.5, 0.5, false) : 'var(--text-muted)');
+        html += mRow('Profit Factor', tr.pf.toFixed(2), te.pf.toFixed(2), statColor(te.pf, 1.5, 1.0, false));
+        html += mRow('Max DD $', '-'+fmtDol(tr.maxDDPct/100*ACCT), '-'+fmtDol(te.maxDDPct/100*ACCT), statColor(te.maxDDPct, 10, 25, true));
+        html += mRow('Total $', fmtDol(tr.totalPnl), fmtDol(te.totalPnl), statColor(te.totalPnl, 0, -1, false));
+        html += mRow('Final Bal $', fmtDol(ACCT + tr.totalPnl), fmtDol(ACCT + te.totalPnl), statColor(ACCT + te.totalPnl, ACCT, ACCT*0.5, false));
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
 
     // Distribution overlay placeholders (2 canvases per pair)
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">`;
@@ -5001,6 +5095,74 @@ function renderMAEStudy(D) {
     _drawMAEProbCurve(document.getElementById('mae-prob-canvas'), dist.sl_sweep||[], dist);
     _drawExcursionHeatmap(document.getElementById('mae-dow-heatmap'), D.mae_heatmap, dist.median, 'MAE %');
   });
+
+  // ── Stop Variant Cards ────────────────────────────────────────────────────
+  // Show how performance changes under 5 MAE-based stop caps applied to all trades.
+  (function renderMAEStopVariants() {
+    const trades = allTrades;
+    if (trades.length < 5) return;
+
+    const ACCT_SV = 4500, RPT_SV = 225;
+    const params = computeTrainParams(trades);
+    if (!params) return;
+
+    const capNames = ['Structural', 'Max MAE', 'P90 MAE', 'P85 MAE', 'P50 MAE'];
+    const caps = [Infinity, params.mae.max, params.mae.p90, params.mae.p85, params.mae.p50];
+
+    const variants = caps.map((cap, ci) => {
+      const resolved = resolveWithStopCap(trades, cap);
+      const stats = computeRangeStats(resolved);
+      return { name: capNames[ci], cap, stats };
+    });
+
+    // Best = highest EV
+    let bestIdx = 0;
+    for (let i = 1; i < variants.length; i++) {
+      if (variants[i].stats && variants[bestIdx].stats &&
+          variants[i].stats.ev_r > variants[bestIdx].stats.ev_r) bestIdx = i;
+    }
+
+    const fmtPctSV = v => v != null && isFinite(v) ? (+v).toFixed(4) + '%' : '—';
+    const fmtDolSV = v => '$' + Math.round(v).toLocaleString();
+    function scSV(val, threshGood, threshBad, invert) {
+      if (invert) return val <= threshGood ? 'var(--green)' : val >= threshBad ? 'var(--red)' : 'var(--amber)';
+      return val >= threshGood ? 'var(--green)' : val <= threshBad ? 'var(--red)' : 'var(--amber)';
+    }
+
+    let html = `<div class="panel" style="margin-bottom:14px">
+      <div class="ph"><span class="ph-title">Stop Variant Analysis</span><span class="ph-note">Performance impact of MAE-based stop caps on current trades · BEST = highest EV</span></div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">`;
+
+    variants.forEach((v, vi) => {
+      const s = v.stats;
+      if (!s) return;
+      const isBest = vi === bestIdx;
+      const capLabel = v.cap === Infinity ? 'sweep extreme' : fmtPctSV(v.cap);
+      html += `<div style="background:var(--bg-raised);border:1px solid ${isBest ? 'var(--green-border)' : 'var(--border)'};border-radius:10px;overflow:hidden;${isBest ? 'box-shadow:0 0 0 1px var(--green-border);' : ''}">`;
+      html += `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;${isBest ? 'background:var(--green-tint);' : ''}">`;
+      html += `<div><div style="font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${v.name}</div>`;
+      html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">SL: ${capLabel}</div></div>`;
+      if (isBest) html += `<span style="font-family:var(--font-data);font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;background:var(--green-tint);border:1px solid var(--green-border);color:var(--green)">BEST</span>`;
+      html += `</div>`;
+      const row = (lbl, val, color) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent)">
+        <span style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${lbl}</span>
+        <span style="font-family:var(--font-data);font-size:12px;font-weight:700;color:${color}">${val}</span>
+      </div>`;
+      html += row('Win Rate %', (s.wr*100).toFixed(1)+'%', scSV(s.wr, 0.55, 0.45, false));
+      html += row('EV $/trade', fmtDolSV(s.ev_r * RPT_SV), scSV(s.ev_r, 0.05, -0.05, false));
+      html += row('Sharpe', s.sharpe != null ? s.sharpe.toFixed(2) : '\u2014', s.sharpe != null ? scSV(s.sharpe, 1.5, 0.5, false) : 'var(--text-muted)');
+      html += row('Profit Factor', s.pf.toFixed(2), scSV(s.pf, 1.5, 1.0, false));
+      html += row('Max DD $', '-' + fmtDolSV(s.maxDDPct / 100 * ACCT_SV), scSV(s.maxDDPct, 10, 25, true));
+      html += row('Max Consec L', s.mcl, scSV(s.mcl, 5, 10, true));
+      html += row('Total $', fmtDolSV(s.totalPnl), scSV(s.totalPnl, 0, -1, false));
+      html += row('Final Bal $', fmtDolSV(ACCT_SV + s.totalPnl), scSV(ACCT_SV + s.totalPnl, ACCT_SV, ACCT_SV * 0.5, false));
+      html += `</div>`;
+    });
+
+    html += `</div></div></div>`;
+    el.insertAdjacentHTML('beforeend', html);
+  })();
 }
 
 
@@ -5320,6 +5482,86 @@ function renderMFEStudy(D) {
     _drawMFEProbCurve(document.getElementById('mfe-prob-canvas'), dist.be_triggers||[], dist);
     _drawExcursionHeatmap(document.getElementById('mfe-dow-heatmap'), D.mfe_heatmap, dist.median, 'MFE %');
   });
+
+  // ── MFE Target Variant Cards ──────────────────────────────────────────────
+  // Show how performance changes under 5 MFE-based take-profit caps applied to all trades.
+  (function renderMFETargetVariants() {
+    const trades = allTrades;
+    if (trades.length < 5) return;
+
+    const ACCT_TV = 4500, RPT_TV = 225;
+    const params = computeTrainParams(trades);
+    // Compute MFE percentiles from winners (use all trades as proxy for train here)
+    function pctlTV(sorted, q) {
+      if (!sorted.length) return null;
+      const i = q * (sorted.length - 1);
+      const lo = Math.floor(i), hi = Math.ceil(i);
+      return lo === hi ? sorted[lo] : sorted[lo] * (hi - i) + sorted[hi] * (i - lo);
+    }
+    const winners = trades.filter(t => t.outcome === 'WIN');
+    const mfeValsTV = winners.map(t => t.mfe_pct).filter(v => v != null).sort((a, b) => a - b);
+    const mfeP50TV = pctlTV(mfeValsTV, 0.50);
+    const mfeP75TV = pctlTV(mfeValsTV, 0.75);
+    const mfeP90TV = pctlTV(mfeValsTV, 0.90);
+    const mfePtqTV = params ? params.mfe.ptq : null;
+
+    const varNames = ['Structural 1R', 'PTQ Level', 'P50 MFE', 'P75 MFE', 'P90 MFE'];
+    const tpLevels = [null, mfePtqTV, mfeP50TV, mfeP75TV, mfeP90TV];
+
+    const variants = tpLevels.map((tp, vi) => {
+      const resolved = tp != null ? resolveWithMFETarget(trades, tp) : trades.map(t => Object.assign({}, t));
+      const stats = computeRangeStats(resolved);
+      return { name: varNames[vi], tp, stats };
+    });
+
+    // Best = highest EV
+    let bestIdx = 0;
+    for (let i = 1; i < variants.length; i++) {
+      if (variants[i].stats && variants[bestIdx].stats &&
+          variants[i].stats.ev_r > variants[bestIdx].stats.ev_r) bestIdx = i;
+    }
+
+    const fmtPctTV = v => v != null && isFinite(v) ? (+v).toFixed(4) + '%' : '—';
+    const fmtDolTV = v => '$' + Math.round(v).toLocaleString();
+    function scTV(val, threshGood, threshBad, invert) {
+      if (invert) return val <= threshGood ? 'var(--green)' : val >= threshBad ? 'var(--red)' : 'var(--amber)';
+      return val >= threshGood ? 'var(--green)' : val <= threshBad ? 'var(--red)' : 'var(--amber)';
+    }
+
+    let html = `<div class="panel" style="margin-bottom:14px">
+      <div class="ph"><span class="ph-title">Target Variant Analysis</span><span class="ph-note">Performance impact of MFE-based TP caps on current trades · BEST = highest EV</span></div>
+      <div class="pb">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">`;
+
+    variants.forEach((v, vi) => {
+      const s = v.stats;
+      if (!s) return;
+      const isBest = vi === bestIdx;
+      const tpLabel = v.tp != null ? fmtPctTV(v.tp) : '1R structural';
+      html += `<div style="background:var(--bg-raised);border:1px solid ${isBest ? 'rgba(16,185,129,0.5)' : 'var(--border)'};border-radius:10px;overflow:hidden;${isBest ? 'box-shadow:0 0 0 1px rgba(16,185,129,0.3);' : ''}">`;
+      html += `<div style="padding:10px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;${isBest ? 'background:var(--green-tint);' : ''}">`;
+      html += `<div><div style="font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${v.name}</div>`;
+      html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted)">TP: ${tpLabel}</div></div>`;
+      if (isBest) html += `<span style="font-family:var(--font-data);font-size:9px;font-weight:700;padding:2px 8px;border-radius:3px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);color:#10b981">BEST</span>`;
+      html += `</div>`;
+      const row = (lbl, val, color) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 12px;border-bottom:1px solid color-mix(in srgb,var(--border) 30%,transparent)">
+        <span style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${lbl}</span>
+        <span style="font-family:var(--font-data);font-size:12px;font-weight:700;color:${color}">${val}</span>
+      </div>`;
+      html += row('Win Rate %', (s.wr*100).toFixed(1)+'%', scTV(s.wr, 0.55, 0.45, false));
+      html += row('EV $/trade', fmtDolTV(s.ev_r * RPT_TV), scTV(s.ev_r, 0.05, -0.05, false));
+      html += row('Sharpe', s.sharpe != null ? s.sharpe.toFixed(2) : '\u2014', s.sharpe != null ? scTV(s.sharpe, 1.5, 0.5, false) : 'var(--text-muted)');
+      html += row('Profit Factor', s.pf.toFixed(2), scTV(s.pf, 1.5, 1.0, false));
+      html += row('Max DD $', '-' + fmtDolTV(s.maxDDPct / 100 * ACCT_TV), scTV(s.maxDDPct, 10, 25, true));
+      html += row('Max Consec L', s.mcl, scTV(s.mcl, 5, 10, true));
+      html += row('Total $', fmtDolTV(s.totalPnl), scTV(s.totalPnl, 0, -1, false));
+      html += row('Final Bal $', fmtDolTV(ACCT_TV + s.totalPnl), scTV(ACCT_TV + s.totalPnl, ACCT_TV, ACCT_TV * 0.5, false));
+      html += `</div>`;
+    });
+
+    html += `</div></div></div>`;
+    el.insertAdjacentHTML('beforeend', html);
+  })();
 }
 
 
