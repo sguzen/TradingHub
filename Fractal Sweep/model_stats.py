@@ -2093,11 +2093,10 @@ def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
 
 
 def compute_filter_impact(df_all):
-    FILTER_ORDER  = ['F1_SMALL_RANGE','F2_SWEEP_TOO_SMALL','F3_SWEEP_TOO_LARGE',
+    FILTER_ORDER  = ['F1_SMALL_RANGE','F3_SWEEP_TOO_LARGE',
                      'F4_NO_CLOSE_BACK','NO_CISD','INVALID_RISK','RISK_TOO_LARGE']
     FILTER_LABELS_MAP = {
         'F1_SMALL_RANGE':    'F1: Prior Range Floor',
-        'F2_SWEEP_TOO_SMALL':'F2: Sweep Min Size',
         'F3_SWEEP_TOO_LARGE':'F3: Sweep Max Cap',
         'F4_NO_CLOSE_BACK':  'F4: Close-Back Required',
         'NO_CISD':           'No CISD Formed',
