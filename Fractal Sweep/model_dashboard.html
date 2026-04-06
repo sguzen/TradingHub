@@ -1818,7 +1818,7 @@ function applyCustomRanges(){
   const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
   const baseD = getProfileData(fullKey, activeProfile);
   if(!baseD || !baseD.recent_trades) return;
-  const allTrades = baseD.recent_trades;
+  const allTrades = getSmtFilteredTrades(baseD.recent_trades);
   const rangeResults = customRanges.map((r, i) => {
     if(!r.start || !r.end) return null;
     const filtered = allTrades.filter(t => t.date >= r.start && t.date <= r.end);
