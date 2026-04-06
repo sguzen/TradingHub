@@ -3302,11 +3302,17 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
 
   cv.innerHTML = html;
 
-  // Render profile comparison after DOM is set
+  // Render profile comparison — match exact trade dates from combinedStats
   if(_profileD){
     const compPanel = document.getElementById('custom-profile-comparison');
-    const activeRanges = customRanges.filter(r => r.start && r.end);
-    if(compPanel) renderProfileComparison(compPanel, activeRanges);
+    if(compPanel && combinedStats && combinedStats._trades && combinedStats._trades.length > 0){
+      // Pass exact trade dates so each profile filters to the same set of dates
+      const tradeDateSet = new Set(combinedStats._trades.map(t => t.date));
+      renderProfileComparison(compPanel, null, tradeDateSet);
+    } else if(compPanel){
+      const activeRanges = customRanges.filter(r => r.start && r.end);
+      renderProfileComparison(compPanel, activeRanges);
+    }
   }
 
   // Render canvases after DOM is ready
@@ -4831,7 +4837,7 @@ function computeRichStudy(trades, field) {
 
 
 // ── MAE STUDY (FPFVG-style) ───────────────────────────────────────────────────
-function renderProfileComparison(targetEl, dateRanges) {
+function renderProfileComparison(targetEl, dateRanges, tradeDateSet) {
   const el = targetEl || document.getElementById('profile-comparison-panel');
   if (!el) return;
 
@@ -4900,12 +4906,16 @@ function renderProfileComparison(targetEl, dateRanges) {
 
     let wr, ev, pf, n, sharpe, maxDD, totalPnl, minEq, blown, mcw, mcl;
 
-    // Determine if we need to recompute from trades (SMT filter or date ranges)
-    const needsRecompute = activeSmt || dateRanges;
+    // Determine if we need to recompute from trades (SMT filter, date ranges, or exact date set)
+    const needsRecompute = activeSmt || dateRanges || tradeDateSet;
     if (needsRecompute && d.recent_trades) {
       let trades = d.recent_trades;
+      // Apply exact date set filter (from custom ranges combined trades)
+      if (tradeDateSet) {
+        trades = trades.filter(t => tradeDateSet.has(t.date));
+      }
       // Apply date range filter
-      if (dateRanges && dateRanges.length > 0) {
+      else if (dateRanges && dateRanges.length > 0) {
         trades = trades.filter(t => dateRanges.some(r => t.date >= r.start && t.date <= r.end));
       }
       // Apply SMT filter
