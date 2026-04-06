@@ -314,6 +314,22 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
     <label class="sel-label">Risk Profile</label>
     <select id="profile-select" class="sel-drop" onchange="switchProfile(this.value)"></select>
   </div>
+  <div class="sel-group">
+    <label class="sel-label">Entry Hour</label>
+    <select id="hour-filter" class="sel-drop" onchange="switchHourFilter(this.value)">
+      <option value="all">All</option>
+      <option value="7">7 AM</option>
+      <option value="8">8 AM</option>
+      <option value="9">9 AM</option>
+      <option value="10">10 AM</option>
+      <option value="11">11 AM</option>
+      <option value="12">12 PM</option>
+      <option value="13">1 PM</option>
+      <option value="14">2 PM</option>
+      <option value="15">3 PM</option>
+      <option value="16">4 PM</option>
+    </select>
+  </div>
   <div class="sel-group" style="justify-content:flex-end;">
     <label class="sel-label">&nbsp;</label>
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;">
@@ -327,6 +343,7 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
     <span style="font-family:var(--font-data);font-size:10px;font-weight:600;letter-spacing:0.06em;color:var(--text-muted);text-transform:uppercase;">Date Ranges</span>
     <button id="add-range-btn" onclick="addCustomRange()" style="font-family:var(--font-data);font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text-secondary);cursor:pointer;">+ Add Range</button>
+    <button onclick="loadDefaultRanges()" style="font-family:var(--font-data);font-size:11px;padding:4px 10px;border-radius:6px;border:1px solid var(--amber);background:rgba(245,158,11,0.1);color:var(--amber);cursor:pointer;">Load Defaults</button>
     <button onclick="applyCustomRanges()" style="font-family:var(--font-data);font-size:11px;font-weight:600;padding:4px 14px;border-radius:6px;border:1px solid var(--green);background:rgba(52,211,153,0.1);color:var(--green);cursor:pointer;">Apply</button>
   </div>
   <div id="range-slots" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
@@ -669,12 +686,22 @@ function switchMFESeg(seg) {
 // ── SMT FILTER ────────────────────────────────────────────────────────────
 function getSmtFilteredTrades(trades) {
   if (!trades) return trades;
-  if (activeSmt) return trades.filter(t => t.smt === true);
-  return trades;
+  let filtered = trades;
+  if (activeSmt) filtered = filtered.filter(t => t.smt === true);
+  if (activeHourFilter != null) filtered = filtered.filter(t => t.hr === activeHourFilter);
+  return filtered;
 }
 
 function switchSMT(checked) {
   activeSmt = !!checked;
+  _tradesPage = 0;
+  const D = _getActiveD();
+  if (!D) return;
+  renderActive();
+}
+
+function switchHourFilter(val) {
+  activeHourFilter = val === 'all' ? null : parseInt(val);
   _tradesPage = 0;
   const D = _getActiveD();
   if (!D) return;
@@ -977,6 +1004,7 @@ let activeCisd    = 'CISD';
 let activeProfile = 'structural_dynamic';
 let activeTF      = 'all';  // 'all' | '2y' | '1y' | '6m' | '3m' | '1m'
 let activeSmt     = false;  // false = show all, true = filter to smt===true only
+let activeHourFilter = null;  // null = all hours, number = filter to that hour
 
 const RR_PROFILES = [
   'structural_dynamic',
@@ -1360,6 +1388,19 @@ const _RANGE_PALETTE = ['#3b82f6','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#06b6
 const RANGE_COLORS = new Proxy(_RANGE_PALETTE, { get: (t, p) => typeof p === 'string' && !isNaN(p) ? t[p % t.length] : t[p] });
 const COMBINED_COLOR = '#94a3b8';
 let customRanges = JSON.parse(localStorage.getItem('fractal-custom-ranges') || '[]');
+
+function loadDefaultRanges(){
+  const now = new Date();
+  const m3 = new Date(now); m3.setMonth(m3.getMonth() - 3);
+  const fmt = d => d.toISOString().slice(0,10);
+  customRanges = [
+    {start:'2022-03-01', end:'2022-05-31'},
+    {start:'2025-10-01', end:'2025-12-31'},
+    {start: fmt(m3), end: fmt(now)},
+  ];
+  saveAndRenderRanges();
+  applyCustomRanges();
+}
 
 function renderRangeSlots(){
   const container = document.getElementById('range-slots');
@@ -3630,14 +3671,16 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
   } // end _renderKDE
 }
 
-// ── SMT DATA OVERRIDE ────────────────────────────────────────────────────────
-// When SMT checkbox is checked, recompute aggregated stats from filtered trades
-// so hero tiles, by_hour, by_session, by_dow, and dir_summary all reflect SMT-only trades.
+// ── TRADE FILTER DATA OVERRIDE ───────────────────────────────────────────────
+// When SMT or Hour filter is active, recompute aggregated stats from filtered trades
+// so hero tiles, by_hour, by_session, by_dow, and dir_summary all reflect filtered trades.
 function getSmtD(D) {
-  if (!activeSmt) return D;
+  if (!activeSmt && activeHourFilter == null) return D;
   const rawTrades = D?.recent_trades;
   if (!rawTrades || !rawTrades.length) return D;
-  const trades = rawTrades.filter(t => t.smt === true);
+  let trades = rawTrades;
+  if (activeSmt) trades = trades.filter(t => t.smt === true);
+  if (activeHourFilter != null) trades = trades.filter(t => t.hr === activeHourFilter);
   if (!trades.length) return D;
 
   const wins = trades.filter(t => t.outcome === 'WIN');
@@ -5098,7 +5141,7 @@ function renderProfileComparison(targetEl, dateRanges, tradeDateSet) {
     let wr, ev, pf, n, sharpe, maxDD, totalPnl, minEq, blown, mcw, mcl;
 
     // Determine if we need to recompute from trades (SMT filter, date ranges, or exact date set)
-    const needsRecompute = activeSmt || dateRanges || tradeDateSet;
+    const needsRecompute = activeSmt || activeHourFilter != null || dateRanges || tradeDateSet;
     if (needsRecompute && d.recent_trades) {
       let trades = d.recent_trades;
       // Apply exact date set filter (from custom ranges combined trades)
@@ -5112,6 +5155,10 @@ function renderProfileComparison(targetEl, dateRanges, tradeDateSet) {
       // Apply SMT filter
       if (activeSmt) {
         trades = trades.filter(t => t.smt === true);
+      }
+      // Apply hour filter
+      if (activeHourFilter != null) {
+        trades = trades.filter(t => t.hr === activeHourFilter);
       }
       const s = statsFromTrades(trades);
       ({wr, ev, pf, n, sharpe, maxDD, totalPnl, minEq, blown, mcw, mcl} = s);
@@ -5233,6 +5280,8 @@ function renderVerdict(targetEl, opts = {}) {
     if (tradeDateSet) pt = pt.filter(t => tradeDateSet.has(t.date));
     // Apply SMT filter
     if (activeSmt) pt = pt.filter(t => t.smt === true);
+    // Apply 8 AM hour filter
+    if (activeHourFilter != null) pt = pt.filter(t => t.hr === activeHourFilter);
     const wl = pt.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
     if (wl.length < 5) return null;
     const n = wl.length;
@@ -5492,12 +5541,18 @@ function renderFilterVariants(D, targetEl) {
   // Determine currently active filter set based on SMT checkbox
   const activeFilters = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK'];
   if (activeSmt) activeFilters.push('SMT');
-  const activeLabel = activeFilters.map(f => ({
+  if (activeHourFilter != null) activeFilters.push('HOUR_' + activeHourFilter);
+  const filterLabels = {
     'F1_SMALL_RANGE': 'F1: Prior Range Floor',
     'F3_SWEEP_TOO_LARGE': 'F3: Sweep Max Cap',
     'F4_NO_CLOSE_BACK': 'F4: Close-Back Required',
     'SMT': 'SMT Divergence',
-  }[f])).join(' + ');
+  };
+  if (activeHourFilter != null) {
+    const h = activeHourFilter;
+    filterLabels['HOUR_' + h] = (h > 12 ? (h-12) + ' PM' : h + ' AM') + ' Only';
+  }
+  const activeLabel = activeFilters.map(f => filterLabels[f]).join(' + ');
 
   const maxEV = Math.max(...combos.map(c => Math.abs(c.ev)));
   combos.forEach((c, i) => {
