@@ -457,6 +457,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 
     <div class="sec-label">Risk Profile Comparison</div>
     <div id="profile-comparison-panel"></div>
+
+    <div id="overview-verdict-panel" style="margin-top:8px"></div>
   </div>
 
   <!-- ══ TAB: EDGE ══════════════════════════════════════════════════════════ -->
@@ -3415,175 +3417,24 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
 
   // ── VERDICT ────────────────────────────────────────────────────────────────
   if(combinedStats && combinedStats.n >= 10 && _profileD){
-    const cs = combinedStats;
-    const trades = cs._trades || [];
-    const rangeResults = cs._rangeResults || [];
-    const ACCT_V = 4500, RPT_V = 225;
-
-    // ── 1. Score each profile ────────────────────────────────────────────────
-    const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
-    const base = DATA[fullKey];
-    const profileScores = [];
-    if(base && base.profiles){
-      const tradeDateSet = trades.length > 0 ? new Set(trades.map(t => t.date)) : null;
-      Object.keys(base.profiles).forEach(pk => {
-        const pd = base.profiles[pk];
-        if(!pd || !pd.recent_trades) return;
-        let pt = pd.recent_trades;
-        if(tradeDateSet) pt = pt.filter(t => tradeDateSet.has(t.date));
-        if(activeSmt) pt = pt.filter(t => t.smt === true);
-        const wl = pt.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
-        if(wl.length < 5) return;
-        const n = wl.length;
-        const wins = wl.filter(t => t.outcome === 'WIN').length;
-        const wr = wins / n;
-        const sumW = wl.filter(t => t.r > 0).reduce((s,t) => s+t.r, 0);
-        const sumL = wl.filter(t => t.r <= 0).reduce((s,t) => s+Math.abs(t.r), 0);
-        const ev = (sumW - sumL) / n;
-        const pf = sumL > 0 ? sumW / sumL : sumW > 0 ? 99 : 0;
-        // Max DD
-        let eq = ACCT_V, peak = ACCT_V, maxDD = 0;
-        wl.sort((a,b) => a.date.localeCompare(b.date)).forEach(t => {
-          eq += t.r * RPT_V;
-          if(eq > peak) peak = eq;
-          const dd = peak > 0 ? (peak - eq) / peak : 0;
-          if(dd > maxDD) maxDD = dd;
-        });
-        // Sharpe
-        const dp = {};
-        wl.forEach(t => { dp[t.date] = (dp[t.date]||0) + t.r * RPT_V; });
-        const dpArr = Object.values(dp);
-        let sharpe = null;
-        if(dpArr.length > 1){
-          const mu = dpArr.reduce((s,v)=>s+v,0)/dpArr.length;
-          const sd = Math.sqrt(dpArr.reduce((s,v)=>s+(v-mu)**2,0)/(dpArr.length-1));
-          if(sd > 0) sharpe = mu / sd * Math.sqrt(252);
-        }
-        const label = (PROFILE_LABELS[pk] || pk).split('—')[0].trim();
-        profileScores.push({pk, label, n, wr, ev, pf, sharpe, maxDD: maxDD*100, blown: eq <= 0});
-      });
-    }
-
-    // ── 2. Pick best profile ─────────────────────────────────────────────────
-    // Composite score: EV (40%) + Sharpe (30%) + low DD (20%) + high PF (10%)
-    profileScores.forEach(p => {
-      const normEV = Math.max(0, p.ev) / Math.max(...profileScores.map(x => Math.max(0.001, x.ev)));
-      const normSharpe = p.sharpe != null ? Math.max(0, p.sharpe) / Math.max(...profileScores.map(x => Math.max(0.001, x.sharpe || 0))) : 0;
-      const normDD = 1 - Math.min(1, p.maxDD / 50); // 0% DD = 1.0, 50% DD = 0.0
-      const normPF = Math.min(1, p.pf / 10); // PF 10 = 1.0
-      p.score = normEV * 0.40 + normSharpe * 0.30 + normDD * 0.20 + normPF * 0.10;
-    });
-    profileScores.sort((a,b) => b.score - a.score);
-    const best = profileScores[0];
-    if(!best){ cv.innerHTML = html; return; }
-
-    // ── 3. Assess edge confidence ────────────────────────────────────────────
-    const signals = [];
-    let edgeScore = 0, maxEdgeScore = 0;
-
-    // EV positive?
-    maxEdgeScore += 2;
-    if(best.ev > 0.3) { edgeScore += 2; signals.push({text: `EV ${best.ev.toFixed(3)}R per trade`, color: 'var(--green)'}); }
-    else if(best.ev > 0) { edgeScore += 1; signals.push({text: `EV ${best.ev.toFixed(3)}R — marginal edge`, color: 'var(--amber)'}); }
-    else { signals.push({text: `Negative EV ${best.ev.toFixed(3)}R`, color: 'var(--red)'}); }
-
-    // Win rate above breakeven?
-    maxEdgeScore += 1;
-    const beWR = 1 / (1 + (best.pf > 0 ? best.pf : 1));
-    if(best.wr > beWR + 0.10) { edgeScore += 1; }
-
-    // Sharpe decent?
-    maxEdgeScore += 2;
-    if(best.sharpe != null && best.sharpe > 2) { edgeScore += 2; signals.push({text: `Sharpe ${best.sharpe.toFixed(1)} — strong risk-adjusted`, color: 'var(--green)'}); }
-    else if(best.sharpe != null && best.sharpe > 1) { edgeScore += 1; signals.push({text: `Sharpe ${best.sharpe.toFixed(1)}`, color: 'var(--amber)'}); }
-
-    // Max DD survivable?
-    maxEdgeScore += 2;
-    if(best.maxDD < 10) { edgeScore += 2; signals.push({text: `Max DD ${best.maxDD.toFixed(1)}% — low risk`, color: 'var(--green)'}); }
-    else if(best.maxDD < 25) { edgeScore += 1; signals.push({text: `Max DD ${best.maxDD.toFixed(1)}%`, color: 'var(--amber)'}); }
-    else { signals.push({text: `Max DD ${best.maxDD.toFixed(1)}% — high risk`, color: 'var(--red)'}); }
-
-    // Walk-forward stability?
-    if(pairs.length > 0){
-      maxEdgeScore += 2;
-      const overfitScores = pairs.map(p => {
-        const bv = p.variants[p.bestVariantIdx];
-        return (bv.train && bv.test && bv.train.ev_r > 0) ? (bv.test.ev_r / bv.train.ev_r) * 100 : 0;
-      }).filter(s => s > 0);
-      const avgOverfit = overfitScores.length > 0 ? overfitScores.reduce((s,v)=>s+v,0)/overfitScores.length : 0;
-      if(avgOverfit >= 80) { edgeScore += 2; signals.push({text: `Walk-forward ${Math.round(avgOverfit)}% — robust`, color: 'var(--green)'}); }
-      else if(avgOverfit >= 50) { edgeScore += 1; signals.push({text: `Walk-forward ${Math.round(avgOverfit)}% — mild decay`, color: 'var(--amber)'}); }
-      else { signals.push({text: `Walk-forward ${Math.round(avgOverfit)}% — overfitting risk`, color: 'var(--red)'}); }
-    }
-
-    // SMT boost available?
-    if(trades.some(t => t.smt != null)){
-      const smtTrades = trades.filter(t => t.smt === true && (t.outcome === 'WIN' || t.outcome === 'LOSS'));
-      const noSmtTrades = trades.filter(t => !t.smt && (t.outcome === 'WIN' || t.outcome === 'LOSS'));
-      if(smtTrades.length >= 5 && noSmtTrades.length >= 5){
-        const smtWR = smtTrades.filter(t => t.outcome === 'WIN').length / smtTrades.length;
-        const noSmtWR = noSmtTrades.filter(t => t.outcome === 'WIN').length / noSmtTrades.length;
-        if(smtWR > noSmtWR + 0.03){
-          signals.push({text: `SMT filter: ${(smtWR*100).toFixed(0)}% vs ${(noSmtWR*100).toFixed(0)}% WR (+${((smtWR-noSmtWR)*100).toFixed(1)}%)`, color: 'var(--green)'});
-        }
-      }
-    }
-
-    // ── 4. Overall verdict ───────────────────────────────────────────────────
-    const confidence = maxEdgeScore > 0 ? edgeScore / maxEdgeScore : 0;
-    let verdict, verdictColor, verdictBg;
-    if(best.blown) {
-      verdict = 'NOT VIABLE'; verdictColor = '#ef4444'; verdictBg = 'rgba(239,68,68,0.08)';
-    } else if(confidence >= 0.75 && best.ev > 0.2) {
-      verdict = 'TRADEABLE EDGE'; verdictColor = '#10b981'; verdictBg = 'rgba(16,185,129,0.06)';
-    } else if(confidence >= 0.50 && best.ev > 0) {
-      verdict = 'CONDITIONAL EDGE'; verdictColor = '#f59e0b'; verdictBg = 'rgba(245,158,11,0.06)';
-    } else if(best.ev > 0) {
-      verdict = 'WEAK EDGE'; verdictColor = '#f59e0b'; verdictBg = 'rgba(245,158,11,0.04)';
-    } else {
-      verdict = 'NO EDGE'; verdictColor = '#ef4444'; verdictBg = 'rgba(239,68,68,0.06)';
-    }
-
-    // ── 5. Why this profile ──────────────────────────────────────────────────
-    let whyProfile = '';
-    if(profileScores.length >= 2){
-      const second = profileScores[1];
-      if(best.ev > second.ev && best.sharpe >= (second.sharpe || 0)){
-        whyProfile = `Higher EV (${best.ev.toFixed(3)}R vs ${second.ev.toFixed(3)}R) with better risk-adjusted returns`;
-      } else if(best.ev > second.ev){
-        whyProfile = `Highest EV (${best.ev.toFixed(3)}R) across ${best.n} trades`;
-      } else if(best.maxDD < second.maxDD){
-        whyProfile = `Lower drawdown (${best.maxDD.toFixed(1)}% vs ${second.maxDD.toFixed(1)}%) with comparable returns`;
-      } else {
-        whyProfile = `Best composite score (EV + Sharpe + DD + PF)`;
-      }
-    }
-
-    html += `<div style="background:${verdictBg};border:2px solid ${verdictColor}40;border-radius:12px;padding:24px;margin-top:24px">
-      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-        <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:${verdictColor};letter-spacing:-0.02em">${verdict}</div>
-        <div style="font-family:var(--font-data);font-size:13px;font-weight:700;color:var(--text-primary);padding:4px 12px;border-radius:6px;background:var(--bg-raised);border:1px solid var(--border)">${best.label}</div>
-        <div style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${best.n} trades · ${(best.wr*100).toFixed(1)}% WR · ${best.pf.toFixed(2)} PF</div>
-      </div>
-      ${whyProfile ? `<div style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);margin-bottom:14px">${whyProfile}</div>` : ''}
-      <div style="display:flex;flex-wrap:wrap;gap:8px">
-        ${signals.map(s => `<span style="font-family:var(--font-data);font-size:11px;padding:4px 10px;border-radius:5px;background:var(--bg-raised);border:1px solid var(--border);color:${s.color}">${s.text}</span>`).join('')}
-      </div>
-    </div>`;
+    html += `<div id="custom-verdict-panel" style="margin-top:24px"></div>`;
   }
 
   cv.innerHTML = html;
 
-  // Render profile comparison — match exact trade dates from combinedStats
+  // Render profile comparison and verdict — match exact trade dates from combinedStats
   if(_profileD){
     const compPanel = document.getElementById('custom-profile-comparison');
-    if(compPanel && combinedStats && combinedStats._trades && combinedStats._trades.length > 0){
-      // Pass exact trade dates so each profile filters to the same set of dates
-      const tradeDateSet = new Set(combinedStats._trades.map(t => t.date));
-      renderProfileComparison(compPanel, null, tradeDateSet);
-    } else if(compPanel){
-      const activeRanges = customRanges.filter(r => r.start && r.end);
-      renderProfileComparison(compPanel, activeRanges);
+    const verdictPanel = document.getElementById('custom-verdict-panel');
+    const tradeDateSet = (combinedStats && combinedStats._trades && combinedStats._trades.length > 0)
+      ? new Set(combinedStats._trades.map(t => t.date)) : null;
+
+    if(compPanel){
+      if(tradeDateSet) renderProfileComparison(compPanel, null, tradeDateSet);
+      else renderProfileComparison(compPanel, customRanges.filter(r => r.start && r.end));
+    }
+    if(verdictPanel){
+      renderVerdict(verdictPanel, {tradeDateSet, walkForwardPairs: pairs});
     }
   }
 
@@ -3977,6 +3828,7 @@ function renderModel(D){
 
   renderClassificationBreakdown();
   renderProfileComparison();
+  renderVerdict(document.getElementById('overview-verdict-panel'));
   renderRecentTrades();
 }
 
@@ -5280,6 +5132,155 @@ function renderProfileComparison(targetEl, dateRanges, tradeDateSet) {
 
   html += `</div>`;
   el.innerHTML = html;
+}
+
+
+/**
+ * Render verdict panel.
+ * @param {HTMLElement} targetEl - container to render into
+ * @param {Object} opts - {tradeDateSet: Set|null, walkForwardPairs: Array|null}
+ *   tradeDateSet: if provided, filter each profile's trades to these dates
+ *   walkForwardPairs: if provided, compute walk-forward overfitting signals
+ */
+function renderVerdict(targetEl, opts = {}) {
+  const el = targetEl;
+  if (!el) return;
+
+  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
+  const base = DATA[fullKey];
+  if (!base || !base.profiles) { el.innerHTML = ''; return; }
+
+  const ACCT_V = 4500, RPT_V = 225;
+  const {tradeDateSet, walkForwardPairs} = opts;
+
+  // ── Score each profile ─────────────────────────────────────────────────
+  function scoreProfile(pk) {
+    const pd = base.profiles[pk];
+    if (!pd || !pd.recent_trades) return null;
+    let pt = pd.recent_trades;
+    // Apply TF period filter (for overview tab)
+    if (!tradeDateSet && activeTF !== 'all' && pd.by_tf && pd.by_tf[activeTF] && pd.by_tf[activeTF].recent_trades) {
+      pt = pd.by_tf[activeTF].recent_trades;
+    }
+    // Apply date filter (for custom ranges)
+    if (tradeDateSet) pt = pt.filter(t => tradeDateSet.has(t.date));
+    // Apply SMT filter
+    if (activeSmt) pt = pt.filter(t => t.smt === true);
+    const wl = pt.filter(t => t.outcome === 'WIN' || t.outcome === 'LOSS');
+    if (wl.length < 5) return null;
+    const n = wl.length;
+    const wins = wl.filter(t => t.outcome === 'WIN').length;
+    const wr = wins / n;
+    const sumW = wl.filter(t => t.r > 0).reduce((s,t) => s+t.r, 0);
+    const sumL = wl.filter(t => t.r <= 0).reduce((s,t) => s+Math.abs(t.r), 0);
+    const ev = (sumW - sumL) / n;
+    const pf = sumL > 0 ? sumW / sumL : sumW > 0 ? 99 : 0;
+    let eq = ACCT_V, peak = ACCT_V, maxDD = 0;
+    wl.slice().sort((a,b) => a.date.localeCompare(b.date)).forEach(t => {
+      eq += t.r * RPT_V;
+      if (eq > peak) peak = eq;
+      const dd = peak > 0 ? (peak - eq) / peak : 0;
+      if (dd > maxDD) maxDD = dd;
+    });
+    const dp = {};
+    wl.forEach(t => { dp[t.date] = (dp[t.date]||0) + t.r * RPT_V; });
+    const dpArr = Object.values(dp);
+    let sharpe = null;
+    if (dpArr.length > 1) {
+      const mu = dpArr.reduce((s,v)=>s+v,0)/dpArr.length;
+      const sd = Math.sqrt(dpArr.reduce((s,v)=>s+(v-mu)**2,0)/(dpArr.length-1));
+      if (sd > 0) sharpe = mu / sd * Math.sqrt(252);
+    }
+    // SMT stats from this profile's trades
+    const smtT = pt.filter(t => t.smt === true && (t.outcome === 'WIN' || t.outcome === 'LOSS'));
+    const noSmtT = pt.filter(t => !t.smt && (t.outcome === 'WIN' || t.outcome === 'LOSS'));
+    const smtWR = smtT.length >= 5 ? smtT.filter(t => t.outcome === 'WIN').length / smtT.length : null;
+    const noSmtWR = noSmtT.length >= 5 ? noSmtT.filter(t => t.outcome === 'WIN').length / noSmtT.length : null;
+
+    return {pk, label: (PROFILE_LABELS[pk] || pk).split('—')[0].trim(),
+            n, wr, ev, pf, sharpe, maxDD: maxDD*100, blown: eq <= 0, smtWR, noSmtWR};
+  }
+
+  const profileScores = Object.keys(base.profiles).map(scoreProfile).filter(Boolean);
+  if (profileScores.length === 0) { el.innerHTML = ''; return; }
+
+  // Composite score
+  profileScores.forEach(p => {
+    const maxEV = Math.max(...profileScores.map(x => Math.max(0.001, x.ev)));
+    const maxSharpe = Math.max(...profileScores.map(x => Math.max(0.001, x.sharpe || 0)));
+    const normEV = Math.max(0, p.ev) / maxEV;
+    const normSharpe = p.sharpe != null ? Math.max(0, p.sharpe) / maxSharpe : 0;
+    const normDD = 1 - Math.min(1, p.maxDD / 50);
+    const normPF = Math.min(1, p.pf / 10);
+    p.score = normEV * 0.40 + normSharpe * 0.30 + normDD * 0.20 + normPF * 0.10;
+  });
+  profileScores.sort((a,b) => b.score - a.score);
+  const best = profileScores[0];
+
+  // ── Assess edge ────────────────────────────────────────────────────────
+  const signals = [];
+  let edgeScore = 0, maxEdgeScore = 0;
+
+  maxEdgeScore += 2;
+  if (best.ev > 0.3) { edgeScore += 2; signals.push({text: `EV ${best.ev.toFixed(3)}R per trade`, color: 'var(--green)'}); }
+  else if (best.ev > 0) { edgeScore += 1; signals.push({text: `EV ${best.ev.toFixed(3)}R — marginal`, color: 'var(--amber)'}); }
+  else { signals.push({text: `Negative EV ${best.ev.toFixed(3)}R`, color: 'var(--red)'}); }
+
+  maxEdgeScore += 1;
+  if (best.wr > 0.55) edgeScore += 1;
+
+  maxEdgeScore += 2;
+  if (best.sharpe != null && best.sharpe > 2) { edgeScore += 2; signals.push({text: `Sharpe ${best.sharpe.toFixed(1)}`, color: 'var(--green)'}); }
+  else if (best.sharpe != null && best.sharpe > 1) { edgeScore += 1; signals.push({text: `Sharpe ${best.sharpe.toFixed(1)}`, color: 'var(--amber)'}); }
+
+  maxEdgeScore += 2;
+  if (best.maxDD < 10) { edgeScore += 2; signals.push({text: `Max DD ${best.maxDD.toFixed(1)}%`, color: 'var(--green)'}); }
+  else if (best.maxDD < 25) { edgeScore += 1; signals.push({text: `Max DD ${best.maxDD.toFixed(1)}%`, color: 'var(--amber)'}); }
+  else { signals.push({text: `Max DD ${best.maxDD.toFixed(1)}%`, color: 'var(--red)'}); }
+
+  if (walkForwardPairs && walkForwardPairs.length > 0) {
+    maxEdgeScore += 2;
+    const ofs = walkForwardPairs.map(p => {
+      const bv = p.variants[p.bestVariantIdx];
+      return (bv.train && bv.test && bv.train.ev_r > 0) ? (bv.test.ev_r / bv.train.ev_r) * 100 : 0;
+    }).filter(s => s > 0);
+    const avg = ofs.length > 0 ? ofs.reduce((s,v)=>s+v,0)/ofs.length : 0;
+    if (avg >= 80) { edgeScore += 2; signals.push({text: `Walk-forward ${Math.round(avg)}%`, color: 'var(--green)'}); }
+    else if (avg >= 50) { edgeScore += 1; signals.push({text: `Walk-forward ${Math.round(avg)}%`, color: 'var(--amber)'}); }
+    else { signals.push({text: `Walk-forward ${Math.round(avg)}%`, color: 'var(--red)'}); }
+  }
+
+  if (best.smtWR != null && best.noSmtWR != null && best.smtWR > best.noSmtWR + 0.03) {
+    signals.push({text: `SMT +${((best.smtWR - best.noSmtWR)*100).toFixed(1)}% WR`, color: 'var(--green)'});
+  }
+
+  // Verdict
+  const confidence = maxEdgeScore > 0 ? edgeScore / maxEdgeScore : 0;
+  let verdict, verdictColor, verdictBg;
+  if (best.blown) { verdict = 'NOT VIABLE'; verdictColor = '#ef4444'; verdictBg = 'rgba(239,68,68,0.08)'; }
+  else if (confidence >= 0.75 && best.ev > 0.2) { verdict = 'TRADEABLE EDGE'; verdictColor = '#10b981'; verdictBg = 'rgba(16,185,129,0.06)'; }
+  else if (confidence >= 0.50 && best.ev > 0) { verdict = 'CONDITIONAL EDGE'; verdictColor = '#f59e0b'; verdictBg = 'rgba(245,158,11,0.06)'; }
+  else if (best.ev > 0) { verdict = 'WEAK EDGE'; verdictColor = '#f59e0b'; verdictBg = 'rgba(245,158,11,0.04)'; }
+  else { verdict = 'NO EDGE'; verdictColor = '#ef4444'; verdictBg = 'rgba(239,68,68,0.06)'; }
+
+  let why = '';
+  if (profileScores.length >= 2) {
+    const second = profileScores[1];
+    if (best.ev > second.ev && best.sharpe >= (second.sharpe || 0)) why = `Higher EV (${best.ev.toFixed(3)}R vs ${second.ev.toFixed(3)}R) with better risk-adjusted returns`;
+    else if (best.ev > second.ev) why = `Highest EV (${best.ev.toFixed(3)}R) across ${best.n} trades`;
+    else if (best.maxDD < second.maxDD) why = `Lower drawdown (${best.maxDD.toFixed(1)}% vs ${second.maxDD.toFixed(1)}%) with comparable returns`;
+    else why = `Best composite score (EV + Sharpe + DD + PF)`;
+  }
+
+  el.innerHTML = `<div style="background:${verdictBg};border:2px solid ${verdictColor}40;border-radius:12px;padding:24px">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:${why || signals.length ? '16px' : '0'}">
+      <div style="font-family:var(--font-display);font-size:28px;font-weight:800;color:${verdictColor};letter-spacing:-0.02em">${verdict}</div>
+      <div style="font-family:var(--font-data);font-size:13px;font-weight:700;color:var(--text-primary);padding:4px 12px;border-radius:6px;background:var(--bg-raised);border:1px solid var(--border)">${best.label}</div>
+      <div style="font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${best.n} trades · ${(best.wr*100).toFixed(1)}% WR · ${best.pf.toFixed(2)} PF</div>
+    </div>
+    ${why ? `<div style="font-family:var(--font-data);font-size:12px;color:var(--text-primary);margin-bottom:14px">${why}</div>` : ''}
+    ${signals.length ? `<div style="display:flex;flex-wrap:wrap;gap:8px">${signals.map(s => `<span style="font-family:var(--font-data);font-size:11px;padding:4px 10px;border-radius:5px;background:var(--bg-raised);border:1px solid var(--border);color:${s.color}">${s.text}</span>`).join('')}</div>` : ''}
+  </div>`;
 }
 
 
