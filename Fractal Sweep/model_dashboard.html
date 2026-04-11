@@ -162,8 +162,19 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .dist-lbl{font-family:var(--font-data);font-size:9px;font-weight:600;letter-spacing:0.06em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px}
 .dist-val{font-family:var(--font-display);font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1}
 
+/* STUDY TAB */
+.study-pill{font-family:var(--font-data);font-size:11px;font-weight:600;letter-spacing:0.04em;padding:6px 14px;border-radius:6px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text-muted);cursor:pointer;transition:all .15s;text-transform:capitalize}
+.study-pill:hover{border-color:var(--border-hi);color:var(--text-secondary)}
+.study-pill.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.study-card{background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:14px}
+.study-card-lbl{font-family:var(--font-data);font-size:9px;font-weight:600;letter-spacing:0.06em;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px}
+.study-card-val{font-family:var(--font-display);font-size:20px;font-weight:700;letter-spacing:-0.01em;line-height:1}
+.study-card-sub{font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4}
+.study-grid4{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.study-tail-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
 @media(max-width:1100px){.meta-row{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:760px){.grid2,.dir-cards{grid-template-columns:1fr}.meta-row{grid-template-columns:repeat(2,1fr)}.dir-stats{grid-template-columns:repeat(2,1fr)}.main{padding:16px 16px 80px}.hdr{padding:0 16px}}
+@media(max-width:760px){.grid2,.dir-cards{grid-template-columns:1fr}.meta-row{grid-template-columns:repeat(2,1fr)}.dir-stats{grid-template-columns:repeat(2,1fr)}.main{padding:16px 16px 80px}.hdr{padding:0 16px}#study-columns{grid-template-columns:1fr !important}}
 </style>
 </head>
 <body>
@@ -196,6 +207,17 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
     <select id="model-select" class="sel-drop" onchange="switchModel(this.value)"></select>
   </div>
   <div class="sel-group">
+    <label class="sel-label">Period</label>
+    <select id="period-filter" class="sel-drop" onchange="switchPeriod(this.value)">
+      <option value="all" selected>All</option>
+      <option value="30">Last 30 Days</option>
+      <option value="70">Last 70 Days</option>
+      <option value="120">Last 120 Days</option>
+      <option value="365">Last 1 Year</option>
+      <option value="1825">Last 5 Years</option>
+    </select>
+  </div>
+  <div class="sel-group">
     <label class="sel-label">Direction Filter</label>
     <select id="dir-filter" class="sel-drop" onchange="switchDirFilter(this.value)">
       <option value="all" selected>All</option>
@@ -209,7 +231,7 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <button class="page-tab active" onclick="switchPageTab('overview')">Overview</button>
   <button class="page-tab" onclick="switchPageTab('edge')">Edge</button>
   <button class="page-tab" onclick="switchPageTab('trades')">Trades</button>
-  <button class="page-tab" onclick="switchPageTab('live-scanner')">Live Scanner</button>
+  <button class="page-tab" onclick="switchPageTab('study')">Study</button>
 </div>
 
 <main class="main">
@@ -301,27 +323,30 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
     </div>
   </div>
 
-  <!-- TAB: LIVE SCANNER -->
-  <div class="page-pane" id="pane-live-scanner">
-    <div class="sec-label">Live Scanner</div>
-    <div class="panel" style="margin-bottom:14px">
-      <div class="ph">
-        <span class="ph-title">Scanner Status</span>
-        <span class="ph-note" id="ls-last-updated">&mdash;</span>
-        <button onclick="loadScannerStatus()" style="margin-left:auto;font-family:var(--font-data);font-size:11px;font-weight:600;letter-spacing:.04em;padding:5px 14px;border-radius:6px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text-primary);cursor:pointer;" onmouseover="this.style.background='var(--accent)';this.style.color='#fff'" onmouseout="this.style.background='var(--bg-raised)';this.style.color='var(--text-primary)'">&orarr; Refresh</button>
+  <!-- TAB: STUDY -->
+  <div class="page-pane" id="pane-study">
+    <div class="sec-label">Distribution Study</div>
+    <div style="display:flex;gap:4px;margin-bottom:18px;flex-wrap:wrap" id="study-type-pills"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="study-columns">
+      <!-- MAE column -->
+      <div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--red)">MAE Distribution</span><span class="ph-note">Histogram + KDE</span></div><div class="pb"><div id="study-mae-dist"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--red)">MAE Percentile Ladder</span></div><div class="pb"><div id="study-mae-pctile"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--red)">MAE Shape Statistics</span></div><div class="pb"><div id="study-mae-shape"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--red)">MAE Mode Analysis</span></div><div class="pb"><div id="study-mae-mode"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--red)">MAE Tail Analysis</span></div><div class="pb"><div id="study-mae-tail"></div></div></div>
       </div>
-      <div class="pb">
-        <div id="ls-status-tiles" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:0"></div>
+      <!-- MFE column -->
+      <div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--green)">MFE Distribution</span><span class="ph-note">Histogram + KDE</span></div><div class="pb"><div id="study-mfe-dist"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--green)">MFE Percentile Ladder</span></div><div class="pb"><div id="study-mfe-pctile"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--green)">MFE Shape Statistics</span></div><div class="pb"><div id="study-mfe-shape"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--green)">MFE Mode Analysis</span></div><div class="pb"><div id="study-mfe-mode"></div></div></div>
+        <div class="panel"><div class="ph"><span class="ph-title" style="color:var(--green)">MFE Tail Analysis</span></div><div class="pb"><div id="study-mfe-tail"></div></div></div>
       </div>
     </div>
-    <div class="panel" style="margin-bottom:14px">
-      <div class="ph"><span class="ph-title">Today's Alerts</span><span class="ph-note" id="ls-alerts-note">&mdash;</span></div>
-      <div class="pb"><div id="ls-alerts-table"></div></div>
-    </div>
-    <div class="panel">
-      <div class="ph"><span class="ph-title">Recent Bars</span><span class="ph-note">last 10 received &middot; NQ &amp; ES</span></div>
-      <div class="pb"><div id="ls-recent-bars"></div></div>
-    </div>
+    <div class="sec-label">MFE:MAE Ratio Distribution</div>
+    <div class="panel"><div class="ph"><span class="ph-title">MFE:MAE Ratio per Trade</span><span class="ph-note">How much favorable excursion per unit of adverse excursion</span></div><div class="pb"><div id="study-ratio-dist"></div></div></div>
   </div>
 
 </main>
@@ -355,6 +380,7 @@ let isDemo = true;
 let activeModel = '1H_5M';
 let activePageTab = 'overview';
 let activeDirFilter = 'all'; // 'all' | 'LONG' | 'SHORT'
+let activePeriod = 'all'; // 'all' | '30' | '70' | '120' | '365' | '1825'
 
 // ── TOOLTIP ────────────────────────────────────────────────────────────────
 const tip = document.getElementById('tooltip');
@@ -368,8 +394,8 @@ function hideTip() { tip.style.display = 'none'; }
 document.addEventListener('mousemove', e => { if (tip.style.display === 'block') moveTip(e); });
 
 // ── FORMATTERS ─────────────────────────────────────────────────────────────
-const fmtPct = v => v != null ? (v * 100).toFixed(2) + '%' : '\u2014';
-const fmtPct1 = v => v != null ? (v * 100).toFixed(1) + '%' : '\u2014';
+const fmtPct = v => v != null ? v.toFixed(4) + '%' : '\u2014';
+const fmtPct1 = v => v != null ? v.toFixed(2) + '%' : '\u2014';
 const fmtRatio = (a, b) => b > 0 ? (a / b).toFixed(1) + 'x' : '\u2014';
 
 function fmtDateRange(dr) {
@@ -439,7 +465,7 @@ function barChart(container, data, H, yMin, yMax) {
 
   // Grid lines
   const gridLines = [];
-  const step = range > 2 ? 0.5 : 0.2;
+  const step = range > 2 ? 0.5 : range > 0.5 ? 0.1 : 0.05;
   for (let v = Math.ceil(yMin / step) * step; v <= yMax; v += step) gridLines.push(+v.toFixed(2));
   gridLines.forEach(yv => {
     if (yv < yMin || yv > yMax) return;
@@ -466,10 +492,10 @@ function barChart(container, data, H, yMin, yMax) {
         [g + ' ' + k, val.toFixed(2) + '%', 'g'],
         ['N', String(d.n || 0), ''],
         '---',
-        ['Avg MAE', d.avg_mae != null ? (d.avg_mae * 100).toFixed(2) + '%' : '\u2014', 'r'],
-        ['Avg MFE', d.avg_mfe != null ? (d.avg_mfe * 100).toFixed(2) + '%' : '\u2014', 'g'],
-        ['Med MFE', d.med_mfe != null ? (d.med_mfe * 100).toFixed(2) + '%' : '\u2014', 'p'],
-        ['P90 MFE', d.p90_mfe != null ? (d.p90_mfe * 100).toFixed(2) + '%' : '\u2014', 'a'],
+        ['Avg MAE', d.avg_mae != null ? d.avg_mae.toFixed(4) + '%' : '\u2014', 'r'],
+        ['Avg MFE', d.avg_mfe != null ? d.avg_mfe.toFixed(4) + '%' : '\u2014', 'g'],
+        ['Med MFE', d.med_mfe != null ? d.med_mfe.toFixed(4) + '%' : '\u2014', 'p'],
+        ['P90 MFE', d.p90_mfe != null ? d.p90_mfe.toFixed(4) + '%' : '\u2014', 'a'],
       ]);
       bars += `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="url(#${gId})" rx="3" onmouseenter="showTip(event,_barTipStore['${storeKey}'][${tidx}])" onmouseleave="hideTip()" style="cursor:default"/>`;
       if (bh > 20) vlbls += `<text x="${x + bw / 2}" y="${y - 5}" text-anchor="middle" font-size="8" font-weight="600" fill="${baseCol}" font-family="${SVG_FONT}">${val.toFixed(1)}</text>`;
@@ -484,13 +510,14 @@ function lineChart(container, data, H) {
   if (!container || !data.length) { if (container) container.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">No yearly data.</div>'; return; }
   const W = container.clientWidth || 600, c = C();
   const ml = 50, mr = 20, mt = 12, mb = 28, cw = W - ml - mr, ch = H - mt - mb;
-  const vals = data.map(d => (d.avg_mfe || 0) * 100);
-  const yMin = Math.max(0, Math.floor(Math.min(...vals) / 0.2) * 0.2 - 0.2);
-  const yMax = Math.ceil(Math.max(...vals) / 0.2) * 0.2 + 0.2;
+  const vals = data.map(d => (d.avg_mfe || 0));
+  const step = Math.max(...vals) > 1 ? 0.2 : 0.1;
+  const yMin = Math.max(0, Math.floor(Math.min(...vals) / step) * step - step);
+  const yMax = Math.ceil(Math.max(...vals) / step) * step + step;
   const range = yMax - yMin || 1;
   const yS = v => (1 - (v - yMin) / range) * ch;
   const xS = i => i / (data.length - 1 || 1) * cw;
-  const pts = data.map((d, i) => ({ x: xS(i), y: yS((d.avg_mfe || 0) * 100) }));
+  const pts = data.map((d, i) => ({ x: xS(i), y: yS((d.avg_mfe || 0)) }));
 
   let grid = '', yl = '', dots = '', xl = '';
   const path = pts.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join('');
@@ -498,16 +525,16 @@ function lineChart(container, data, H) {
   const gId = 'ag' + Math.random().toString(36).slice(2);
   const grad = `<defs><linearGradient id="${gId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${c.green}" stop-opacity="0.18"/><stop offset="100%" stop-color="${c.green}" stop-opacity="0"/></linearGradient></defs>`;
 
-  for (let v = Math.ceil(yMin / 0.2) * 0.2; v <= yMax; v += 0.2) {
+  for (let v = Math.ceil(yMin / step) * step; v <= yMax; v += step) {
     const y = yS(v);
     grid += `<line x1="0" y1="${y}" x2="${cw}" y2="${y}" stroke="${c.gridLine}" stroke-width="1" stroke-dasharray="2,4"/>`;
-    yl += `<text x="-6" y="${y + 4}" text-anchor="end" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${v.toFixed(1)}%</text>`;
+    yl += `<text x="-6" y="${y + 4}" text-anchor="end" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${v.toFixed(2)}%</text>`;
   }
 
   pts.forEach((p, i) => {
     const d = data[i];
-    const mfe = ((d.avg_mfe || 0) * 100).toFixed(2);
-    const mae = ((d.avg_mae || 0) * 100).toFixed(2);
+    const mfe = ((d.avg_mfe || 0)).toFixed(4);
+    const mae = ((d.avg_mae || 0)).toFixed(4);
     dots += `<circle cx="${p.x}" cy="${p.y}" r="3.5" fill="${c.green}" stroke="${isDark ? '#111827' : '#ffffff'}" stroke-width="2" onmouseenter="showTip(event,[['${d.yr}','Avg MFE ${mfe}%','g'],['Avg MAE','${mae}%','r'],['N','${d.n || 0}','']])" onmouseleave="hideTip()" style="cursor:default"/>`;
     if (i % (Math.ceil(data.length / 10)) === 0 || i === data.length - 1)
       xl += `<text x="${p.x}" y="${ch + 20}" text-anchor="middle" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${d.yr}</text>`;
@@ -530,6 +557,97 @@ function switchPageTab(tab) {
 
 function switchModel(k) { activeModel = k; _tradesPage = 0; renderModelDropdown(); renderActive(); }
 function switchDirFilter(v) { activeDirFilter = v; _tradesPage = 0; renderActive(); }
+function switchPeriod(v) { activePeriod = v; _tradesPage = 0; renderActive(); }
+
+function getPeriodCutoff() {
+  if (activePeriod === 'all') return null;
+  const d = new Date();
+  d.setDate(d.getDate() - parseInt(activePeriod));
+  return d.toISOString().slice(0, 10);
+}
+
+function filterByPeriod(D) {
+  const cutoff = getPeriodCutoff();
+  if (!cutoff) return D;
+  const trades = (D.recent_trades || []).filter(t => t.date >= cutoff);
+  if (!trades.length) return { ...D, recent_trades: [], by_hour: [], by_dow: [], by_session: [], by_tspot_type: [], by_year: [], dir_summary: [], meta: { ...D.meta, total_trades: 0 } };
+
+  // Recompute all breakdowns from filtered trades
+  const df = trades;
+  const mae = df.map(t => t.mae_pct).filter(v => v != null);
+  const mfe = df.map(t => t.mfe_pct).filter(v => v != null);
+  const avg = arr => arr.length ? arr.reduce((s,v) => s+v, 0) / arr.length : null;
+  const med = arr => { if (!arr.length) return null; const s = [...arr].sort((a,b)=>a-b); const m = Math.floor(s.length/2); return s.length%2 ? s[m] : (s[m-1]+s[m])/2; };
+  const p90 = arr => { if (arr.length < 5) return null; const s = [...arr].sort((a,b)=>a-b); return s[Math.floor(s.length*0.9)]; };
+  const rnd = (v,d=4) => v != null ? Math.round(v * 10**d) / 10**d : null;
+
+  function aggTrades(ts) {
+    const n = ts.length;
+    const m = ts.map(t=>t.mae_pct).filter(v=>v!=null);
+    const f = ts.map(t=>t.mfe_pct).filter(v=>v!=null);
+    return { n, avg_mae: rnd(avg(m)), avg_mfe: rnd(avg(f)), med_mae: rnd(med(m)), med_mfe: rnd(med(f)), p90_mae: rnd(p90(m)), p90_mfe: rnd(p90(f)) };
+  }
+
+  function groupBy(arr, keyFn) {
+    const groups = {};
+    arr.forEach(t => { const k = keyFn(t); (groups[k] = groups[k] || []).push(t); });
+    return groups;
+  }
+
+  const DOW_NAMES = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
+  const dates = [...new Set(df.map(t => t.date))].sort();
+
+  const by_hour = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => t.hr + '_' + t.direction))) {
+    if (ts.length < 3) continue;
+    const r = aggTrades(ts);
+    r.hr = ts[0].hr; r.hr_label = String(ts[0].hr).padStart(2,'0') + ':00'; r.direction = ts[0].direction;
+    by_hour.push(r);
+  }
+  const by_dow = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => t.dow + '_' + t.direction))) {
+    if (ts.length < 3) continue;
+    const r = aggTrades(ts);
+    r.dow = ts[0].dow; r.dow_name = DOW_NAMES[ts[0].dow] || '?'; r.direction = ts[0].direction;
+    by_dow.push(r);
+  }
+  const by_session = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => t.session + '_' + t.direction))) {
+    const r = aggTrades(ts);
+    r.session = ts[0].session; r.direction = ts[0].direction;
+    by_session.push(r);
+  }
+  const by_tspot_type = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => t.tspot_type + '_' + t.direction))) {
+    const r = aggTrades(ts);
+    r.tspot_type = ts[0].tspot_type; r.direction = ts[0].direction;
+    by_tspot_type.push(r);
+  }
+  const by_year = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => String(t.yr)))) {
+    const r = aggTrades(ts);
+    r.yr = ts[0].yr;
+    by_year.push(r);
+  }
+  const dir_summary = [];
+  for (const [k, ts] of Object.entries(groupBy(df, t => t.direction))) {
+    const r = aggTrades(ts);
+    r.direction = ts[0].direction;
+    dir_summary.push(r);
+  }
+
+  const meta = {
+    ...D.meta,
+    total_trades: df.length,
+    trading_days: dates.length,
+    setups_per_day: rnd(df.length / Math.max(dates.length, 1), 2),
+    date_range: dates.length ? dates[0] + ' to ' + dates[dates.length-1] : '',
+    avg_mae: rnd(avg(mae)), avg_mfe: rnd(avg(mfe)),
+    med_mae: rnd(med(mae)), med_mfe: rnd(med(mfe)),
+  };
+
+  return { ...D, meta, by_hour, by_dow, by_session, by_tspot_type, by_year, dir_summary, recent_trades: trades };
+}
 
 // ── MODEL DROPDOWN ─────────────────────────────────────────────────────────
 function renderModelDropdown() {
@@ -680,25 +798,25 @@ function renderDistPanel(containerId, dist, label, color) {
   stats.forEach(([lbl, val, c]) => {
     html += `<div class="dist-card">
       <div class="dist-lbl">${lbl}</div>
-      <div class="dist-val" style="color:${c};font-size:16px">${val != null ? (val * 100).toFixed(2) + '%' : '\u2014'}</div>
+      <div class="dist-val" style="color:${c};font-size:16px">${val != null ? val.toFixed(4) + '%' : '\u2014'}</div>
     </div>`;
   });
   html += '</div>';
 
   // Simple visual bar showing percentiles
-  const maxVal = (dist.max || 1) * 100;
-  const pctPos = v => Math.min(100, (v || 0) / maxVal * 100 * 100);
+  const maxVal = dist.max || 1;
+  const pctPos = v => Math.min(100, (v || 0) / maxVal * 100);
   html += `<div style="margin-top:16px;position:relative;height:40px;background:var(--bg-raised);border-radius:6px;border:1px solid var(--border);overflow:hidden">
     <div style="position:absolute;left:${pctPos(dist.p10)}%;top:0;bottom:0;width:${pctPos(dist.p90) - pctPos(dist.p10)}%;background:${color};opacity:0.15"></div>
     <div style="position:absolute;left:${pctPos(dist.p25)}%;top:0;bottom:0;width:${pctPos(dist.p75) - pctPos(dist.p25)}%;background:${color};opacity:0.2"></div>
     <div style="position:absolute;left:${pctPos(dist.median)}%;top:4px;bottom:4px;width:2px;background:${color};border-radius:1px"></div>
-    <div style="position:absolute;left:${pctPos(dist.median)}%;top:42px;font-family:var(--font-data);font-size:9px;color:${color};transform:translateX(-50%)">Med ${((dist.median || 0) * 100).toFixed(2)}%</div>
+    <div style="position:absolute;left:${pctPos(dist.median)}%;top:42px;font-family:var(--font-data);font-size:9px;color:${color};transform:translateX(-50%)">Med ${(dist.median || 0).toFixed(4)}%</div>
   </div>
   <div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:18px;display:flex;justify-content:space-between">
-    <span>P10: ${((dist.p10 || 0) * 100).toFixed(2)}%</span>
-    <span>P25: ${((dist.p25 || 0) * 100).toFixed(2)}%</span>
-    <span>P75: ${((dist.p75 || 0) * 100).toFixed(2)}%</span>
-    <span>P90: ${((dist.p90 || 0) * 100).toFixed(2)}%</span>
+    <span>P10: ${(dist.p10 || 0).toFixed(4)}%</span>
+    <span>P25: ${(dist.p25 || 0).toFixed(4)}%</span>
+    <span>P75: ${(dist.p75 || 0).toFixed(4)}%</span>
+    <span>P90: ${(dist.p90 || 0).toFixed(4)}%</span>
   </div>`;
 
   el.innerHTML = html;
@@ -743,10 +861,10 @@ function renderHeatmap(D) {
       const c = lk[`${hr}_${dow}`];
       const avgMfe = c ? c.sum / c.n : null;
       const avgMae = c ? c.sumMae / c.n : null;
-      const mfeStr = avgMfe != null ? (avgMfe * 100).toFixed(2) + '%' : '\u2014';
-      const maeStr = avgMae != null ? (avgMae * 100).toFixed(2) + '%' : '\u2014';
+      const mfeStr = avgMfe != null ? avgMfe.toFixed(4) + '%' : '\u2014';
+      const maeStr = avgMae != null ? avgMae.toFixed(4) + '%' : '\u2014';
       return `<div class="hm-cell" style="background:${mfeHeatClr(avgMfe)}"${c ? ` onmouseenter="showTip(event,[['${HL[hr]} ${DN[dow]}','',''],['---','',''],['Avg MFE','${mfeStr}','g'],['Avg MAE','${maeStr}','r'],['N','${c.n}','']])" onmouseleave="hideTip()"` : ''}>
-        ${c ? `<div class="hm-wr" style="color:${mfeHeatTxt(avgMfe)}">${(avgMfe * 100).toFixed(1)}%</div><div class="hm-n">n=${c.n}</div>` : `<div class="hm-n" style="color:var(--text-faint)">\u2014</div>`}
+        ${c ? `<div class="hm-wr" style="color:${mfeHeatTxt(avgMfe)}">${avgMfe.toFixed(2)}%</div><div class="hm-n">n=${c.n}</div>` : `<div class="hm-n" style="color:var(--text-faint)">\u2014</div>`}
       </div>`;
     }).join('');
     return `<div class="hm-row-lbl">${HL[hr]}</div>${cells}`;
@@ -835,8 +953,8 @@ function renderRecentTrades(page) {
       <td style="padding:7px 6px;text-align:right;color:var(--text-muted);">${t.pivot_level != null ? t.pivot_level.toFixed(2) : '\u2014'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--red);">${t.stop_price != null ? t.stop_price.toFixed(2) : '\u2014'}</td>
       <td style="padding:7px 6px;text-align:right;color:var(--text-primary);">${t.risk_pts != null ? t.risk_pts.toFixed(1) : '\u2014'}</td>
-      <td style="padding:7px 6px;text-align:right;color:var(--red);font-size:11px;">${t.mae_pct != null ? (t.mae_pct * 100).toFixed(3) + '%' : '\u2014'}</td>
-      <td style="padding:7px 6px;text-align:right;color:var(--green);font-size:11px;">${t.mfe_pct != null ? (t.mfe_pct * 100).toFixed(3) + '%' : '\u2014'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--red);font-size:11px;">${t.mae_pct != null ? t.mae_pct.toFixed(4) + '%' : '\u2014'}</td>
+      <td style="padding:7px 6px;text-align:right;color:var(--green);font-size:11px;">${t.mfe_pct != null ? t.mfe_pct.toFixed(4) + '%' : '\u2014'}</td>
     </tr>`;
   });
   html += '</tbody></table></div>';
@@ -879,120 +997,6 @@ function downloadTrades() {
   a.click(); URL.revokeObjectURL(a.href);
 }
 
-// ── LIVE SCANNER STATUS ────────────────────────────────────────────────────
-async function loadScannerStatus() {
-  const tilesEl = document.getElementById('ls-status-tiles');
-  const alertsEl = document.getElementById('ls-alerts-table');
-  const barsEl = document.getElementById('ls-recent-bars');
-  const updEl = document.getElementById('ls-last-updated');
-
-  let s;
-  try {
-    const r = await fetch('scanner_status.json?_=' + Date.now());
-    if (!r.ok) throw new Error('not found');
-    s = await r.json();
-  } catch {
-    tilesEl.innerHTML = `<div style="grid-column:1/-1;font-family:var(--font-data);font-size:12px;color:var(--text-muted);padding:8px 0">
-      Scanner status file not found. Make sure <code>live_scanner.py</code> is running.<br>
-      Run: <code>python3 "Live Scanner/live_scanner.py"</code>
-    </div>`;
-    alertsEl.innerHTML = '';
-    barsEl.innerHTML = '';
-    return;
-  }
-
-  const connected = s.connected === true;
-  const uptimeSec = s.uptime_seconds || 0;
-  const uptimeStr = uptimeSec < 60 ? `${uptimeSec}s`
-    : uptimeSec < 3600 ? `${Math.floor(uptimeSec / 60)}m ${uptimeSec % 60}s`
-    : `${Math.floor(uptimeSec / 3600)}h ${Math.floor((uptimeSec % 3600) / 60)}m`;
-  const dot = connected
-    ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;margin-right:6px"></span>`
-    : `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;margin-right:6px"></span>`;
-
-  const tiles = [
-    { lbl: 'Status', val: dot + (connected ? 'Connected' : 'Offline'), c: connected ? 'var(--green)' : 'var(--red)', raw: true },
-    { lbl: 'Uptime', val: uptimeStr, c: 'var(--text-primary)' },
-    { lbl: 'Instruments', val: (s.instruments || []).join(' \u00B7 ') || '\u2014', c: 'var(--text-primary)' },
-    { lbl: 'Alerts Today', val: String((s.alerts_today || []).length), c: (s.alerts_today || []).length > 0 ? 'var(--amber)' : 'var(--text-muted)' },
-  ];
-  tilesEl.innerHTML = tiles.map(t => `
-    <div style="background:var(--bg-raised);border:1px solid var(--border-mid);border-radius:8px;padding:14px 12px">
-      <div style="font-family:var(--font-data);font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${t.lbl}</div>
-      <div style="font-family:var(--font-display);font-size:16px;font-weight:700;color:${t.c};display:flex;align-items:center">${t.raw ? t.val : `<span>${t.val}</span>`}</div>
-    </div>`).join('');
-
-  const lastBar = s.last_bar_et || '\u2014';
-  updEl.textContent = `last bar: ${lastBar}  \u00B7  updated ${new Date(s.updated_at || 0).toLocaleTimeString()}`;
-
-  // Alerts table
-  const alerts = s.alerts_today || [];
-  document.getElementById('ls-alerts-note').textContent = alerts.length
-    ? `${alerts.length} setup${alerts.length > 1 ? 's' : ''} fired today`
-    : 'no setups fired today';
-
-  if (!alerts.length) {
-    alertsEl.innerHTML = `<div style="font-family:var(--font-data);font-size:12px;color:var(--text-muted);padding:8px 0">No alerts yet today.</div>`;
-  } else {
-    const rows = [...alerts].reverse().map((a, i) => {
-      const isLong = a.direction === 'LONG';
-      const dc = isLong ? 'var(--green)' : 'var(--red)';
-      const arrow = isLong ? '\u25B2' : '\u25BC';
-      const bg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb,var(--bg-raised) 60%,transparent)';
-      return `<tr style="background:${bg};border-bottom:1px solid color-mix(in srgb,var(--border-mid) 40%,transparent)">
-        <td style="padding:7px 10px;font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${a.ts_et || '\u2014'}</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${a.symbol || '\u2014'}</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${a.model_label || '\u2014'}</td>
-        <td style="padding:7px 8px;font-weight:700;color:${dc}">${arrow} ${a.direction}</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);text-align:right;color:var(--text-primary)">${a.entry_price?.toFixed(2) || '\u2014'}</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);text-align:right;color:var(--red)">${a.stop_price?.toFixed(2) || '\u2014'}</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);text-align:right;color:var(--text-muted)">${a.base_risk?.toFixed(1) || '\u2014'} pts</td>
-        <td style="padding:7px 8px;font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${a.session || '\u2014'}</td>
-      </tr>`;
-    }).join('');
-    alertsEl.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:12px">
-      <thead><tr style="border-bottom:1px solid var(--border-mid);color:var(--text-muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase">
-        <th style="padding:6px 10px;text-align:left">Time (ET)</th>
-        <th style="padding:6px 8px;text-align:left">Symbol</th>
-        <th style="padding:6px 8px;text-align:left">Model</th>
-        <th style="padding:6px 8px;text-align:left">Dir</th>
-        <th style="padding:6px 8px;text-align:right">Entry</th>
-        <th style="padding:6px 8px;text-align:right">Stop</th>
-        <th style="padding:6px 8px;text-align:right">Risk</th>
-        <th style="padding:6px 8px;text-align:left">Session</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>`;
-  }
-
-  // Recent bars
-  const bars = s.recent_bars || [];
-  if (!bars.length) {
-    barsEl.innerHTML = `<div style="font-family:var(--font-data);font-size:12px;color:var(--text-muted);padding:8px 0">No bars received yet.</div>`;
-  } else {
-    const brows = bars.map((b, i) => {
-      const bg = i % 2 === 0 ? 'transparent' : 'color-mix(in srgb,var(--bg-raised) 60%,transparent)';
-      const up = b.close >= b.open;
-      return `<tr style="background:${bg};border-bottom:1px solid color-mix(in srgb,var(--border-mid) 30%,transparent)">
-        <td style="padding:6px 10px;font-family:var(--font-data);font-size:11px;color:var(--text-muted)">${b.ts || '\u2014'}</td>
-        <td style="padding:6px 8px;font-family:var(--font-data);font-size:12px;font-weight:700;color:var(--text-primary)">${b.symbol || '\u2014'}</td>
-        <td style="padding:6px 8px;font-family:var(--font-data);text-align:right;color:var(--text-muted)">${b.open?.toFixed(2) || '\u2014'}</td>
-        <td style="padding:6px 8px;font-family:var(--font-data);text-align:right;color:var(--green)">${b.high?.toFixed(2) || '\u2014'}</td>
-        <td style="padding:6px 8px;font-family:var(--font-data);text-align:right;color:var(--red)">${b.low?.toFixed(2) || '\u2014'}</td>
-        <td style="padding:6px 8px;font-family:var(--font-data);text-align:right;color:${up ? 'var(--green)' : 'var(--red)'};font-weight:600">${b.close?.toFixed(2) || '\u2014'}</td>
-      </tr>`;
-    }).join('');
-    barsEl.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:12px">
-      <thead><tr style="border-bottom:1px solid var(--border-mid);color:var(--text-muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase">
-        <th style="padding:5px 10px;text-align:left">Time (ET)</th>
-        <th style="padding:5px 8px;text-align:left">Symbol</th>
-        <th style="padding:5px 8px;text-align:right">Open</th>
-        <th style="padding:5px 8px;text-align:right">High</th>
-        <th style="padding:5px 8px;text-align:right">Low</th>
-        <th style="padding:5px 8px;text-align:right">Close</th>
-      </tr></thead><tbody>${brows}</tbody></table></div>`;
-  }
-}
-setInterval(() => { if (activePageTab === 'live-scanner') loadScannerStatus(); }, 60_000);
-
 // ── RENDER EDGE CHARTS ─────────────────────────────────────────────────────
 function renderEdgeCharts(D) {
   const hourData = getFilteredByDir(D.by_hour || []);
@@ -1000,15 +1004,15 @@ function renderEdgeCharts(D) {
   const dowData = getFilteredByDir(D.by_dow || []);
 
   // Compute yMax for MFE charts
-  const allMfe = [...hourData, ...sessData, ...dowData].map(d => (d.avg_mfe || 0) * 100);
-  const chartMax = Math.max(1.0, ...allMfe) * 1.1;
-  const yMax = Math.ceil(chartMax / 0.2) * 0.2;
+  const allMfe = [...hourData, ...sessData, ...dowData].map(d => (d.avg_mfe || 0));
+  const chartMax = Math.max(0.2, ...allMfe) * 1.1;
+  const yMax = Math.ceil(chartMax / 0.1) * 0.1;
 
   barChart(document.getElementById('hour-chart'),
     hourData.map(d => ({
       group: d.hr_label || `${String(d.hr).padStart(2, '0')}:00`,
       key: d.direction,
-      val: +((d.avg_mfe || 0) * 100).toFixed(2),
+      val: +((d.avg_mfe || 0)).toFixed(2),
       n: d.n,
       avg_mae: d.avg_mae,
       avg_mfe: d.avg_mfe,
@@ -1020,7 +1024,7 @@ function renderEdgeCharts(D) {
     sessData.map(d => ({
       group: d.session,
       key: d.direction,
-      val: +((d.avg_mfe || 0) * 100).toFixed(2),
+      val: +((d.avg_mfe || 0)).toFixed(2),
       n: d.n,
       avg_mae: d.avg_mae,
       avg_mfe: d.avg_mfe,
@@ -1032,7 +1036,7 @@ function renderEdgeCharts(D) {
     dowData.map(d => ({
       group: d.dow_name,
       key: d.direction,
-      val: +((d.avg_mfe || 0) * 100).toFixed(2),
+      val: +((d.avg_mfe || 0)).toFixed(2),
       n: d.n,
       avg_mae: d.avg_mae,
       avg_mfe: d.avg_mfe,
@@ -1041,13 +1045,524 @@ function renderEdgeCharts(D) {
     })), 200, 0, yMax);
 }
 
+// ── STUDY TAB ──────────────────────────────────────────────────────────────
+let activeStudyType = 'all';
+function switchStudyType(t) {
+  activeStudyType = t;
+  document.querySelectorAll('.study-pill').forEach(b => b.classList.toggle('active', b.dataset.type === t));
+  renderActive();
+}
+
+// Statistical helpers
+function computePercentile(sorted, p) {
+  if (!sorted.length) return 0;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function computeKDE(data, nPoints) {
+  nPoints = nPoints || 200;
+  const n = data.length;
+  if (n < 2) return [];
+  const mean = data.reduce((s,v) => s+v, 0) / n;
+  const std = Math.sqrt(data.reduce((s,v) => s + (v - mean)**2, 0) / (n - 1));
+  const h = 1.06 * std * Math.pow(n, -0.2);
+  if (h <= 0) return [];
+  const mn = Math.min.apply(null, data), mx = Math.max.apply(null, data);
+  const pad = (mx - mn) * 0.05 || 0.001;
+  const points = [];
+  for (let i = 0; i < nPoints; i++) {
+    const x = (mn - pad) + (mx - mn + 2*pad) * i / (nPoints - 1);
+    let density = 0;
+    for (let j = 0; j < n; j++) {
+      density += Math.exp(-0.5 * ((x - data[j]) / h) ** 2);
+    }
+    density /= (n * h * Math.sqrt(2 * Math.PI));
+    points.push({ x, y: density });
+  }
+  return points;
+}
+
+function computeHistogram(data, minBins, maxBins) {
+  minBins = minBins || 15; maxBins = maxBins || 50;
+  const n = data.length;
+  if (n < 2) return [];
+  const sorted = data.slice().sort((a,b) => a-b);
+  const q1 = computePercentile(sorted, 25);
+  const q3 = computePercentile(sorted, 75);
+  const iqr = q3 - q1;
+  const binWidth = iqr > 0 ? 2 * iqr * Math.pow(n, -1/3) : (sorted[n-1] - sorted[0]) / 20;
+  const range = sorted[n-1] - sorted[0];
+  if (range <= 0) return [{ lo: sorted[0], hi: sorted[0] + 0.001, count: n, mid: sorted[0] }];
+  let nBins = Math.max(minBins, Math.min(maxBins, Math.ceil(range / (binWidth || range / 20))));
+  const actualBinWidth = range / nBins;
+  const bins = [];
+  for (let i = 0; i < nBins; i++) {
+    const lo = sorted[0] + i * actualBinWidth;
+    const hi = lo + actualBinWidth;
+    const count = data.filter(v => v >= lo && (i === nBins-1 ? v <= hi : v < hi)).length;
+    bins.push({ lo, hi, count, mid: (lo + hi) / 2 });
+  }
+  return bins;
+}
+
+// Distribution chart (histogram + KDE + reference lines)
+function renderStudyDistChart(containerId, data, label, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length < 3) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data for distribution chart.</div>'; return; }
+
+  const c = C();
+  const W = el.clientWidth || 500, H = 260;
+  const ml = 50, mr = 20, mt = 24, mb = 44, cw = W - ml - mr, ch = H - mt - mb;
+
+  const bins = computeHistogram(data);
+  const kde = computeKDE(data);
+  if (!bins.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Cannot compute histogram.</div>'; return; }
+
+  const mean = data.reduce((s,v) => s+v, 0) / data.length;
+  const sorted = data.slice().sort((a,b) => a-b);
+  const median = computePercentile(sorted, 50);
+  // Mode from KDE peak
+  let modePt = kde.length ? kde.reduce((best, p) => p.y > best.y ? p : best, kde[0]) : null;
+  const mode = modePt ? modePt.x : median;
+
+  const maxCount = Math.max.apply(null, bins.map(b => b.count));
+  const xMin = bins[0].lo, xMax = bins[bins.length-1].hi;
+  const xRange = xMax - xMin || 1;
+  const xS = v => ((v - xMin) / xRange) * cw;
+
+  // Y axis: histogram bars as primary, KDE scaled to same visual range
+  const yMaxHist = maxCount * 1.15;
+  const yS = v => ch - (v / yMaxHist) * ch;
+
+  // KDE Y scale: map to histogram space (density * n * binWidth ≈ count)
+  const binW = bins.length > 1 ? bins[1].lo - bins[0].lo : 1;
+  const kdeScale = data.length * binW;
+  const kdeMaxY = kde.length ? Math.max.apply(null, kde.map(p => p.y * kdeScale)) : 0;
+
+  let defs = '', grid = '', barsSvg = '', kdePath = '', refLines = '';
+  const gId = 'sg' + Math.random().toString(36).slice(2);
+
+  // Grid lines
+  const gridStep = Math.max(1, Math.ceil(maxCount / 5));
+  for (let v = 0; v <= maxCount; v += gridStep) {
+    const y = yS(v);
+    grid += `<line x1="0" y1="${y}" x2="${cw}" y2="${y}" stroke="${c.gridLine}" stroke-width="1"/>`;
+    grid += `<text x="-6" y="${y + 4}" text-anchor="end" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${v}</text>`;
+  }
+
+  // Histogram bars
+  bins.forEach((bin, i) => {
+    const x = xS(bin.lo), w = xS(bin.hi) - xS(bin.lo) - 1, y = yS(bin.count), bh = ch - y;
+    if (w > 0 && bh > 0) {
+      barsSvg += `<rect x="${x}" y="${y}" width="${Math.max(w,1)}" height="${bh}" fill="${accentColor}" opacity="0.35" rx="1"
+        onmouseenter="showTip(event,[['Bin','${bin.lo.toFixed(4)}% - ${bin.hi.toFixed(4)}%',''],['Count','${bin.count}',''],['% of Total','${(bin.count/data.length*100).toFixed(1)}%','']])" onmouseleave="hideTip()" style="cursor:default"/>`;
+    }
+  });
+
+  // KDE curve
+  if (kde.length > 1) {
+    const pts = kde.map(p => `${xS(p.x)},${yS(p.y * kdeScale)}`);
+    kdePath = `<path d="M${pts.join('L')}" fill="none" stroke="${accentColor}" stroke-width="2" opacity="0.9"/>`;
+    // KDE fill
+    kdePath += `<path d="M${xS(kde[0].x)},${ch} L${pts.join('L')} L${xS(kde[kde.length-1].x)},${ch} Z" fill="${accentColor}" opacity="0.08"/>`;
+  }
+
+  // Reference lines
+  const drawRef = (val, color, lbl) => {
+    const x = xS(val);
+    if (x >= 0 && x <= cw) {
+      refLines += `<line x1="${x}" y1="0" x2="${x}" y2="${ch}" stroke="${color}" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.8"/>`;
+      refLines += `<text x="${x}" y="-6" text-anchor="middle" font-size="8" font-weight="600" fill="${color}" font-family="${SVG_FONT}">${lbl}: ${val.toFixed(4)}%</text>`;
+    }
+  };
+  drawRef(mean, c.blue, 'Mean');
+  drawRef(median, c.amber, 'Med');
+  drawRef(mode, c.purple, 'Mode');
+
+  // X axis labels
+  let xLabels = '';
+  const nXLabels = Math.min(bins.length, 8);
+  const xStep = Math.max(1, Math.floor(bins.length / nXLabels));
+  for (let i = 0; i < bins.length; i += xStep) {
+    const x = xS(bins[i].mid);
+    xLabels += `<text x="${x}" y="${ch + 16}" text-anchor="middle" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">${bins[i].mid.toFixed(3)}%</text>`;
+  }
+
+  // Y axis title
+  const yTitle = `<text x="-38" y="${ch/2}" text-anchor="middle" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}" transform="rotate(-90,-38,${ch/2})">Count</text>`;
+
+  // Legend
+  const legend = `<g transform="translate(${cw - 160}, -10)">
+    <line x1="0" y1="0" x2="12" y2="0" stroke="${c.blue}" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <text x="16" y="4" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">Mean</text>
+    <line x1="52" y1="0" x2="64" y2="0" stroke="${c.amber}" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <text x="68" y="4" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">Median</text>
+    <line x1="112" y1="0" x2="124" y2="0" stroke="${c.purple}" stroke-width="1.5" stroke-dasharray="4,3"/>
+    <text x="128" y="4" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">Mode</text>
+  </g>`;
+
+  el.innerHTML = `<svg width="${W}" height="${H}" style="overflow:visible;display:block"><g transform="translate(${ml},${mt})">${grid}${barsSvg}${kdePath}${refLines}${xLabels}${yTitle}${legend}</g></svg>`;
+}
+
+// Percentile ladder
+function renderStudyPercentileLadder(containerId, data, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length < 5) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data.</div>'; return; }
+
+  const sorted = data.slice().sort((a,b) => a-b);
+  const pcts = [5, 10, 25, 50, 75, 90, 95, 99];
+  const vals = pcts.map(p => ({ p, v: computePercentile(sorted, p) }));
+  const mn = sorted[0], mx = sorted[sorted.length-1];
+  const range = mx - mn || 1;
+  const pctPos = v => ((v - mn) / range) * 100;
+
+  const p25 = computePercentile(sorted, 25), p75 = computePercentile(sorted, 75);
+  const iqrLo = pctPos(p25), iqrHi = pctPos(p75);
+
+  let html = '<table style="width:100%;border-collapse:collapse;font-family:var(--font-data);font-size:12px">';
+  html += '<thead><tr style="border-bottom:1px solid var(--border-mid);font-size:10px;color:var(--text-muted);letter-spacing:.04em;text-transform:uppercase"><th style="text-align:left;padding:6px 8px">Percentile</th><th style="text-align:right;padding:6px 8px">Value</th><th style="padding:6px 8px;width:55%">Scale</th></tr></thead><tbody>';
+
+  vals.forEach(({ p, v }) => {
+    const pos = pctPos(v);
+    const isIQR = p >= 25 && p <= 75;
+    const highlight = p === 50 ? `font-weight:700;color:${accentColor}` : isIQR ? 'font-weight:600' : '';
+    html += `<tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px;${highlight}">P${p}</td>
+      <td style="padding:6px 8px;text-align:right;${highlight}">${v.toFixed(4)}%</td>
+      <td style="padding:6px 8px">
+        <div style="position:relative;height:14px;background:var(--bg-raised);border-radius:3px;border:1px solid var(--border)">
+          <div style="position:absolute;left:${iqrLo}%;width:${iqrHi-iqrLo}%;top:0;bottom:0;background:${accentColor};opacity:0.12;border-radius:2px"></div>
+          <div style="position:absolute;left:${pos}%;top:2px;bottom:2px;width:8px;height:8px;margin-left:-4px;border-radius:50%;background:${accentColor};opacity:${p===50?1:0.7}"></div>
+        </div>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  html += `<div style="font-family:var(--font-data);font-size:10px;color:var(--text-muted);margin-top:8px">IQR band (P25-P75) highlighted &middot; Range: ${mn.toFixed(4)}% - ${mx.toFixed(4)}%</div>`;
+  el.innerHTML = html;
+}
+
+// Shape statistics
+function renderStudyShapeStats(containerId, data, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length < 5) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data.</div>'; return; }
+
+  const n = data.length;
+  const mean = data.reduce((s,v) => s+v, 0) / n;
+  const std = Math.sqrt(data.reduce((s,v) => s + (v - mean)**2, 0) / (n - 1));
+  const sorted = data.slice().sort((a,b) => a-b);
+  const p25 = computePercentile(sorted, 25);
+  const p50 = computePercentile(sorted, 50);
+  const p75 = computePercentile(sorted, 75);
+
+  // Skewness
+  const m3 = data.reduce((s,v) => s + ((v - mean) / std)**3, 0) / n;
+  const skewInterp = Math.abs(m3) < 0.5 ? 'Roughly symmetric' : m3 > 0 ? 'Right-skewed (long right tail)' : 'Left-skewed (long left tail)';
+
+  // Excess Kurtosis
+  const m4 = data.reduce((s,v) => s + ((v - mean) / std)**4, 0) / n - 3;
+  const kurtInterp = m4 > 1 ? 'Leptokurtic (heavy tails)' : m4 < -1 ? 'Platykurtic (light tails)' : 'Mesokurtic (normal-like tails)';
+
+  // CoV
+  const cov = mean > 0 ? std / mean : null;
+
+  // IQR / Median
+  const iqrMed = p50 > 0 ? (p75 - p25) / p50 : null;
+
+  const cards = [
+    { lbl: 'Skewness', val: m3.toFixed(3), sub: skewInterp, color: Math.abs(m3) < 0.5 ? 'var(--green)' : 'var(--amber)' },
+    { lbl: 'Excess Kurtosis', val: m4.toFixed(3), sub: kurtInterp, color: Math.abs(m4) < 1 ? 'var(--green)' : 'var(--amber)' },
+    { lbl: 'Coefficient of Variation', val: cov != null ? cov.toFixed(3) : '\u2014', sub: cov != null ? (cov < 0.5 ? 'Low dispersion' : cov < 1 ? 'Moderate dispersion' : 'High dispersion') : '', color: cov != null && cov < 1 ? 'var(--green)' : 'var(--amber)' },
+    { lbl: 'IQR / Median', val: iqrMed != null ? iqrMed.toFixed(3) : '\u2014', sub: iqrMed != null ? (iqrMed < 0.5 ? 'Tight distribution' : iqrMed < 1 ? 'Moderate spread' : 'Wide spread') : '', color: iqrMed != null && iqrMed < 1 ? 'var(--green)' : 'var(--amber)' },
+  ];
+
+  let html = '<div class="study-grid4">';
+  cards.forEach(card => {
+    html += `<div class="study-card">
+      <div class="study-card-lbl">${card.lbl}</div>
+      <div class="study-card-val" style="color:${card.color}">${card.val}</div>
+      <div class="study-card-sub">${card.sub}</div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// Mode analysis
+function renderStudyModeAnalysis(containerId, data, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length < 5) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data.</div>'; return; }
+
+  const kde = computeKDE(data, 200);
+  if (!kde.length) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Cannot compute KDE.</div>'; return; }
+
+  // Find peaks: local maxima
+  const peaks = [];
+  for (let i = 1; i < kde.length - 1; i++) {
+    if (kde[i].y > kde[i-1].y && kde[i].y > kde[i+1].y) {
+      peaks.push({ x: kde[i].x, y: kde[i].y });
+    }
+  }
+  if (!peaks.length) peaks.push(kde.reduce((best, p) => p.y > best.y ? p : best, kde[0]));
+
+  peaks.sort((a, b) => b.y - a.y);
+  const primaryPeak = peaks[0];
+  const threshold = primaryPeak.y * 0.30;
+  const significantPeaks = peaks.filter(p => p.y >= threshold).slice(0, 3);
+  const isMultimodal = significantPeaks.length > 1;
+
+  let html = '<div style="display:flex;flex-direction:column;gap:10px">';
+  html += `<div class="study-card">
+    <div class="study-card-lbl">Primary Mode (KDE Peak)</div>
+    <div class="study-card-val" style="color:${accentColor}">${primaryPeak.x.toFixed(4)}%</div>
+    <div class="study-card-sub">Density: ${primaryPeak.y.toFixed(4)}</div>
+  </div>`;
+
+  if (isMultimodal) {
+    html += `<div class="study-card" style="border-color:var(--amber-border)">
+      <div class="study-card-lbl" style="color:var(--amber)">Multimodal Detected</div>
+      <div class="study-card-sub">${significantPeaks.length} significant peaks found (> 30% of primary)</div>
+    </div>`;
+    significantPeaks.slice(1).forEach((p, i) => {
+      html += `<div class="study-card">
+        <div class="study-card-lbl">Secondary Mode ${i+1}</div>
+        <div class="study-card-val" style="color:var(--purple);font-size:16px">${p.x.toFixed(4)}%</div>
+        <div class="study-card-sub">Relative strength: ${(p.y / primaryPeak.y * 100).toFixed(0)}% of primary</div>
+      </div>`;
+    });
+  } else {
+    html += `<div class="study-card">
+      <div class="study-card-lbl">Distribution Shape</div>
+      <div class="study-card-sub" style="color:var(--green)">Unimodal distribution — single dominant concentration</div>
+    </div>`;
+  }
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// Tail analysis
+function renderStudyTailAnalysis(containerId, data, accentColor) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (!data || data.length < 10) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data (need 10+ observations).</div>'; return; }
+
+  const sorted = data.slice().sort((a,b) => a-b);
+  const n = data.length;
+  const median = computePercentile(sorted, 50);
+  const p90 = computePercentile(sorted, 90);
+  const p50 = computePercentile(sorted, 50);
+  const p95 = computePercentile(sorted, 95);
+
+  // Extreme %: trades beyond P90
+  const extremeCount = data.filter(v => v > p90).length;
+  const extremePct = (extremeCount / n * 100).toFixed(1);
+
+  // 2x Median %
+  const twiceMedianCount = data.filter(v => v > 2 * median).length;
+  const twiceMedianPct = (twiceMedianCount / n * 100).toFixed(1);
+
+  // Top 10% mean vs Bottom 10% mean ratio
+  const bottom10 = sorted.slice(0, Math.max(1, Math.floor(n * 0.1)));
+  const top10 = sorted.slice(Math.floor(n * 0.9));
+  const bottom10Mean = bottom10.reduce((s,v) => s+v, 0) / bottom10.length;
+  const top10Mean = top10.reduce((s,v) => s+v, 0) / top10.length;
+  const tailMeanRatio = bottom10Mean > 0 ? top10Mean / bottom10Mean : null;
+
+  // Tail ratio: P95/P50
+  const tailRatio = p50 > 0 ? p95 / p50 : null;
+
+  const cards = [
+    { lbl: 'Extreme % (> P90)', val: extremePct + '%', sub: `${extremeCount} of ${n} trades beyond P90 (${p90.toFixed(4)}%)`, color: accentColor },
+    { lbl: '2x Median %', val: twiceMedianPct + '%', sub: `${twiceMedianCount} trades exceed 2x median (${(2*median).toFixed(4)}%)`, color: accentColor },
+    { lbl: 'Top/Bottom 10% Ratio', val: tailMeanRatio != null ? tailMeanRatio.toFixed(1) + 'x' : '\u2014', sub: `Top 10% mean: ${top10Mean.toFixed(4)}% / Bottom: ${bottom10Mean.toFixed(4)}%`, color: tailMeanRatio != null && tailMeanRatio > 5 ? 'var(--amber)' : accentColor },
+    { lbl: 'Tail Ratio (P95/P50)', val: tailRatio != null ? tailRatio.toFixed(2) + 'x' : '\u2014', sub: `P95: ${p95.toFixed(4)}% / P50: ${p50.toFixed(4)}%`, color: tailRatio != null && tailRatio > 3 ? 'var(--amber)' : accentColor },
+  ];
+
+  let html = '<div class="study-tail-grid">';
+  cards.forEach(card => {
+    html += `<div class="study-card">
+      <div class="study-card-lbl">${card.lbl}</div>
+      <div class="study-card-val" style="color:${card.color}">${card.val}</div>
+      <div class="study-card-sub">${card.sub}</div>
+    </div>`;
+  });
+  html += '</div>';
+  el.innerHTML = html;
+}
+
+// MFE:MAE Ratio Distribution (full-width)
+function renderStudyRatioDistribution(containerId, trades) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+
+  // Filter: exclude null MAE/MFE and MAE = 0
+  const valid = trades.filter(t => t.mae_pct != null && t.mfe_pct != null && t.mae_pct > 0);
+  if (valid.length < 5) { el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px">Insufficient data for ratio analysis (need trades with MAE > 0).</div>'; return; }
+
+  const ratios = valid.map(t => t.mfe_pct / t.mae_pct);
+  const c = C();
+  const W = el.clientWidth || 700, H = 300;
+  const ml = 50, mr = 30, mt = 24, mb = 60, cw = W - ml - mr, ch = H - mt - mb;
+
+  // Fixed bins
+  const binDefs = [
+    { lo: 0, hi: 1, label: '0-1x' },
+    { lo: 1, hi: 2, label: '1-2x' },
+    { lo: 2, hi: 3, label: '2-3x' },
+    { lo: 3, hi: 5, label: '3-5x' },
+    { lo: 5, hi: 10, label: '5-10x' },
+    { lo: 10, hi: Infinity, label: '10x+' },
+  ];
+
+  const binCounts = binDefs.map(b => {
+    const count = ratios.filter(r => r >= b.lo && (b.hi === Infinity ? true : r < b.hi)).length;
+    return { ...b, count };
+  });
+
+  const maxCount = Math.max.apply(null, binCounts.map(b => b.count));
+  const barW = cw / binCounts.length;
+
+  // Cumulative line data: "X% of trades have MFE > Nx MAE"
+  const thresholds = [0, 1, 2, 3, 5, 10];
+  const cumData = thresholds.map(t => ({
+    threshold: t,
+    pct: (ratios.filter(r => r > t).length / ratios.length * 100)
+  }));
+
+  let grid = '', bars = '', cumLine = '', xLabels = '', yLabels = '';
+
+  // Grid
+  const gridStep = Math.max(1, Math.ceil(maxCount / 5));
+  for (let v = 0; v <= maxCount; v += gridStep) {
+    const y = ch - (v / (maxCount * 1.1)) * ch;
+    grid += `<line x1="0" y1="${y}" x2="${cw}" y2="${y}" stroke="${c.gridLine}" stroke-width="1"/>`;
+    yLabels += `<text x="-6" y="${y + 4}" text-anchor="end" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${v}</text>`;
+  }
+
+  // Bars
+  binCounts.forEach((bin, i) => {
+    const x = i * barW + barW * 0.1;
+    const w = barW * 0.8;
+    const bh = (bin.count / (maxCount * 1.1)) * ch;
+    const y = ch - bh;
+    const color = bin.lo < 1 ? c.red : bin.lo < 3 ? c.green : c.blue;
+    bars += `<rect x="${x}" y="${y}" width="${w}" height="${bh}" fill="${color}" opacity="0.45" rx="2"
+      onmouseenter="showTip(event,[['Range','${bin.label}',''],['Count','${bin.count}',''],['% of Total','${(bin.count/ratios.length*100).toFixed(1)}%','']])" onmouseleave="hideTip()" style="cursor:default"/>`;
+    bars += `<text x="${x + w/2}" y="${y - 5}" text-anchor="middle" font-size="9" font-weight="600" fill="${color}" font-family="${SVG_FONT}">${bin.count}</text>`;
+    xLabels += `<text x="${i * barW + barW/2}" y="${ch + 16}" text-anchor="middle" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${bin.label}</text>`;
+  });
+
+  // Cumulative line (right Y axis: 0-100%)
+  const cumPts = cumData.map((d, i) => {
+    const x = i * barW + barW / 2;
+    const y = ch - (d.pct / 100) * ch;
+    return { x, y, pct: d.pct, threshold: d.threshold };
+  });
+  if (cumPts.length > 1) {
+    const pathD = cumPts.map((p, i) => (i === 0 ? `M${p.x},${p.y}` : `L${p.x},${p.y}`)).join('');
+    cumLine += `<path d="${pathD}" fill="none" stroke="${c.amber}" stroke-width="2" stroke-dasharray="4,2" opacity="0.8"/>`;
+    cumPts.forEach(p => {
+      cumLine += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${c.amber}" stroke="${c.bgCard}" stroke-width="1.5"/>`;
+      cumLine += `<text x="${p.x}" y="${p.y - 8}" text-anchor="middle" font-size="8" font-weight="600" fill="${c.amber}" font-family="${SVG_FONT}">${p.pct.toFixed(0)}%</text>`;
+    });
+  }
+
+  // Right Y axis for cumulative
+  const rightLabels = [0, 25, 50, 75, 100].map(v => {
+    const y = ch - (v / 100) * ch;
+    return `<text x="${cw + 6}" y="${y + 4}" text-anchor="start" font-size="8" fill="${c.amber}" font-family="${SVG_FONT}">${v}%</text>`;
+  }).join('');
+
+  // X axis title
+  const xTitle = `<text x="${cw/2}" y="${ch + 34}" text-anchor="middle" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">MFE:MAE Ratio</text>`;
+
+  // Summary cards below chart
+  const summaryThresholds = [1, 2, 3, 5, 10];
+  let summaryHtml = `<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">`;
+  summaryThresholds.forEach(t => {
+    const pct = (ratios.filter(r => r > t).length / ratios.length * 100).toFixed(1);
+    const color = parseFloat(pct) > 50 ? c.green : parseFloat(pct) > 25 ? c.amber : c.red;
+    summaryHtml += `<div class="study-card" style="flex:1;min-width:100px;text-align:center">
+      <div class="study-card-lbl">MFE > ${t}x MAE</div>
+      <div class="study-card-val" style="color:${color};font-size:18px">${pct}%</div>
+      <div class="study-card-sub">${ratios.filter(r => r > t).length} of ${ratios.length} trades</div>
+    </div>`;
+  });
+  summaryHtml += '</div>';
+
+  // Legend
+  const legend = `<g transform="translate(${cw - 200}, -10)">
+    <rect x="0" y="-5" width="10" height="10" fill="${c.green}" opacity="0.45" rx="1"/>
+    <text x="14" y="4" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">Bars: count</text>
+    <line x1="80" y1="0" x2="100" y2="0" stroke="${c.amber}" stroke-width="2" stroke-dasharray="4,2"/>
+    <text x="104" y="4" font-size="8" fill="${c.amber}" font-family="${SVG_FONT}">Cumulative % > Nx</text>
+  </g>`;
+
+  el.innerHTML = `<svg width="${W}" height="${H}" style="overflow:visible;display:block"><g transform="translate(${ml},${mt})">${grid}${bars}${cumLine}${yLabels}${rightLabels}${xLabels}${xTitle}${legend}</g></svg>${summaryHtml}`;
+}
+
+// Main study tab renderer
+function renderStudyTab(D) {
+  // T-Spot type pills
+  const pillsEl = document.getElementById('study-type-pills');
+  if (pillsEl) {
+    const types = ['all', 'normal', 'expansive', 'protrend'];
+    pillsEl.innerHTML = types.map(t => {
+      const label = t === 'all' ? 'All' : t.charAt(0).toUpperCase() + t.slice(1);
+      return `<button class="study-pill ${activeStudyType === t ? 'active' : ''}" data-type="${t}" onclick="switchStudyType('${t}')">${label}</button>`;
+    }).join('');
+  }
+
+  // Get trades filtered by period and direction
+  let trades = D.recent_trades || [];
+  if (activeDirFilter !== 'all') trades = trades.filter(t => t.direction === activeDirFilter);
+  if (activeStudyType !== 'all') trades = trades.filter(t => t.tspot_type === activeStudyType);
+
+  const maeData = trades.map(t => t.mae_pct).filter(v => v != null);
+  const mfeData = trades.map(t => t.mfe_pct).filter(v => v != null);
+
+  const noData = '<div style="color:var(--text-muted);font-size:12px;padding:8px">No data available for current filters.</div>';
+
+  if (maeData.length < 3) {
+    ['study-mae-dist','study-mae-pctile','study-mae-shape','study-mae-mode','study-mae-tail',
+     'study-mfe-dist','study-mfe-pctile','study-mfe-shape','study-mfe-mode','study-mfe-tail',
+     'study-ratio-dist'].forEach(id => { const e = document.getElementById(id); if (e) e.innerHTML = noData; });
+    return;
+  }
+
+  // MAE panels
+  renderStudyDistChart('study-mae-dist', maeData, 'MAE', C().red);
+  renderStudyPercentileLadder('study-mae-pctile', maeData, C().red);
+  renderStudyShapeStats('study-mae-shape', maeData, C().red);
+  renderStudyModeAnalysis('study-mae-mode', maeData, C().red);
+  renderStudyTailAnalysis('study-mae-tail', maeData, C().red);
+
+  // MFE panels
+  renderStudyDistChart('study-mfe-dist', mfeData, 'MFE', C().green);
+  renderStudyPercentileLadder('study-mfe-pctile', mfeData, C().green);
+  renderStudyShapeStats('study-mfe-shape', mfeData, C().green);
+  renderStudyModeAnalysis('study-mfe-mode', mfeData, C().green);
+  renderStudyTailAnalysis('study-mfe-tail', mfeData, C().green);
+
+  // Ratio distribution
+  renderStudyRatioDistribution('study-ratio-dist', trades);
+}
+
 // ── MAIN RENDER ────────────────────────────────────────────────────────────
 function renderActive() {
-  const D = getModelData(activeModel);
-  if (!D) {
+  const rawD = getModelData(activeModel);
+  if (!rawD) {
     document.getElementById('meta-row').innerHTML = `<div style="grid-column:1/-1;font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:8px">No data for ${activeModel}. Run <code>python3 model_stats.py</code> to generate.</div>`;
     return;
   }
+  const D = filterByPeriod(rawD);
 
   // Always render overview components
   renderHeroTiles(D);
@@ -1063,7 +1578,7 @@ function renderActive() {
     renderHeatmap(D);
   }
   if (activePageTab === 'trades') renderRecentTrades();
-  if (activePageTab === 'live-scanner') loadScannerStatus();
+  if (activePageTab === 'study') renderStudyTab(D);
 }
 
 // ── FULL RENDER ────────────────────────────────────────────────────────────
