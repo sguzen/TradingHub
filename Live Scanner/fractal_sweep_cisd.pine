@@ -471,7 +471,7 @@ if can_return
 f_cisd_long(int ret_bar) =>
     // LONG: scan backward from ret_bar, skip dojis and bullish candles,
     // find nearest bearish candle, then walk back through consecutive bearish run.
-    // CISD level = highest HIGH of the entire bearish run (TTFM series extreme).
+    // CISD level = open of earliest bearish candle in the run.
     cisd_lvl = float(na)
     cisd_off = 0
     if not na(ret_bar)
@@ -488,7 +488,6 @@ f_cisd_long(int ret_bar) =>
                 break
         if nearest_k > 0
             run_start_k = nearest_k
-            series_high = high[nearest_k]
             for step2 = nearest_k + 1 to cisd_lookback * 4
                 if step2 >= bar_index
                     break
@@ -496,17 +495,16 @@ f_cisd_long(int ret_bar) =>
                     continue
                 if close[step2] < open[step2]
                     run_start_k := step2
-                    series_high := math.max(series_high, high[step2])
                 else
                     break
-            cisd_lvl := series_high
+            cisd_lvl := open[run_start_k]
             cisd_off := run_start_k
     [not na(cisd_lvl) and close > cisd_lvl, cisd_lvl, na(cisd_lvl) ? 0 : cisd_off]
 
 f_cisd_short(int ret_bar) =>
     // SHORT: scan backward from ret_bar, skip dojis and bearish candles,
     // find nearest bullish candle, then walk back through consecutive bullish run.
-    // CISD level = lowest LOW of the entire bullish run (TTFM series extreme).
+    // CISD level = open of earliest bullish candle in the run.
     cisd_lvl = float(na)
     cisd_off = 0
     if not na(ret_bar)
@@ -523,7 +521,6 @@ f_cisd_short(int ret_bar) =>
                 break
         if nearest_k > 0
             run_start_k = nearest_k
-            series_low = low[nearest_k]
             for step2 = nearest_k + 1 to cisd_lookback * 4
                 if step2 >= bar_index
                     break
@@ -531,10 +528,9 @@ f_cisd_short(int ret_bar) =>
                     continue
                 if close[step2] > open[step2]
                     run_start_k := step2
-                    series_low := math.min(series_low, low[step2])
                 else
                     break
-            cisd_lvl := series_low
+            cisd_lvl := open[run_start_k]
             cisd_off := run_start_k
     [not na(cisd_lvl) and close < cisd_lvl, cisd_lvl, na(cisd_lvl) ? 0 : cisd_off]
 
