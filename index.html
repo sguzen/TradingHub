@@ -849,24 +849,6 @@ async function loadStats(project) {
       };
     }
 
-    if (project.type === 'ttfm') {
-      const o = d.overall || {};
-      const dateRange = (() => {
-        const rt = d.recent_trades;
-        if (!rt) return '—';
-        const all = Object.values(rt).flat();
-        if (!all.length) return '—';
-        const dates = all.map(t => t.date).sort();
-        return `${dates[dates.length-1]}`;  // most recent date
-      })();
-      return {
-        label1: 'Win Rate', val1: pct(o.wr), cls1: wrColor(o.wr),
-        label2: 'EV',       val2: sgn(o.ev), cls2: o.ev > 0 ? 'pos' : 'neg',
-        label3: 'Trades',   val3: num(d.meta?.total_resolved), cls3: 'neutral',
-        dateRange: d.meta?.table ? `${d.meta.table} · HTF ${d.meta.htf_min}min` : '—',
-      };
-    }
-
     if (project.type === 'ny1') {
       // Load real scan results dynamically
       let NY1_COMBOS = [];
@@ -935,7 +917,6 @@ function buildCard(p) {
 
   const compHtml = s?.combos10       ? buildNy1RankingsTable(s.combos10)
                  : s?.profileRows   ? buildNy1ProfileTable(s.profileRows)
-                 : s?.top5combos    ? buildSweepTop5Table(s.top5combos)
                  : '';
 
   return `
@@ -963,26 +944,6 @@ function buildCard(p) {
       </a>
     </div>
   </div>`;
-}
-
-function buildSweepSubTable(models) {
-  const rows = models.map(m => {
-    const wrCls = m.wr >= 0.55 ? 'pos' : m.wr <= 0.28 ? 'neg' : '';
-    const evCls = m.ev > 0 ? 'pos' : 'neg';
-    return `<tr>
-      <td>${m.key.replace('_',' · ')}</td>
-      <td class="stat-val ${wrCls}" style="font-size:12px;">${pct(m.wr)}</td>
-      <td class="stat-val ${evCls}" style="font-size:12px;">${sgn(m.ev)}</td>
-      <td style="color:var(--text-muted);">${num(m.n)}</td>
-    </tr>`;
-  }).join('');
-  return `
-    <div style="overflow-x:auto;margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-      <table class="sweep-sub-table">
-        <thead><tr><th>Model</th><th>WR</th><th>EV</th><th>N</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>`;
 }
 
 function buildNy1RankingsTable(combos) {
@@ -1046,48 +1007,6 @@ function buildNy1ProfileTable(profileRows) {
         <thead><tr><th>Profile</th><th>WR%</th><th>N</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
-    </div>`;
-}
-
-function buildSweepTop5Table(top5) {
-  const MODEL_DISPLAY = {
-    '30M_3M': '30M · 3M',
-    '4H_15M': '4H · 15M',
-    '1H_5M':  '1H · 5M',
-    '1H_3M':  '1H · 3M',
-  };
-  const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
-  const isPct = pk => pk.includes('%');
-
-  const rows = top5.map((c, i) => {
-    const modelShort = c.modelKey.replace('_PREV_CISD', '');
-    const modelLabel = MODEL_DISPLAY[modelShort] || modelShort.replace(/_/g, ' · ');
-    const ptype = isPct(c.profileKey) ? 'pct' : 'mult';
-    const ptypeLabel = isPct(c.profileKey) ? '% price' : '× sweep';
-    const evCls = c.ev > 0 ? 'pos' : 'neg';
-    return `<tr>
-      <td><span class="ev-rank ${rankClass(i)}" style="font-size:11px;">${i + 1}</span></td>
-      <td style="color:var(--text);font-weight:600;">${modelLabel}</td>
-      <td>
-        <span style="color:var(--text-sub);">${c.profileKey}</span>
-        <span class="ev-type ${ptype}">${ptypeLabel}</span>
-      </td>
-      <td class="${c.wr >= c.be ? 'ev-pos' : 'ev-neg'}">${pct(c.wr)}</td>
-      <td class="${evCls}">${sgn(c.ev)}</td>
-    </tr>`;
-  }).join('');
-
-  return `
-    <div style="margin-bottom:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-      <div style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);">
-        Top Combinations · Model × Profile
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="sweep-sub-table">
-          <thead><tr><th>#</th><th>Model</th><th>Profile</th><th>WR%</th><th>EV</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
     </div>`;
 }
 

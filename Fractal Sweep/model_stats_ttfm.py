@@ -73,7 +73,7 @@ def resample(df_1m, tf_min, label):
     df2['ts_tf'] = df2.index.floor(f"{tf_min}min")
     agg_df = df2.groupby('ts_tf').agg(
         trade_date=('trade_date', 'first'), yr=('yr', 'first'), mo=('mo', 'first'),
-        dow=('dow', 'first'), hr=('hr', 'first'),
+        dow=('dow', 'first'), hr=('hr', 'first'), mn=('mn', 'first'),
         open_tf=('open', 'first'), high_tf=('high', 'max'),
         low_tf=('low', 'min'),    close_tf=('close', 'last'),
     ).sort_index()
@@ -99,6 +99,7 @@ def df_to_arrays(df):
         yr         = df['yr'].values.astype('int32'),
         dow        = df['dow'].values.astype('int32'),
         hr         = df['hr'].values.astype('int32'),
+        mn         = df['mn'].values.astype('int32'),
     )
 
 
@@ -479,8 +480,11 @@ def build_model_stats(df, model_key):
             'std': round(float(arr.std()), 4),
             'p10': round(float(arr.quantile(0.10)), 4),
             'p25': round(float(arr.quantile(0.25)), 4),
+            'p50': round(float(arr.quantile(0.50)), 4),
             'p75': round(float(arr.quantile(0.75)), 4),
             'p90': round(float(arr.quantile(0.90)), 4),
+            'p95': round(float(arr.quantile(0.95)), 4),
+            'p99': round(float(arr.quantile(0.99)), 4),
             'min': round(float(arr.min()), 4),
             'max': round(float(arr.max()), 4),
         }

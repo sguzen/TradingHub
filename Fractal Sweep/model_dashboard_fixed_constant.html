@@ -366,14 +366,17 @@ function getPeriodCutoff() {
   if (activePeriod === 'all') return null;
   const d = new Date();
   d.setDate(d.getDate() - parseInt(activePeriod));
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // Recompute all aggregations from filtered reps
 function filterByPeriod(D) {
   const cutoff = getPeriodCutoff();
   if (!cutoff) return D;
-  const reps = (D.recent_reps || []).filter(r => r.date >= cutoff);
+  const reps = (D.recent_reps || []).filter(r => String(r.date).slice(0,10) >= cutoff);
   if (!reps.length) {
     return { ...D, recent_reps: [], by_hour: [], by_dow: [], by_session: [], by_year: [],
              up_dist: {}, down_dist: {}, meta: { ...D.meta, total_reps: 0 } };

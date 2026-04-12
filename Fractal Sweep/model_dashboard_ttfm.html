@@ -587,13 +587,16 @@ function getPeriodCutoff() {
   if (activePeriod === 'all') return null;
   const d = new Date();
   d.setDate(d.getDate() - parseInt(activePeriod));
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function filterByPeriod(D) {
   const cutoff = getPeriodCutoff();
   if (!cutoff) return D;
-  const trades = (D.recent_trades || []).filter(t => t.date >= cutoff);
+  const trades = (D.recent_trades || []).filter(t => String(t.date).slice(0,10) >= cutoff);
   if (!trades.length) return { ...D, recent_trades: [], by_hour: [], by_dow: [], by_session: [], by_tspot_type: [], by_year: [], dir_summary: [], meta: { ...D.meta, total_trades: 0 } };
 
   // Recompute all breakdowns from filtered trades
@@ -1079,7 +1082,7 @@ function switchStudyType(t) {
 
 // Statistical helpers
 function computePercentile(sorted, p) {
-  if (!sorted.length) return 0;
+  if (!sorted.length) return null;
   const idx = (p / 100) * (sorted.length - 1);
   const lo = Math.floor(idx), hi = Math.ceil(idx);
   return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
