@@ -260,8 +260,13 @@ def scan_ttfm_model(htf_arrs, chart_arrs, m1_arrs, model_key, cfg):
     htf_n = len(htf_arrs['ts_ns'])
     htf_period_ns = cfg['htf_min'] * 60 * 10**9
     trades = []
+    tspot_count = 0
+    pct_step = max(1, htf_n // 10)
 
     for i in range(3, htf_n):
+        if (i - 3) % pct_step == 0:
+            pct = (i - 3) / max(htf_n - 3, 1) * 100
+            print(f'    [{model_key}] {pct:.0f}%  ({i:,}/{htf_n:,} HTF bars, {len(trades)} trades, {tspot_count} tspots)', flush=True)
         if htf_arrs['ts_ns'][i] - htf_arrs['ts_ns'][i-1] > 3 * htf_period_ns:
             continue
 
@@ -278,6 +283,7 @@ def scan_ttfm_model(htf_arrs, chart_arrs, m1_arrs, model_key, cfg):
             continue
 
         tspot_type, direction, sweep_mid, close_level, c2_level = tspot
+        tspot_count += 1
         touch_level = close_level
 
         htf_start_ns = int(htf_arrs['ts_ns'][i])
@@ -351,6 +357,8 @@ def scan_ttfm_model(htf_arrs, chart_arrs, m1_arrs, model_key, cfg):
                     'dow': int(htf_arrs['dow'][i-1]),
                     'dow_name': DOW_NAMES.get(int(htf_arrs['dow'][i-1]), '?'),
                     'hr': hr,
+                    'mn': mn,
+                    'entry_time': f'{hr:02d}:{mn:02d}',
                     'session': session,
                     'direction': direction,
                     'tspot_type': tspot_type,
@@ -531,9 +539,9 @@ def main():
         htf_arrs = arrs[cfg['htf_min']]
         chart_arrs = arrs[cfg['chart_tf_min']]
 
-        print(f'\n  Scanning {model_key} ...')
+        print(f'\n  Scanning {model_key} ...', flush=True)
         trades = scan_ttfm_model(htf_arrs, chart_arrs, m1_arrs, model_key, cfg)
-        print(f'    {len(trades)} trades found')
+        print(f'    {len(trades)} trades found', flush=True)
 
         df = pd.DataFrame(trades) if trades else pd.DataFrame()
         stats = build_model_stats(df, model_key)
