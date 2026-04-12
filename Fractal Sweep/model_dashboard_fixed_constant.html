@@ -141,7 +141,41 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 /* DIST CARDS */
 .dist-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
 
+/* DOCTRINE ANCHOR CARDS */
+.anchors-grid{display:grid;grid-template-columns:1fr 1.6fr;gap:14px}
+.anchor-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:22px 24px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.anchor-card.stop{border-color:var(--red-border)}
+.anchor-card.tp{border-color:var(--green-border)}
+.anchor-card-accent{position:absolute;top:0;left:0;width:4px;height:100%}
+.anchor-card.stop .anchor-card-accent{background:var(--red)}
+.anchor-card.tp .anchor-card-accent{background:var(--green)}
+.anchor-head{font-family:var(--font-data);font-size:10px;font-weight:600;letter-spacing:0.08em;color:var(--text-muted);text-transform:uppercase;margin-bottom:12px}
+.anchor-big{font-family:var(--font-display);font-size:48px;font-weight:800;letter-spacing:-0.025em;line-height:1;margin-bottom:6px}
+.anchor-big.r{color:var(--red)}
+.anchor-label{font-family:var(--font-display);font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+.anchor-sub{font-family:var(--font-data);font-size:11px;color:var(--text-secondary);line-height:1.6;margin-bottom:18px}
+.anchor-mini-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-top:14px;border-top:1px solid var(--border)}
+.anchor-mini{background:var(--bg-raised);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.anchor-mini-lbl{font-family:var(--font-data);font-size:9px;font-weight:600;color:var(--text-muted);letter-spacing:0.04em;text-transform:uppercase;margin-bottom:4px}
+.anchor-mini-val{font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-primary);line-height:1}
+.anchor-mini-sub{font-family:var(--font-data);font-size:9px;color:var(--text-muted);margin-top:2px}
+.tp-table{width:100%;border-collapse:collapse;margin-top:8px}
+.tp-table th{font-family:var(--font-data);font-size:10px;font-weight:600;letter-spacing:0.04em;color:var(--text-muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);text-transform:uppercase}
+.tp-table th.r{text-align:right}
+.tp-table td{font-family:var(--font-data);font-size:13px;padding:14px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tp-table td.r{text-align:right}
+.tp-table tr:last-child td{border-bottom:none}
+.tp-table tr.pos{background:color-mix(in srgb,var(--green) 6%,transparent)}
+.tp-table tr.neg{background:color-mix(in srgb,var(--red) 6%,transparent)}
+.tp-label{font-family:var(--font-display);font-weight:700;color:var(--text-primary);font-size:13px}
+.tp-pct-tag{display:inline-block;font-family:var(--font-data);font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;background:var(--bg-raised);border:1px solid var(--border-mid);color:var(--text-secondary);margin-left:6px}
+.tp-ev-pos{color:var(--green);font-weight:700}
+.tp-ev-neg{color:var(--red);font-weight:700}
+.tp-explain{font-family:var(--font-body);font-size:11.5px;color:var(--text-muted);line-height:1.6;padding:14px 18px;border-top:1px solid var(--border);background:var(--bg-raised);font-style:italic}
+.tp-explain strong{color:var(--text-secondary);font-style:normal}
+
 @media(max-width:1100px){.meta-row{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:1000px){.anchors-grid{grid-template-columns:1fr}}
 @media(max-width:760px){.grid2,.dist-grid{grid-template-columns:1fr}.meta-row{grid-template-columns:repeat(2,1fr)}.main{padding:16px 16px 80px}.hdr{padding:0 16px}}
 </style>
 </head>
@@ -205,6 +239,9 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 
     <div class="sec-label">Performance Summary</div>
     <div class="meta-row" id="meta-row"></div>
+
+    <div class="sec-label">Doctrine Anchors &middot; Percentile-Derived Stops &amp; Targets</div>
+    <div id="anchors-section"></div>
 
     <div class="sec-label">Up &amp; Down Excursion Distributions</div>
     <div class="dist-grid">
@@ -525,6 +562,116 @@ function renderHeroTiles(D) {
   });
 }
 
+// ── DOCTRINE ANCHORS ───────────────────────────────────────────────────────
+function computePercentile(sorted, p) {
+  if (!sorted.length) return null;
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+function computeDoctrineAnchors(reps) {
+  const ups = reps.map(r => r.excursion_up_pct).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
+  const downs = reps.map(r => r.excursion_down_pct).filter(v => v != null && !isNaN(v)).sort((a, b) => a - b);
+  return {
+    n: reps.length,
+    n_up: ups.length,
+    n_down: downs.length,
+    down_p90: computePercentile(downs, 90),
+    down_p95: computePercentile(downs, 95),
+    down_p99: computePercentile(downs, 99),
+    up_p10: computePercentile(ups, 10),
+    up_p25: computePercentile(ups, 25),
+    up_p50: computePercentile(ups, 50),
+    up_p70: computePercentile(ups, 70),
+  };
+}
+
+function computeTpEvs(anchors) {
+  const stopPct = anchors.down_p99 || 0;
+  const stopHitRate = 0.01;
+  return [
+    { label: 'Cover the Queen', pct: 10, hitRate: 0.90, mfe: anchors.up_p10 },
+    { label: 'Cash Flow Target', pct: 25, hitRate: 0.75, mfe: anchors.up_p25 },
+    { label: 'Extended Target', pct: 50, hitRate: 0.50, mfe: anchors.up_p50 },
+    { label: 'Runner', pct: 70, hitRate: 0.30, mfe: anchors.up_p70 },
+  ].map(tp => ({
+    ...tp,
+    ev: tp.mfe != null && stopPct != null ? (tp.hitRate * tp.mfe) - (stopHitRate * stopPct) : null,
+  }));
+}
+
+function renderDoctrineAnchors(D) {
+  const el = document.getElementById('anchors-section');
+  if (!el) return;
+  const reps = D.recent_reps || [];
+  if (!reps.length) {
+    el.innerHTML = '<div style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:12px">No reps in selected period.</div>';
+    return;
+  }
+  const anchors = computeDoctrineAnchors(reps);
+  const tps = computeTpEvs(anchors);
+
+  const stopHtml = `
+    <div class="anchor-card stop">
+      <div class="anchor-card-accent"></div>
+      <div class="anchor-head">Stop Anchor (MAE99)</div>
+      <div class="anchor-big r">${fmtPct(anchors.down_p99)}</div>
+      <div class="anchor-label">Structural Hard Stop</div>
+      <div class="anchor-sub">99% of reps never exceeded this level. Mickey's MAE99 &mdash; distributional stable point that does not drift with sample size.</div>
+      <div class="anchor-mini-row">
+        <div class="anchor-mini">
+          <div class="anchor-mini-lbl">Down P95</div>
+          <div class="anchor-mini-val">${fmtPct(anchors.down_p95)}</div>
+          <div class="anchor-mini-sub">5% stopout rate</div>
+        </div>
+        <div class="anchor-mini">
+          <div class="anchor-mini-lbl">Down P90</div>
+          <div class="anchor-mini-val">${fmtPct(anchors.down_p90)}</div>
+          <div class="anchor-mini-sub">10% stopout rate</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const tpRows = tps.map(tp => {
+    const isPos = tp.ev != null && tp.ev > 0;
+    const isNeg = tp.ev != null && tp.ev <= 0;
+    const cls = isPos ? 'pos' : isNeg ? 'neg' : '';
+    const evCls = isPos ? 'tp-ev-pos' : isNeg ? 'tp-ev-neg' : '';
+    const evStr = tp.ev != null ? (tp.ev > 0 ? '+' : '') + tp.ev.toFixed(4) + '%' : '\u2014';
+    return `<tr class="${cls}">
+      <td><span class="tp-label">${tp.label}</span><span class="tp-pct-tag">Up P${tp.pct}</span></td>
+      <td class="r">${(tp.hitRate * 100).toFixed(0)}%</td>
+      <td class="r">${fmtPct(tp.mfe)}</td>
+      <td class="r"><span class="${evCls}">${evStr}</span></td>
+    </tr>`;
+  }).join('');
+
+  const tpHtml = `
+    <div class="anchor-card tp" style="padding:0;">
+      <div class="anchor-card-accent"></div>
+      <div style="padding:22px 24px 6px 24px;">
+        <div class="anchor-head">TP Anchors (Up Excursion Percentiles)</div>
+        <div class="anchor-label" style="margin-bottom:2px;">Doctrine-Defined Target Levels</div>
+        <div class="anchor-sub" style="margin-bottom:14px;">Each row is a candidate exit. Hit rate is fixed by the percentile choice; the % column is empirical from this universe; EV column is the expected value per rep against the down P99 stop.</div>
+      </div>
+      <table class="tp-table">
+        <thead><tr>
+          <th>Target</th>
+          <th class="r">Hit Rate</th>
+          <th class="r">Up %</th>
+          <th class="r">EV vs P99 Stop</th>
+        </tr></thead>
+        <tbody>${tpRows}</tbody>
+      </table>
+      <div class="tp-explain">EV calculated as <strong>(hit_rate &times; up percentile) &minus; (1% &times; down P99)</strong>. Mickey: <em>"What is your MFE percentile and what is your MAE percentile, and do those together produce a logical profit factor?"</em></div>
+    </div>
+  `;
+
+  el.innerHTML = `<div class="anchors-grid">${stopHtml}${tpHtml}</div>`;
+}
+
 // ── HISTOGRAM ──────────────────────────────────────────────────────────────
 function renderHistogram(containerId, values, color) {
   const container = document.getElementById(containerId);
@@ -826,6 +973,7 @@ function renderActive() {
 
   renderDoctrine(D);
   renderHeroTiles(D);
+  renderDoctrineAnchors(D);
 
   // Histograms (build value arrays from recent_reps for accurate filtered view)
   const reps = D.recent_reps || [];
