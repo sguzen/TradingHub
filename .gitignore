@@ -19,6 +19,9 @@ __pycache__/
 
 # Secrets
 .env
+.claude/settings.json
+.claude/settings.local.json
+.claude-design/
 
 # Generated stats
 555/model_stats.json
