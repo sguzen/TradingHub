@@ -315,6 +315,27 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   </div>
   <div class="sel-group" style="justify-content:flex-end;">
     <label class="sel-label">&nbsp;</label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F1: Prior Range Floor — reject setups where the prior HTF candle's range is too small (min_range per model). Tiny candles produce unreliable sweep levels. Default ON.">
+      <input type="checkbox" id="f1-checkbox" checked onchange="switchF1(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
+      F1
+    </label>
+  </div>
+  <div class="sel-group" style="justify-content:flex-end;">
+    <label class="sel-label">&nbsp;</label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F3: Sweep Max Cap — reject sweeps that penetrate more than 50% of the prior candle's range. Deep sweeps indicate momentum, not manipulation. Default ON.">
+      <input type="checkbox" id="f3-checkbox" checked onchange="switchF3(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
+      F3
+    </label>
+  </div>
+  <div class="sel-group" style="justify-content:flex-end;">
+    <label class="sel-label">&nbsp;</label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F4: Close-Back Required — after sweeping, price must close back inside the prior candle's range. Confirms the sweep was a liquidity grab, not a breakout. Default ON.">
+      <input type="checkbox" id="f4-checkbox" checked onchange="switchF4(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
+      F4
+    </label>
+  </div>
+  <div class="sel-group" style="justify-content:flex-end;">
+    <label class="sel-label">&nbsp;</label>
     <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;">
       <input type="checkbox" id="smt-checkbox" onchange="switchSMT(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
       SMT
@@ -671,6 +692,24 @@ function switchSMT(checked) {
   renderActive();
 }
 
+function switchF1(checked) {
+  activeF1 = !!checked;
+  _tradesPage = 0;
+  renderActive();
+}
+
+function switchF3(checked) {
+  activeF3 = !!checked;
+  _tradesPage = 0;
+  renderActive();
+}
+
+function switchF4(checked) {
+  activeF4 = !!checked;
+  _tradesPage = 0;
+  renderActive();
+}
+
 function switchHourAligned(checked) {
   activeHourAligned = !!checked;
   _tradesPage = 0;
@@ -867,6 +906,12 @@ let activeMode    = 'PREV';
 let activeCisd    = 'CISD';
 let activeProfile = 'structural_dynamic';
 let activeTF      = 'all';  // 'all' | '2y' | '1y' | '6m' | '3m' | '1m'
+// F1/F3/F4 are "rejection" filters — default CHECKED (active). Unchecking
+// lets F-rejected trades through. SMT/Hour-Aligned/Prior-* are "positive"
+// filters, default UNCHECKED. All seven are individually selectable.
+let activeF1                = true;   // filter to passes_f1===true
+let activeF3                = true;   // filter to passes_f3===true
+let activeF4                = true;   // filter to passes_f4===true
 let activeSmt               = false;  // filter to smt===true
 let activeHourAligned       = false;  // filter to cisd_aligned===true
 let activePriorCounterClose = false;  // filter to prior_counter_close===true
@@ -3527,14 +3572,27 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
 // ── SMT DATA OVERRIDE ────────────────────────────────────────────────────────
 // When SMT checkbox is checked, recompute aggregated stats from filtered trades
 // so hero tiles, by_hour, by_session, by_dow, and dir_summary all reflect SMT-only trades.
-// Combined filter entry point: applies SMT + Hour-Open Aligned +
-// Prior Counter-Close + Prior Engulfing. Each is an optional positive filter
-// that keeps only trades where the corresponding per-trade boolean is True.
+// Combined filter entry point: applies all 7 filters individually.
+//
+// F1/F3/F4 default CHECKED (active) — they're the baseline quality filters.
+// When a checkbox is unchecked the corresponding F-rejected trades are
+// included in the view.
+//
+// SMT/Hour-Aligned/Prior-Counter/Prior-Engulfing default UNCHECKED — they
+// are positive add-on filters that narrow the set when enabled.
+//
+// Trades missing passes_f1/f3/f4 fields (older JSONs) default to passing
+// the filter (treat undefined as permissive) so back-compat is preserved.
 function getFilteredD(D) {
-  if (!activeSmt && !activeHourAligned && !activePriorCounterClose && !activePriorEngulfing) return D;
+  const anyActive = activeF1 || activeF3 || activeF4
+    || activeSmt || activeHourAligned || activePriorCounterClose || activePriorEngulfing;
+  if (!anyActive) return D;
   const rawTrades = D?.recent_trades;
   if (!rawTrades || !rawTrades.length) return D;
   let trades = rawTrades;
+  if (activeF1) trades = trades.filter(t => t.passes_f1 !== false);
+  if (activeF3) trades = trades.filter(t => t.passes_f3 !== false);
+  if (activeF4) trades = trades.filter(t => t.passes_f4 !== false);
   if (activeSmt)               trades = trades.filter(t => t.smt === true);
   if (activeHourAligned)       trades = trades.filter(t => t.cisd_aligned === true);
   if (activePriorCounterClose) trades = trades.filter(t => t.prior_counter_close === true);
@@ -5409,7 +5467,10 @@ function renderFilterVariants(D, targetEl) {
       </tr></thead><tbody>`;
 
   // Determine currently active filter set based on all header toggles
-  const activeFilters = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK'];
+  const activeFilters = [];
+  if (activeF1) activeFilters.push('F1_SMALL_RANGE');
+  if (activeF3) activeFilters.push('F3_SWEEP_TOO_LARGE');
+  if (activeF4) activeFilters.push('F4_NO_CLOSE_BACK');
   if (activeSmt) activeFilters.push('SMT');
   if (activeHourAligned) activeFilters.push('HOUR_ALIGNED');
   if (activePriorCounterClose) activeFilters.push('PRIOR_COUNTER_CLOSE');

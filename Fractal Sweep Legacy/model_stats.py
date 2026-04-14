@@ -1215,10 +1215,16 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                         es_also_swept = float(es_m1_l[es_q1_s:es_q1_e].min()) < es_ref_low
                         smt_divergence = not es_also_swept  # Divergence if ES did NOT sweep
 
+            # Compute each filter condition INDEPENDENTLY (no short-circuit).
+            # rejected_by still gets a single first-match code for legacy
+            # stat code paths, but passes_f1/f3/f4 reflect the true condition
+            # for each filter so they can be toggled independently in the UI.
+            passes_f1 = bool(ref_range >= min_range)
+            passes_f3 = bool(ref_range <= 0 or (sweep_ext / ref_range) <= SWEEP_MAX_PCT)
             rejected_by = ''
-            if ref_range < min_range:
+            if not passes_f1:
                 rejected_by = 'F1_SMALL_RANGE'
-            elif ref_range > 0 and (sweep_ext / ref_range) > SWEEP_MAX_PCT:
+            elif not passes_f3:
                 rejected_by = 'F3_SWEEP_TOO_LARGE'
 
             post_s = pos + 1
@@ -1238,11 +1244,15 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             ret_close = float(q1_c[ret_idx])
             ret_ts_ns = int(q1_ts[ret_idx])
 
-            if not rejected_by:
-                if direction == 'SHORT' and ret_close > ref_level:
-                    rejected_by = 'F4_NO_CLOSE_BACK'
-                elif direction == 'LONG' and ret_close < ref_level:
-                    rejected_by = 'F4_NO_CLOSE_BACK'
+            # F4: Close-Back Required — computed independently regardless of
+            # whether F1 or F3 already flagged the trade. A trade rejected by
+            # F1 can still have valid F4 behavior.
+            if direction == 'SHORT':
+                passes_f4 = bool(ret_close <= ref_level)
+            else:
+                passes_f4 = bool(ret_close >= ref_level)
+            if not rejected_by and not passes_f4:
+                rejected_by = 'F4_NO_CLOSE_BACK'
 
             cisd_ts_ns, cisd_level = find_cisd(
                 c_arrs, ret_ts_ns, direction, cisd_fast_bars, 'CISD'
@@ -1285,6 +1295,9 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 sweep_pct     = round(sweep_ext / ref_range, 3) if ref_range > 0 else 0,
                 sweep_extreme = round(float(sweep_extreme), 2),
                 sweep_mode    = 'PREV',
+                passes_f1           = passes_f1,
+                passes_f3           = passes_f3,
+                passes_f4           = passes_f4,
                 prior_counter_close = prior_counter_close,
                 prior_engulfing     = prior_engulfing,
                 cisd_mode     = 'CISD',
@@ -1541,9 +1554,24 @@ def agg(g):
 def build_model_stats(df_raw, trading_days, model_key, model_cfg,
                       stop_mult=1.0, target_mult=2.0, profile_key='1:2',
                       profile_type='mult'):
+    # `df` / `wl` = tightly-filtered set (F1+F3+F4 all passing). All the
+    # pre-computed stats (hero tiles, MAE study, filter impact, heatmap,
+    # by_hour, by_dow, etc.) operate on this set — it's the "default view"
+    # the user sees when all three F-checkboxes are enabled.
     df   = df_raw[df_raw['rejected_by'] == ''].copy()
     wl   = df[df['outcome'].isin(['WIN','LOSS'])].copy()
     wl['win'] = (wl['outcome'] == 'WIN').astype(int)
+
+    # `wl_full` = WIN/LOSS trades regardless of F1/F3/F4 rejection, EXCLUDING
+    # system-level skips (NO_CISD, INVALID_RISK, RISK_TOO_LARGE). This is the
+    # trade set that gets serialized as `recent_trades`, with passes_f1/f3/f4
+    # booleans so the dashboard can toggle F-filters on/off at runtime.
+    FTOGGLE_REJECTS = {'', 'F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK'}
+    wl_full = df_raw[
+        df_raw['rejected_by'].isin(FTOGGLE_REJECTS) &
+        df_raw['outcome'].isin(['WIN','LOSS'])
+    ].copy()
+    wl_full['win'] = (wl_full['outcome'] == 'WIN').astype(int)
 
     # ── T-Spot variant classification ─────────────────────────────────────────
     # Classify each trade into one of 6 T-Spot types based on sweep_pct:
@@ -1715,13 +1743,19 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         tspot_breakdown[tk] = dict(
             overall=agg(grp), heatmap=hm, by_hour=bh, by_dow=bd, top_combos=tc[:10])
 
-    # All resolved trades (capped at 500 for JSON size; sub-TF slices are uncapped)
+    # All resolved trades (including F-rejected ones, so the dashboard can
+    # toggle F1/F3/F4 on/off at runtime). System-level skips (NO_CISD,
+    # INVALID_RISK, RISK_TOO_LARGE) stay excluded — those aren't optional.
     recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
-                   'prior_counter_close','prior_engulfing']
-    recent_rows = (wl[recent_cols]
+                   'prior_counter_close','prior_engulfing',
+                   'passes_f1','passes_f3','passes_f4']
+    # Only include columns that actually exist in wl_full (defensive against
+    # older base_row schemas missing some fields).
+    _avail = [c for c in recent_cols if c in wl_full.columns]
+    recent_rows = (wl_full[_avail]
                    .sort_values('date', ascending=False)
                    .copy())
     recent_rows['dow_name'] = recent_rows['dow'].map(lambda d: DOW_NAMES.get(int(d), '?'))
@@ -2136,12 +2170,16 @@ def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
         {'bucket': f'-1R (loss)', 'n': n - wins, 'fill': 'loss'},
         {'bucket': f'{rr_actual}R (target)', 'n': wins, 'fill': 'win'},
     ]
-    # recent trades
+    # recent trades (sub-TF slices use tight-filter set; F-toggle on
+    # sub-TF views is effectively a no-op since F-rejected trades were
+    # already filtered out. Only the main 'all time' view supports full
+    # runtime F-toggling via wl_full in the top-level build_model_stats.)
     recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
-                   'prior_counter_close','prior_engulfing']
+                   'prior_counter_close','prior_engulfing',
+                   'passes_f1','passes_f3','passes_f4']
     available = [c for c in recent_cols if c in wl_sub.columns]
     rt = wl_sub[available].sort_values('date', ascending=False).copy()
     rt['dow_name'] = rt['dow'].map(lambda d: dow_names.get(int(d), '?'))
