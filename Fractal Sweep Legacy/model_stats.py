@@ -1566,7 +1566,10 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
     # system-level skips (NO_CISD, INVALID_RISK, RISK_TOO_LARGE). This is the
     # trade set that gets serialized as `recent_trades`, with passes_f1/f3/f4
     # booleans so the dashboard can toggle F-filters on/off at runtime.
-    FTOGGLE_REJECTS = {'', 'F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK'}
+    # F1 (min prior range) is now baked-in baseline — always applied, never
+    # exposed as a runtime toggle. Only F3/F4 rejected trades stay in wl_full
+    # for runtime toggling.
+    FTOGGLE_REJECTS = {'', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK'}
     wl_full = df_raw[
         df_raw['rejected_by'].isin(FTOGGLE_REJECTS) &
         df_raw['outcome'].isin(['WIN','LOSS'])
@@ -1743,15 +1746,16 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         tspot_breakdown[tk] = dict(
             overall=agg(grp), heatmap=hm, by_hour=bh, by_dow=bd, top_combos=tc[:10])
 
-    # All resolved trades (including F-rejected ones, so the dashboard can
-    # toggle F1/F3/F4 on/off at runtime). System-level skips (NO_CISD,
-    # INVALID_RISK, RISK_TOO_LARGE) stay excluded — those aren't optional.
+    # All resolved trades (including F3/F4-rejected ones, so the dashboard can
+    # toggle F3/F4 on/off at runtime). F1 (min prior range) is baked-in and
+    # F1-rejected trades are excluded from wl_full, so passes_f1 is omitted.
+    # System-level skips (NO_CISD, INVALID_RISK, RISK_TOO_LARGE) stay excluded.
     recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
                    'prior_counter_close','prior_engulfing',
-                   'passes_f1','passes_f3','passes_f4']
+                   'passes_f3','passes_f4']
     # Only include columns that actually exist in wl_full (defensive against
     # older base_row schemas missing some fields).
     _avail = [c for c in recent_cols if c in wl_full.columns]
@@ -2189,7 +2193,7 @@ def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
                    'prior_counter_close','prior_engulfing',
-                   'passes_f1','passes_f3','passes_f4']
+                   'passes_f3','passes_f4']
     rt_source = wl_sub_full if wl_sub_full is not None else wl_sub
     available = [c for c in recent_cols if c in rt_source.columns]
     rt = rt_source[available].sort_values('date', ascending=False).copy()
@@ -2341,16 +2345,17 @@ def compute_filter_variants(df_all):
       - cumulative_additive: adding filters one at a time in optimal order
       - best_combo: the filter combination that maximizes EV
     """
-    FILTERS = ['F1_SMALL_RANGE', 'F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK',
+    # F1 (min prior range) is baked-in baseline — not exposed as a runtime
+    # toggle, so it's excluded from filter-variant combinatorics.
+    FILTERS = ['F3_SWEEP_TOO_LARGE', 'F4_NO_CLOSE_BACK',
                'SMT', 'HOUR_ALIGNED', 'PRIOR_COUNTER_CLOSE', 'PRIOR_ENGULFING']
     FILTER_LABELS = {
-        'F1_SMALL_RANGE':    'F1: Prior Range Floor',
-        'F3_SWEEP_TOO_LARGE':'F3: Sweep Max Cap',
-        'F4_NO_CLOSE_BACK':  'F4: Close-Back Required',
-        'SMT':               'SMT Divergence',
-        'HOUR_ALIGNED':      'Hour-Open Aligned',
-        'PRIOR_COUNTER_CLOSE':'Prior Counter-Close',
-        'PRIOR_ENGULFING':   'Prior Engulfing',
+        'F3_SWEEP_TOO_LARGE':'Shallow Sweep',
+        'F4_NO_CLOSE_BACK':  'Closed Back Inside',
+        'SMT':               'NQ-ES Divergence',
+        'HOUR_ALIGNED':      'Hour Open Aligned',
+        'PRIOR_COUNTER_CLOSE':'Prior Bar Counters',
+        'PRIOR_ENGULFING':   'Prior Bar Engulfs',
     }
     # Positive filters (off-by-default, additive): these don't use rejected_by
     # codes — they gate on per-trade boolean columns.
@@ -2710,7 +2715,8 @@ def main():
                         continue
                     # Sibling slice including F-rejected trades, for runtime
                     # F1/F3/F4 toggling on this Period sub-slice.
-                    _FTOGGLE = {'','F1_SMALL_RANGE','F3_SWEEP_TOO_LARGE','F4_NO_CLOSE_BACK'}
+                    # F1 is baked-in baseline; only F3/F4 stay toggleable at runtime.
+                    _FTOGGLE = {'','F3_SWEEP_TOO_LARGE','F4_NO_CLOSE_BACK'}
                     _tf_wl_full = _tf_df[
                         (_tf_df['date'].astype(str).str[:10] >= _cutoff) &
                         _tf_df['rejected_by'].isin(_FTOGGLE) &

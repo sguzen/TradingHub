@@ -222,11 +222,14 @@ class TestFilterVariantsSmt:
 
         result = ms.compute_filter_variants(df)
         assert 'all_combinations' in result
-        # 7 filter dimensions (F1, F3, F4, SMT, HOUR_ALIGNED, PRIOR_COUNTER_CLOSE,
-        # PRIOR_ENGULFING). The loop includes the empty set, so 2**7 = 128 combos.
-        assert len(result['all_combinations']) == 2**7
+        # 6 runtime filter dimensions (F3, F4, SMT, HOUR_ALIGNED,
+        # PRIOR_COUNTER_CLOSE, PRIOR_ENGULFING). F1 is now baked-in baseline
+        # and excluded from runtime combinatorics. The loop includes the
+        # empty set, so 2**6 = 64 combos.
+        assert len(result['all_combinations']) == 2**6
         # SMT combos should exist
-        smt_combos = [c for c in result['all_combinations'] if 'SMT' in (c.get('label') or '')]
+        smt_combos = [c for c in result['all_combinations']
+                      if 'NQ-ES' in (c.get('label') or '') or 'SMT' in (c.get('label') or '')]
         assert len(smt_combos) > 0
 
     def test_variants_without_smt_column(self):

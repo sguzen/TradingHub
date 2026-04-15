@@ -327,10 +327,6 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <div class="sel-group filter-group filter-group-quality">
     <label class="sel-label">Setup Quality &nbsp;<span style="text-transform:none;font-weight:500;color:var(--text-muted);letter-spacing:0;">— uncheck to relax</span></label>
     <div class="filter-row">
-      <label class="filter-chk" title="Prior bar wasn't tiny. Rejects setups where the prior HTF candle's range was below the model's minimum (8–30 pts depending on TF). Tiny prior bars give unreliable sweep levels.">
-        <input type="checkbox" id="f1-checkbox" checked onchange="switchF1(this.checked)">
-        <span>Big Setup Bar</span>
-      </label>
       <label class="filter-chk" title="The sweep was a wick, not a breakout. Rejects sweeps that pierced more than 50% of the prior candle's range. Deep penetration looks like real momentum, not a liquidity grab.">
         <input type="checkbox" id="f3-checkbox" checked onchange="switchF3(this.checked)">
         <span>Shallow Sweep</span>
@@ -687,7 +683,6 @@ function switchMFESeg(seg) {
 function getSmtFilteredTrades(trades) {
   if (!trades || !trades.length) return trades;
   let out = trades;
-  if (activeF1) out = out.filter(t => t.passes_f1 !== false);
   if (activeF3) out = out.filter(t => t.passes_f3 !== false);
   if (activeF4) out = out.filter(t => t.passes_f4 !== false);
   if (activeSmt)               out = out.filter(t => t.smt === true);
@@ -698,10 +693,10 @@ function getSmtFilteredTrades(trades) {
 }
 
 // True when any filter deviates from the precomputed-baseline assumption
-// (baseline = F1+F3+F4 ON, positive filters OFF). Secondary panels check
+// (baseline = F3+F4 ON, positive filters OFF). Secondary panels check
 // this before recomputing from recent_trades instead of using d.meta.
 function hasNonBaselineFilters() {
-  return !activeF1 || !activeF3 || !activeF4
+  return !activeF3 || !activeF4
       || activeSmt || activeHourAligned
       || activePriorCounterClose || activePriorEngulfing;
 }
@@ -711,12 +706,6 @@ function switchSMT(checked) {
   _tradesPage = 0;
   const D = _getActiveD();
   if (!D) return;
-  renderActive();
-}
-
-function switchF1(checked) {
-  activeF1 = !!checked;
-  _tradesPage = 0;
   renderActive();
 }
 
@@ -813,11 +802,10 @@ const SVG_FONT = "'JetBrains Mono',monospace";
 function makeDemoModel(key, label, mode, cisd, wrBase, evBase, pfBase, riskMed, spd){
   const fi=[
     {label:'Baseline (unfiltered)',n:Math.round(6200*(riskMed/18)),wr:wrBase-0.07,ev:evBase-0.22,pf:pfBase-0.58,removed:0},
-    {label:'F1: Prior Range Floor',n:Math.round(5800*(riskMed/18)),wr:wrBase-0.05,ev:evBase-0.16,pf:pfBase-0.44,removed:Math.round(400*(riskMed/18))},
-    {label:'F2: Sweep Min Size',n:Math.round(5100*(riskMed/18)),wr:wrBase-0.03,ev:evBase-0.09,pf:pfBase-0.30,removed:Math.round(700*(riskMed/18))},
-    {label:'F3: Sweep Max Cap',n:Math.round(4900*(riskMed/18)),wr:wrBase-0.02,ev:evBase-0.06,pf:pfBase-0.20,removed:Math.round(200*(riskMed/18))},
-    {label:'F4: Close-Back Required',n:Math.round(4200*(riskMed/18)),wr:wrBase-0.01,ev:evBase-0.03,pf:pfBase-0.10,removed:Math.round(700*(riskMed/18))},
-    {label:'F5: CISD Speed',n:Math.round(3400*(riskMed/18)),wr:wrBase,ev:evBase,pf:pfBase,removed:Math.round(800*(riskMed/18))},
+    {label:'Min Range (baked-in)',n:Math.round(5800*(riskMed/18)),wr:wrBase-0.05,ev:evBase-0.16,pf:pfBase-0.44,removed:Math.round(400*(riskMed/18))},
+    {label:'Shallow Sweep',n:Math.round(4900*(riskMed/18)),wr:wrBase-0.02,ev:evBase-0.06,pf:pfBase-0.20,removed:Math.round(200*(riskMed/18))},
+    {label:'Closed Back Inside',n:Math.round(4200*(riskMed/18)),wr:wrBase-0.01,ev:evBase-0.03,pf:pfBase-0.10,removed:Math.round(700*(riskMed/18))},
+    {label:'CISD',n:Math.round(3400*(riskMed/18)),wr:wrBase,ev:evBase,pf:pfBase,removed:Math.round(800*(riskMed/18))},
   ];
   const wl=Math.round(3400*(riskMed/18));
   const by_hour=[8,9,10,11,12,13,14,15].flatMap(hr=>[
@@ -928,10 +916,10 @@ let activeMode    = 'PREV';
 let activeCisd    = 'CISD';
 let activeProfile = 'structural_dynamic';
 let activeTF      = 'all';  // 'all' | '2y' | '1y' | '6m' | '3m' | '1m'
-// F1/F3/F4 are "rejection" filters — default CHECKED (active). Unchecking
+// F3/F4 are "rejection" filters — default CHECKED (active). Unchecking
 // lets F-rejected trades through. SMT/Hour-Aligned/Prior-* are "positive"
-// filters, default UNCHECKED. All seven are individually selectable.
-let activeF1                = true;   // filter to passes_f1===true
+// filters, default UNCHECKED. F1 (min prior range) is baked-in baseline
+// and not exposed as a runtime toggle.
 let activeF3                = true;   // filter to passes_f3===true
 let activeF4                = true;   // filter to passes_f4===true
 let activeSmt               = false;  // filter to smt===true
@@ -3594,7 +3582,7 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
 // ── SMT DATA OVERRIDE ────────────────────────────────────────────────────────
 // When SMT checkbox is checked, recompute aggregated stats from filtered trades
 // so hero tiles, by_hour, by_session, by_dow, and dir_summary all reflect SMT-only trades.
-// Combined filter entry point: applies all 7 filters individually.
+// Combined filter entry point: applies all 6 runtime filters individually.
 //
 // F1/F3/F4 default CHECKED (active) — they're the baseline quality filters.
 // When a checkbox is unchecked the corresponding F-rejected trades are
@@ -3603,16 +3591,15 @@ function renderCustomViewV2(pairs, unpairedRanges, combinedStats){
 // SMT/Hour-Aligned/Prior-Counter/Prior-Engulfing default UNCHECKED — they
 // are positive add-on filters that narrow the set when enabled.
 //
-// Trades missing passes_f1/f3/f4 fields (older JSONs) default to passing
+// Trades missing passes_f3/f4 fields (older JSONs) default to passing
 // the filter (treat undefined as permissive) so back-compat is preserved.
 function getFilteredD(D) {
-  const anyActive = activeF1 || activeF3 || activeF4
+  const anyActive = activeF3 || activeF4
     || activeSmt || activeHourAligned || activePriorCounterClose || activePriorEngulfing;
   if (!anyActive) return D;
   const rawTrades = D?.recent_trades;
   if (!rawTrades || !rawTrades.length) return D;
   let trades = rawTrades;
-  if (activeF1) trades = trades.filter(t => t.passes_f1 !== false);
   if (activeF3) trades = trades.filter(t => t.passes_f3 !== false);
   if (activeF4) trades = trades.filter(t => t.passes_f4 !== false);
   if (activeSmt)               trades = trades.filter(t => t.smt === true);
@@ -3797,21 +3784,19 @@ function renderActive(){
 function updateFilterChipDeltas(D){
   const rt = D?.recent_trades || [];
   if (!rt.length){
-    ['f1-checkbox','f3-checkbox','f4-checkbox','smt-checkbox','hour-aligned-checkbox','prior-counter-checkbox','prior-engulf-checkbox']
+    ['f3-checkbox','f4-checkbox','smt-checkbox','hour-aligned-checkbox','prior-counter-checkbox','prior-engulf-checkbox']
       .forEach(id => _setChipDelta(id, null));
     return;
   }
   // Helper that re-applies the full pipeline with one filter overridden.
   function countWith(over){
     let t = rt;
-    const f1 = over.f1 !== undefined ? over.f1 : activeF1;
     const f3 = over.f3 !== undefined ? over.f3 : activeF3;
     const f4 = over.f4 !== undefined ? over.f4 : activeF4;
     const sm = over.smt !== undefined ? over.smt : activeSmt;
     const hr = over.hr  !== undefined ? over.hr  : activeHourAligned;
     const pc = over.pcc !== undefined ? over.pcc : activePriorCounterClose;
     const pe = over.peng!== undefined ? over.peng: activePriorEngulfing;
-    if (f1) t = t.filter(x => x.passes_f1 !== false);
     if (f3) t = t.filter(x => x.passes_f3 !== false);
     if (f4) t = t.filter(x => x.passes_f4 !== false);
     if (sm) t = t.filter(x => x.smt === true);
@@ -3822,7 +3807,6 @@ function updateFilterChipDeltas(D){
   }
   const cur = countWith({});
   const deltas = [
-    ['f1-checkbox',             countWith({f1:  !activeF1})              - cur],
     ['f3-checkbox',             countWith({f3:  !activeF3})              - cur],
     ['f4-checkbox',             countWith({f4:  !activeF4})              - cur],
     ['smt-checkbox',            countWith({smt: !activeSmt})             - cur],
@@ -5456,37 +5440,37 @@ function renderFilterVariants(D, targetEl) {
         <th style="padding:8px 10px;text-align:left;color:var(--text-muted);width:200px">Parameter</th>
       </tr></thead><tbody>
       <tr style="border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent)">
-        <td style="padding:6px 10px;font-weight:700;color:var(--text-primary)">F1: Prior Range Floor</td>
-        <td style="padding:6px 10px;color:var(--text-primary)">Rejects setups where the prior HTF candle's range (high − low) is too small — tiny candles produce unreliable levels</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--text-muted)">Min Range (baked-in)</td>
+        <td style="padding:6px 10px;color:var(--text-primary)">Always-on baseline. Rejects setups where the prior HTF candle's range is too small — tiny candles produce unreliable levels. Not exposed as a runtime toggle.</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">min_range = <span style="color:var(--text-primary);font-weight:600">${modelCfg.min_range} pts</span> (${modelCfg.sweep_tf})</td>
       </tr>
       <tr style="background:color-mix(in srgb,var(--bg-raised) 60%,transparent);border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent)">
-        <td style="padding:6px 10px;font-weight:700;color:var(--text-primary)">F3: Sweep Max Cap</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--text-primary)">Shallow Sweep</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Rejects sweeps that penetrate too far beyond the prior candle's range — deep sweeps indicate momentum, not manipulation</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">SWEEP_MAX_PCT = <span style="color:var(--text-primary);font-weight:600">50%</span> of prior range</td>
       </tr>
       <tr style="border-bottom:1px solid color-mix(in srgb,var(--border) 40%,transparent)">
-        <td style="padding:6px 10px;font-weight:700;color:var(--text-primary)">F4: Close-Back Required</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--text-primary)">Closed Back Inside</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Requires price to close back inside the prior candle's range after sweeping — confirms the sweep was a liquidity grab, not a breakout</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">Close must be <span style="color:var(--text-primary);font-weight:600">inside range</span></td>
       </tr>
       <tr style="background:color-mix(in srgb,var(--bg-raised) 60%,transparent)">
-        <td style="padding:6px 10px;font-weight:700;color:#ff6600">SMT: Divergence</td>
+        <td style="padding:6px 10px;font-weight:700;color:#ff6600">NQ-ES Divergence</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Only take setups where ES does <em>not</em> confirm the NQ sweep — divergence between correlated instruments signals manipulation, not genuine market direction</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">ES holds <span style="color:var(--text-primary);font-weight:600">above/below</span> its prior HTF level</td>
       </tr>
       <tr>
-        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Hour-Open Aligned</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Hour Open Aligned</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Only take setups where the CISD candle closes on the correct side of the current hour open — closes aligned with setup direction confirm the intra-hour shift matches the sweep thesis</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">LONG: <span style="color:var(--text-primary);font-weight:600">close &gt; hour_open</span><br>SHORT: <span style="color:var(--text-primary);font-weight:600">close &lt; hour_open</span></td>
       </tr>
       <tr style="background:color-mix(in srgb,var(--bg-raised) 60%,transparent)">
-        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Prior Counter-Close</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Prior Bar Counters</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Only take setups where the prior sweep-TF candle (the one whose level was swept) closed OPPOSITE to the trade direction — a bearish prior candle preceding a long setup signals an exhaustion, not a continuation</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)">LONG: <span style="color:var(--text-primary);font-weight:600">prior.close &lt; prior.open</span><br>SHORT: <span style="color:var(--text-primary);font-weight:600">prior.close &gt; prior.open</span></td>
       </tr>
       <tr>
-        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Prior Engulfing</td>
+        <td style="padding:6px 10px;font-weight:700;color:var(--amber)">Prior Bar Engulfs</td>
         <td style="padding:6px 10px;color:var(--text-primary)">Only take setups where the prior sweep-TF candle engulfs the candle before it on wick extremes — an engulfing prior signals that the sweep is happening inside an expansion, not a compression</td>
         <td style="padding:6px 10px;color:var(--text-muted);font-family:var(--font-data)"><span style="color:var(--text-primary);font-weight:600">prior.high ≥ prev_prev.high</span><br>AND <span style="color:var(--text-primary);font-weight:600">prior.low ≤ prev_prev.low</span></td>
       </tr>
@@ -5546,7 +5530,7 @@ function renderFilterVariants(D, targetEl) {
 
   // All combinations table
   html += `<div style="background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px;box-shadow:var(--shadow)">
-    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">All Filter Combinations (2⁷ = 128 variants, sorted by EV)</div>
+    <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">All Filter Combinations (2⁶ = 64 variants, sorted by EV)</div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead><tr style="border-bottom:2px solid var(--border)">
         <th style="padding:8px 10px;text-align:left;color:var(--text-muted)">Filter Combination</th>
@@ -5562,7 +5546,6 @@ function renderFilterVariants(D, targetEl) {
 
   // Determine currently active filter set based on all header toggles
   const activeFilters = [];
-  if (activeF1) activeFilters.push('F1_SMALL_RANGE');
   if (activeF3) activeFilters.push('F3_SWEEP_TOO_LARGE');
   if (activeF4) activeFilters.push('F4_NO_CLOSE_BACK');
   if (activeSmt) activeFilters.push('SMT');
@@ -5570,13 +5553,12 @@ function renderFilterVariants(D, targetEl) {
   if (activePriorCounterClose) activeFilters.push('PRIOR_COUNTER_CLOSE');
   if (activePriorEngulfing) activeFilters.push('PRIOR_ENGULFING');
   const activeLabel = activeFilters.map(f => ({
-    'F1_SMALL_RANGE': 'F1: Prior Range Floor',
-    'F3_SWEEP_TOO_LARGE': 'F3: Sweep Max Cap',
-    'F4_NO_CLOSE_BACK': 'F4: Close-Back Required',
-    'SMT': 'SMT Divergence',
-    'HOUR_ALIGNED': 'Hour-Open Aligned',
-    'PRIOR_COUNTER_CLOSE': 'Prior Counter-Close',
-    'PRIOR_ENGULFING': 'Prior Engulfing',
+    'F3_SWEEP_TOO_LARGE': 'Shallow Sweep',
+    'F4_NO_CLOSE_BACK': 'Closed Back Inside',
+    'SMT': 'NQ-ES Divergence',
+    'HOUR_ALIGNED': 'Hour Open Aligned',
+    'PRIOR_COUNTER_CLOSE': 'Prior Bar Counters',
+    'PRIOR_ENGULFING': 'Prior Bar Engulfs',
   }[f])).join(' + ');
 
   const maxEV = Math.max(...combos.map(c => Math.abs(c.ev)));
