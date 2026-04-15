@@ -6624,9 +6624,11 @@ function drawSetupViz(){
 }
 
 // ── FULL RENDER ────────────────────────────────────────────────────────────
+// Note: demo-badge and infobar visibility are NOT toggled here. They ship
+// hidden in the HTML and are only revealed from the fetch .catch() handler
+// if the real JSON fails to load. This prevents a flash of "Demo Data" on
+// every refresh during the fetch-in-flight window.
 function render(){
-  document.getElementById('demo-badge').style.display=isDemo?'':'none';
-  document.getElementById('infobar').style.display=isDemo?'':'none';
   const D = getProfileData(`${activeModel}_${activeMode}_${activeCisd}`, activeProfile);
   document.getElementById('hdr-sub').textContent=`Multi-TF Probability Engine · ${D?.meta?.instrument||'NQ'} · ${fmtDateRange(D?.meta?.date_range)}`;
   renderModelDropdown();
@@ -6680,7 +6682,14 @@ function applyLoadedData(j){
 fetch('./model_stats.json')
   .then(r=>{console.log('[sweep] fetch status:',r.status,r.ok);return r.ok?r.json():Promise.reject('HTTP '+r.status);})
   .then(j=>{console.log('[sweep] JSON loaded, keys:',Object.keys(j));applyLoadedData(j);})
-  .catch(e=>{console.error('[sweep] fetch failed:',e);});
+  .catch(e=>{
+    console.error('[sweep] fetch failed:',e);
+    // Real data failed to load → actually are in demo mode. Reveal the banner.
+    const badge = document.getElementById('demo-badge');
+    const info  = document.getElementById('infobar');
+    if(badge) badge.style.display='';
+    if(info)  info.style.display='';
+  });
 
 document.getElementById('json-loader').addEventListener('change',e=>{
   const f=e.target.files[0];if(!f)return;
