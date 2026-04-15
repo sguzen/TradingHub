@@ -2006,7 +2006,8 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
         'by_classification': _compute_by_classification(wl_sorted),
         'by_tf':            _compute_by_tf(wl, wl_sorted, stop_mult, target_mult,
                                            sl_pct_val, tp_pct_val, agg,
-                                           HR_LABELS, DOW_NAMES),
+                                           HR_LABELS, DOW_NAMES,
+                                           wl_full=wl_full),
     }
 
 
@@ -2074,9 +2075,20 @@ def _compute_by_classification(wl_sorted: 'pd.DataFrame') -> dict:
 
 
 def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
-                       dow_names, date_classification=None):
+                       dow_names, date_classification=None, *,
+                       wl_sub_full=None):
     """Build compact stats for a sub-timeframe slice. Used by _compute_by_tf and
-    per-TF split profile resolution."""
+    per-TF split profile resolution.
+
+    `wl_sub` is the baseline-filtered set (F1+F3+F4 PASS) — used for all the
+    precomputed stats (meta/by_hour/by_dow/etc).
+
+    `wl_sub_full`, if provided, is the same period slice but INCLUDING trades
+    rejected by F1/F3/F4. It is used only to source the `recent_trades` array
+    so the dashboard can toggle F1/F3/F4 on/off at runtime. If omitted, falls
+    back to `wl_sub` (legacy behavior — F-toggle becomes a no-op for callers
+    that don't supply the full set).
+    """
     if len(wl_sub) == 0:
         return None
     wl_sub = wl_sub.copy()
@@ -2170,18 +2182,17 @@ def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
         {'bucket': f'-1R (loss)', 'n': n - wins, 'fill': 'loss'},
         {'bucket': f'{rr_actual}R (target)', 'n': wins, 'fill': 'win'},
     ]
-    # recent trades (sub-TF slices use tight-filter set; F-toggle on
-    # sub-TF views is effectively a no-op since F-rejected trades were
-    # already filtered out. Only the main 'all time' view supports full
-    # runtime F-toggling via wl_full in the top-level build_model_stats.)
+    # recent trades — source from wl_sub_full when available so F1/F3/F4 toggles
+    # work on Period sub-slices. Falls back to wl_sub for legacy callers.
     recent_cols = ['date','direction','hr','mn','session','dow','entry_price',
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
                    'prior_counter_close','prior_engulfing',
                    'passes_f1','passes_f3','passes_f4']
-    available = [c for c in recent_cols if c in wl_sub.columns]
-    rt = wl_sub[available].sort_values('date', ascending=False).copy()
+    rt_source = wl_sub_full if wl_sub_full is not None else wl_sub
+    available = [c for c in recent_cols if c in rt_source.columns]
+    rt = rt_source[available].sort_values('date', ascending=False).copy()
     rt['dow_name'] = rt['dow'].map(lambda d: dow_names.get(int(d), '?'))
     _dc = date_classification or DATE_CLASSIFICATION
     rt['classification'] = rt['date'].astype(str).str[:10].map(
@@ -2227,17 +2238,27 @@ def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
     }
 
 
-def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
-                   sl_pct_val, tp_pct_val, agg_fn, hr_labels, dow_names) -> dict:
-    """Compute compact hero+chart stats for each sub-timeframe slice."""
+def _compute_by_tf(wl, wl_sorted, stop_mult, target_mult,
+                   sl_pct_val, tp_pct_val, agg_fn, hr_labels, dow_names,
+                   wl_full=None) -> dict:
+    """Compute compact hero+chart stats for each sub-timeframe slice.
+
+    `wl` is baseline-filtered (F1+F3+F4 PASS). It drives the precomputed
+    stats (meta, by_hour, by_dow, dir_summary, etc) in each sub-slice.
+
+    `wl_full`, if supplied, is the WIN/LOSS set INCLUDING trades rejected by
+    F1/F3/F4. It is used only to source the per-slice `recent_trades` array
+    so the dashboard can runtime-toggle F1/F3/F4 on every Period selection
+    (not just 'all time').
+    """
     from datetime import date, timedelta
     import pandas as pd
 
-    if wl_full is None or len(wl_full) == 0:
+    if wl is None or len(wl) == 0:
         return {}
 
     # Determine reference date from data (latest trade date)
-    max_date_str = str(wl_sorted_full['date'].max())[:10]
+    max_date_str = str(wl_sorted['date'].max())[:10]
     try:
         ref = date.fromisoformat(max_date_str)
     except Exception:
@@ -2252,15 +2273,23 @@ def _compute_by_tf(wl_full, wl_sorted_full, stop_mult, target_mult,
     }
 
     result = {}
-    dates_str = wl_full['date'].astype(str).str[:10]
+    dates_str = wl['date'].astype(str).str[:10]
+    full_dates_str = (wl_full['date'].astype(str).str[:10]
+                      if wl_full is not None else None)
     tf_keys = list(TF_CUTOFFS.items())
     for idx, (tf_key, cutoff) in enumerate(tf_keys, 1):
         print(f"        by_tf [{idx}/{len(tf_keys)}] {tf_key} ...", flush=True)
         mask = dates_str >= cutoff.isoformat()
-        sub  = wl_full[mask]
+        sub  = wl[mask]
+        sub_full = None
+        if wl_full is not None:
+            mask_full = full_dates_str >= cutoff.isoformat()
+            sub_full = wl_full[mask_full]
         result[tf_key] = _build_slice_stats(
-            sub, stop_mult, target_mult, agg_fn, hr_labels, dow_names)
-        print(f"           {len(sub):,} trades  ✓", flush=True)
+            sub, stop_mult, target_mult, agg_fn, hr_labels, dow_names,
+            wl_sub_full=sub_full)
+        n_full = len(sub_full) if sub_full is not None else len(sub)
+        print(f"           {len(sub):,} trades  ({n_full:,} incl. F-rejected)  ✓", flush=True)
 
     return result
 
@@ -2679,9 +2708,17 @@ def main():
                         _tf_wl = _tf_wl[~_mask]
                     if len(_tf_wl) < 3:
                         continue
+                    # Sibling slice including F-rejected trades, for runtime
+                    # F1/F3/F4 toggling on this Period sub-slice.
+                    _FTOGGLE = {'','F1_SMALL_RANGE','F3_SWEEP_TOO_LARGE','F4_NO_CLOSE_BACK'}
+                    _tf_wl_full = _tf_df[
+                        (_tf_df['date'].astype(str).str[:10] >= _cutoff) &
+                        _tf_df['rejected_by'].isin(_FTOGGLE) &
+                        _tf_df['outcome'].isin(['WIN','LOSS'])
+                    ]
                     _slice = _build_slice_stats(
                         _tf_wl, stop_val, target_val, agg, HR_LABELS, DOW_NAMES,
-                        DATE_CLASSIFICATION)
+                        DATE_CLASSIFICATION, wl_sub_full=_tf_wl_full)
                     if _slice:
                         _slice['meta']['tp1_pct'] = _tf_ptq
                         _slice['meta']['tp2_pct'] = _tf_p50

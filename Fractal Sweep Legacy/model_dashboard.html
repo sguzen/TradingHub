@@ -244,6 +244,16 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .sel-drop:hover{border-color:var(--border-hi);box-shadow:0 1px 4px rgba(0,0,0,0.12)}
 .sel-drop:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 2px rgba(52,211,153,0.15)}
 .sel-drop option{background:var(--bg-card);color:var(--text-primary)}
+/* Filter-group containers (Setup Quality + Add Confirmation) */
+.filter-group{margin-left:auto}
+.filter-group .sel-label{display:flex;align-items:baseline}
+.filter-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.filter-chk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:500;color:var(--text-secondary);user-select:none;padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-raised);transition:background .12s,border-color .12s,color .12s}
+.filter-chk:hover{border-color:var(--border-hi);color:var(--text-primary)}
+.filter-chk input[type=checkbox]{width:13px;height:13px;cursor:pointer;accent-color:var(--amber);margin:0}
+.filter-chk:has(input:checked){background:rgba(245,158,11,0.08);border-color:rgba(245,158,11,0.45);color:var(--text-primary);font-weight:600}
+.filter-group-confirm .filter-chk:has(input:checked){background:rgba(139,92,246,0.10);border-color:rgba(139,92,246,0.45)}
+.filter-group-confirm .filter-chk input[type=checkbox]{accent-color:#8b5cf6}
 
 /* MODEL EXPLAINER */
 .model-explainer-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px}
@@ -313,54 +323,43 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
     <label class="sel-label">Risk Profile</label>
     <select id="profile-select" class="sel-drop" onchange="switchProfile(this.value)"></select>
   </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F1: Prior Range Floor — reject setups where the prior HTF candle's range is too small (min_range per model). Tiny candles produce unreliable sweep levels. Default ON.">
-      <input type="checkbox" id="f1-checkbox" checked onchange="switchF1(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      F1
-    </label>
+  <div class="sel-group filter-group filter-group-quality">
+    <label class="sel-label">Setup Quality &nbsp;<span style="text-transform:none;font-weight:500;color:var(--text-muted);letter-spacing:0;">— uncheck to relax</span></label>
+    <div class="filter-row">
+      <label class="filter-chk" title="Prior bar wasn't tiny. Rejects setups where the prior HTF candle's range was below the model's minimum (8–30 pts depending on TF). Tiny prior bars give unreliable sweep levels.">
+        <input type="checkbox" id="f1-checkbox" checked onchange="switchF1(this.checked)">
+        <span>Big Setup Bar</span>
+      </label>
+      <label class="filter-chk" title="The sweep was a wick, not a breakout. Rejects sweeps that pierced more than 50% of the prior candle's range. Deep penetration looks like real momentum, not a liquidity grab.">
+        <input type="checkbox" id="f3-checkbox" checked onchange="switchF3(this.checked)">
+        <span>Shallow Sweep</span>
+      </label>
+      <label class="filter-chk" title="Price came back inside the prior bar's range after the sweep. Confirms the sweep was a fakeout. Without this, you may be chasing a real breakout in disguise.">
+        <input type="checkbox" id="f4-checkbox" checked onchange="switchF4(this.checked)">
+        <span>Closed Back Inside</span>
+      </label>
+    </div>
   </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F3: Sweep Max Cap — reject sweeps that penetrate more than 50% of the prior candle's range. Deep sweeps indicate momentum, not manipulation. Default ON.">
-      <input type="checkbox" id="f3-checkbox" checked onchange="switchF3(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      F3
-    </label>
-  </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="F4: Close-Back Required — after sweeping, price must close back inside the prior candle's range. Confirms the sweep was a liquidity grab, not a breakout. Default ON.">
-      <input type="checkbox" id="f4-checkbox" checked onchange="switchF4(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      F4
-    </label>
-  </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;">
-      <input type="checkbox" id="smt-checkbox" onchange="switchSMT(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      SMT
-    </label>
-  </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="Only include setups where the CISD candle close is on the correct side of the current hour open. LONG: close > hour_open. SHORT: close < hour_open. Rejects CISD fires that closed on the wrong side of the hourly pivot.">
-      <input type="checkbox" id="hour-aligned-checkbox" onchange="switchHourAligned(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      Hour-Aligned
-    </label>
-  </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="Only include setups where the prior sweep-TF candle closed OPPOSITE to the trade direction. LONG (swept prior low): prior candle close < open (bearish body). SHORT (swept prior high): prior candle close > open (bullish body).">
-      <input type="checkbox" id="prior-counter-checkbox" onchange="switchPriorCounterClose(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      Prior Counter
-    </label>
-  </div>
-  <div class="sel-group" style="justify-content:flex-end;">
-    <label class="sel-label">&nbsp;</label>
-    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-family:var(--font-data);font-size:12px;font-weight:600;color:var(--text-secondary);user-select:none;padding:6px 0;" title="Only include setups where the prior sweep-TF candle engulfs the one before it (wick-inclusive): prior.high ≥ prev_prev.high AND prior.low ≤ prev_prev.low. The prior candle's range fully contains the range of its own predecessor.">
-      <input type="checkbox" id="prior-engulf-checkbox" onchange="switchPriorEngulfing(this.checked)" style="width:14px;height:14px;cursor:pointer;accent-color:var(--amber);">
-      Prior Engulfing
-    </label>
+  <div class="sel-group filter-group filter-group-confirm">
+    <label class="sel-label">Add Confirmation &nbsp;<span style="text-transform:none;font-weight:500;color:var(--text-muted);letter-spacing:0;">— check to narrow</span></label>
+    <div class="filter-row">
+      <label class="filter-chk" title="NQ swept the prior level but ES did not sweep its corresponding level. Indicates one index is leading the other — historically a much higher-WR setup.">
+        <input type="checkbox" id="smt-checkbox" onchange="switchSMT(this.checked)">
+        <span>NQ-ES Divergence</span>
+      </label>
+      <label class="filter-chk" title="The CISD candle closed on the bullish/bearish side of the current hour's open. LONG: CISD close > hour open. SHORT: CISD close < hour open. Adds a hourly-bias confirmation on top of the CISD.">
+        <input type="checkbox" id="hour-aligned-checkbox" onchange="switchHourAligned(this.checked)">
+        <span>Hour Open Aligned</span>
+      </label>
+      <label class="filter-chk" title="The prior sweep-TF candle closed against the trade direction. LONG (sweeping a prior low): prior bar must be a bearish body. SHORT (sweeping a prior high): prior bar must be a bullish body. Filters for true reversal setups.">
+        <input type="checkbox" id="prior-counter-checkbox" onchange="switchPriorCounterClose(this.checked)">
+        <span>Prior Bar Counters</span>
+      </label>
+      <label class="filter-chk" title="The prior sweep-TF candle fully engulfs the one before it (wick-inclusive): its range contains the previous bar's range. Strong displacement signature from the prior bar.">
+        <input type="checkbox" id="prior-engulf-checkbox" onchange="switchPriorEngulfing(this.checked)">
+        <span>Prior Bar Engulfs</span>
+      </label>
+    </div>
   </div>
 </div>
 
