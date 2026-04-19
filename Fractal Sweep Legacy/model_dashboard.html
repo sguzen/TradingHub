@@ -24,22 +24,178 @@
   --blue-tint:rgba(59,130,246,.1);--purple-tint:rgba(139,92,246,.1);
   --green-border:rgba(16,185,129,.25);--red-border:rgba(239,68,68,.25);
   --amber-border:rgba(245,158,11,.25);--purple-border:rgba(139,92,246,.25);
+  --accent:#10b981;
+  --grad-accent:linear-gradient(135deg,#10b981 0%,#06b6d4 50%,#3b82f6 100%);
+  --grad-hero:linear-gradient(135deg,#e2eaf4 0%,#8ba4bc 100%);
+  --grad-header:linear-gradient(90deg,rgba(16,185,129,0) 0%,rgba(16,185,129,.08) 50%,rgba(16,185,129,0) 100%);
+  --accent-glow:0 0 24px rgba(16,185,129,.15);
+  /* Liquid glass */
+  --glass-bg:rgba(17,24,39,.55);
+  --glass-bg-strong:rgba(26,34,53,.7);
+  --glass-border:rgba(255,255,255,.06);
+  --glass-border-hi:rgba(255,255,255,.1);
+  --glass-blur:saturate(160%) blur(18px);
+  --glass-sheen:linear-gradient(180deg,rgba(255,255,255,.06) 0%,rgba(255,255,255,0) 40%);
 }
 [data-theme="light"]{
-  --bg:#f1f5f9;--bg-card:#ffffff;--bg-raised:#f8fafc;--bg-hover:#f1f5f9;
+  --bg:#f8fafc;--bg-card:#ffffff;--bg-raised:#f1f5f9;--bg-hover:#e2e8f0;
   --border:#e2e8f0;--border-mid:#cbd5e1;--border-hi:#94a3b8;
-  --text-primary:#0f172a;--text-secondary:#475569;--text-muted:#94a3b8;--text-faint:#cbd5e1;
-  --shadow:0 1px 3px rgba(0,0,0,.08),0 4px 12px rgba(0,0,0,.05);--shadow-lg:0 8px 32px rgba(0,0,0,.12);
-  --grid-line:rgba(0,0,0,.06);--be-line:rgba(245,158,11,.7);
-  --green-tint:rgba(16,185,129,.08);--red-tint:rgba(239,68,68,.08);--amber-tint:rgba(245,158,11,.08);
-  --blue-tint:rgba(59,130,246,.08);--purple-tint:rgba(139,92,246,.08);
-  --green-border:rgba(16,185,129,.3);--red-border:rgba(239,68,68,.3);
-  --amber-border:rgba(245,158,11,.3);--purple-border:rgba(139,92,246,.3);
+  --text-primary:#0f172a;--text-secondary:#334155;--text-muted:#64748b;--text-faint:#94a3b8;
+  --shadow:0 1px 3px rgba(15,23,42,.06),0 4px 12px rgba(15,23,42,.04);--shadow-lg:0 8px 32px rgba(15,23,42,.1);
+  --grid-line:rgba(15,23,42,.06);--be-line:rgba(217,119,6,.6);
+  --green-tint:rgba(16,185,129,.1);--red-tint:rgba(239,68,68,.1);--amber-tint:rgba(245,158,11,.12);
+  --blue-tint:rgba(59,130,246,.1);--purple-tint:rgba(139,92,246,.1);
+  --green-border:rgba(16,185,129,.35);--red-border:rgba(239,68,68,.35);
+  --amber-border:rgba(245,158,11,.35);--purple-border:rgba(139,92,246,.35);
+  --accent:#059669;
+  --grad-accent:linear-gradient(135deg,#059669 0%,#0891b2 50%,#2563eb 100%);
+  --grad-hero:linear-gradient(135deg,#0f172a 0%,#475569 100%);
+  --grad-header:linear-gradient(90deg,rgba(5,150,105,0) 0%,rgba(5,150,105,.06) 50%,rgba(5,150,105,0) 100%);
+  --accent-glow:0 0 24px rgba(5,150,105,.08);
+  /* Liquid glass — frosted white on light background */
+  --glass-bg:rgba(255,255,255,.65);
+  --glass-bg-strong:rgba(255,255,255,.85);
+  --glass-border:rgba(15,23,42,.08);
+  --glass-border-hi:rgba(15,23,42,.14);
+  --glass-blur:saturate(180%) blur(20px);
+  --glass-sheen:linear-gradient(180deg,rgba(255,255,255,.5) 0%,rgba(255,255,255,0) 50%);
 }
+[data-theme="gold"]{
+  --bg:#0a0806;--bg-card:#14110c;--bg-raised:#1f1a12;--bg-hover:#2a2217;
+  --border:#2a2217;--border-mid:#3d2f1d;--border-hi:#5a4523;
+  --text-primary:#f7e9c8;--text-secondary:#c9a96a;--text-muted:#7a6236;--text-faint:#4a3a1f;
+  --shadow:0 1px 3px rgba(0,0,0,.7),0 4px 20px rgba(212,175,55,.08);
+  --shadow-lg:0 8px 40px rgba(212,175,55,.15);
+  --grid-line:rgba(212,175,55,.06);--be-line:rgba(212,175,55,.6);
+  --green:#d4af37;--red:#c0432f;--amber:#e5b743;--blue:#8a6d2a;--purple:#b8860b;
+  --green-tint:rgba(212,175,55,.12);--red-tint:rgba(192,67,47,.12);--amber-tint:rgba(229,183,67,.12);
+  --blue-tint:rgba(138,109,42,.12);--purple-tint:rgba(184,134,11,.12);
+  --green-border:rgba(212,175,55,.4);--red-border:rgba(192,67,47,.35);
+  --amber-border:rgba(229,183,67,.4);--purple-border:rgba(184,134,11,.4);
+  --accent:#d4af37;
+  --grad-accent:linear-gradient(135deg,#d4af37 0%,#f4d03f 50%,#a88530 100%);
+  --grad-hero:linear-gradient(135deg,#f4d03f 0%,#d4af37 50%,#a88530 100%);
+  --grad-header:linear-gradient(90deg,rgba(212,175,55,0) 0%,rgba(212,175,55,.14) 50%,rgba(212,175,55,0) 100%);
+  --accent-glow:0 0 32px rgba(212,175,55,.25);
+  /* Liquid glass — warm amber-tinted */
+  --glass-bg:rgba(20,17,12,.55);
+  --glass-bg-strong:rgba(31,26,18,.72);
+  --glass-border:rgba(212,175,55,.12);
+  --glass-border-hi:rgba(212,175,55,.25);
+  --glass-blur:saturate(150%) blur(18px);
+  --glass-sheen:linear-gradient(180deg,rgba(212,175,55,.08) 0%,rgba(212,175,55,0) 45%);
+}
+[data-theme="indigo"]{
+  --bg:#0f0c1e;--bg-card:#1a1530;--bg-raised:#24203d;--bg-hover:#2d274a;
+  --border:#2a2450;--border-mid:#3a3263;--border-hi:#524676;
+  --text-primary:#ede9fe;--text-secondary:#b9afe4;--text-muted:#7e75a8;--text-faint:#4b4568;
+  --shadow:0 1px 3px rgba(0,0,0,.5),0 6px 22px rgba(139,124,254,.12);
+  --shadow-lg:0 12px 40px rgba(139,124,254,.18);
+  --grid-line:rgba(139,124,254,.07);--be-line:rgba(245,158,11,.55);
+  --green:#34d399;--red:#f87171;--amber:#fbbf24;--blue:#60a5fa;--purple:#a78bfa;
+  --green-tint:rgba(52,211,153,.12);--red-tint:rgba(248,113,113,.12);--amber-tint:rgba(251,191,36,.12);
+  --blue-tint:rgba(96,165,250,.12);--purple-tint:rgba(167,139,250,.15);
+  --green-border:rgba(52,211,153,.3);--red-border:rgba(248,113,113,.3);
+  --amber-border:rgba(251,191,36,.3);--purple-border:rgba(167,139,250,.35);
+  --accent:#8b7cfe;
+  /* The hero surface: big bold indigo gradient used on attention cards. */
+  --grad-hero-bg:linear-gradient(135deg,#8b7cfe 0%,#6b5ce0 100%);
+  --grad-accent:linear-gradient(135deg,#a78bfa 0%,#8b7cfe 50%,#6b5ce0 100%);
+  --grad-hero:linear-gradient(135deg,#ede9fe 0%,#b9afe4 100%);
+  --grad-header:linear-gradient(90deg,rgba(139,124,254,0) 0%,rgba(139,124,254,.1) 50%,rgba(139,124,254,0) 100%);
+  --accent-glow:0 0 28px rgba(139,124,254,.22);
+  /* Liquid glass — violet-tinted */
+  --glass-bg:rgba(26,21,48,.6);
+  --glass-bg-strong:rgba(36,32,61,.75);
+  --glass-border:rgba(167,139,250,.15);
+  --glass-border-hi:rgba(167,139,250,.28);
+  --glass-blur:saturate(170%) blur(20px);
+  --glass-sheen:linear-gradient(180deg,rgba(167,139,250,.1) 0%,rgba(167,139,250,0) 45%);
+}
+
+/* ── LIQUID GLASS ─────────────────────────────────────────────────────────── */
+/* Reusable translucent frosted surface. Applied to header/tab-bar/hero tiles/chips. */
+.glass{
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  position:relative;
+}
+.glass::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background:var(--glass-sheen);border-radius:inherit;
+}
+.glass-strong{
+  background:var(--glass-bg-strong);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border-hi);
+}
+/* Fallback for browsers without backdrop-filter support */
+@supports not (backdrop-filter:blur(10px)){
+  .glass,.glass-strong{background:var(--bg-card)}
+}
+/* Apply glass to header, tab bar, hero tiles, theme picker, and filter chips */
+.hdr{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--glass-border)}
+.page-nav{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--glass-border)}
+.theme-picker{background:var(--glass-bg-strong);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-color:var(--glass-border-hi)}
+.mc{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-color:var(--glass-border-hi)}
+.mc::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:inherit;background:var(--glass-sheen)}
+/* Setup Anatomy collapsible gets glass when open */
+details.panel{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-color:var(--glass-border-hi)}
+/* Light theme glass fallback — backdrop-filter works best on light bodies */
+[data-theme="light"] .hdr,[data-theme="light"] .page-nav{border-bottom-color:var(--glass-border-hi)}
+[data-theme="light"] .mc{box-shadow:0 1px 3px rgba(15,23,42,.04),0 4px 16px rgba(15,23,42,.06)}
+/* Indigo: keep the bold gradient hero tiles solid (glass would wash out the gradient) */
+[data-theme="indigo"] .mc{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--grad-hero-bg);border-color:rgba(255,255,255,.12)}
+[data-theme="indigo"] .mc::after{display:none}
+/* Gold: subtle gold inner glow on glass surfaces */
+[data-theme="gold"] .mc{box-shadow:0 1px 3px rgba(0,0,0,.6),0 4px 20px rgba(212,175,55,.1),inset 0 0 0 1px rgba(212,175,55,.04)}
+
+/* ── GRADIENT HELPERS ─────────────────────────────────────────────────────── */
+.grad-accent{background:var(--grad-accent);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.grad-hero{background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.grad-border{position:relative}
+.grad-border::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;background:var(--grad-accent);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;opacity:.5}
+[data-theme="gold"] .mc-val.g,[data-theme="gold"] .mc-val.a{background:var(--grad-accent);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+[data-theme="gold"] .sec-label{background:var(--grad-accent);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+[data-theme="gold"] .hdr-wordmark{background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+[data-theme="gold"] .hdr-wordmark em{color:inherit}
+[data-theme="gold"] .page-tab.active{border-bottom:none;position:relative}
+[data-theme="gold"] .page-tab.active::after{content:'';position:absolute;left:12px;right:12px;bottom:-2px;height:2px;background:var(--grad-accent);border-radius:2px;box-shadow:var(--accent-glow)}
+[data-theme="gold"] .hdr{border-bottom-color:var(--border-mid);background-image:var(--grad-header)}
+[data-theme="gold"] .hub-wordmark{color:var(--accent)}
+
+/* ── INDIGO: BOLD HERO SURFACES ───────────────────────────────────────────── */
+/* Hero tiles (WR/EV/PF/Sharpe/Total P&L/Sharpe) — full gradient surface, white text */
+[data-theme="indigo"] .mc{background:var(--grad-hero-bg);border-color:rgba(255,255,255,.1);box-shadow:0 8px 32px rgba(139,124,254,.25),0 1px 2px rgba(0,0,0,.3)}
+[data-theme="indigo"] .mc:hover{box-shadow:0 14px 44px rgba(139,124,254,.35),0 1px 2px rgba(0,0,0,.3)}
+[data-theme="indigo"] .mc-accent{background:rgba(255,255,255,.3)!important;height:2px}
+[data-theme="indigo"] .mc-lbl{color:rgba(255,255,255,.75)}
+[data-theme="indigo"] .mc-val{color:#ffffff!important}
+[data-theme="indigo"] .mc-val.r{color:#ffb4b4!important}  /* losses stay warning-coloured */
+[data-theme="indigo"] .mc-sub{color:rgba(255,255,255,.65)}
+/* Section labels get indigo gradient text */
+[data-theme="indigo"] .sec-label{background:var(--grad-accent);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+[data-theme="indigo"] .sec-label::after{background:var(--border)}
+/* Wordmark gradient */
+[data-theme="indigo"] .hdr-wordmark{background:var(--grad-hero);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+[data-theme="indigo"] .hdr-wordmark em{color:inherit}
+/* Active tab glow underline */
+[data-theme="indigo"] .page-tab.active{border-bottom:none;position:relative}
+[data-theme="indigo"] .page-tab.active::after{content:'';position:absolute;left:12px;right:12px;bottom:-2px;height:2px;background:var(--grad-accent);border-radius:2px;box-shadow:var(--accent-glow)}
+/* Setup Anatomy collapsible — indigo-tinted background when open */
+[data-theme="indigo"] details.panel[open]{border-color:var(--purple-border);background:linear-gradient(180deg,rgba(139,124,254,.08) 0%,rgba(139,124,254,.02) 100%)}
+[data-theme="indigo"] details.panel > summary.ph{background:linear-gradient(90deg,rgba(139,124,254,.12) 0%,rgba(139,124,254,0) 100%)}
+/* Optimal-SL callout stays red-tinted; PTQ callout gets indigo treatment via green remap already */
+[data-theme="indigo"] .hdr{border-bottom-color:var(--border-mid);background-image:var(--grad-header)}
+[data-theme="indigo"] .hub-wordmark{color:var(--accent)}
 html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-body);font-size:14px;line-height:1.6;min-height:100vh;overflow-x:hidden;transition:background .25s var(--ease),color .25s var(--ease)}
 
 /* HEADER */
-.hdr{background:var(--bg-card);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+.hdr{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--glass-border);padding:0 28px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+@supports not (backdrop-filter:blur(10px)){.hdr{background:var(--bg-card)}}
 .hdr-left{display:flex;align-items:center;gap:16px}
 .hub-back{display:flex;align-items:center;gap:8px;text-decoration:none;flex-shrink:0;padding:6px 10px 6px 6px;border-radius:8px;transition:background .15s}
 .hub-back:hover{background:var(--bg-raised)}
@@ -53,8 +209,13 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .hdr-divider{width:1px;height:24px;background:var(--border-mid)}
 .hdr-sub{font-family:var(--font-data);font-size:10px;letter-spacing:0.08em;color:var(--text-muted);text-transform:uppercase}
 .hdr-right{display:flex;align-items:center;gap:10px}
-.theme-toggle{border-radius:8px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text-secondary);cursor:pointer;font-size:16px;padding:6px 12px;transition:all .15s}
-.theme-toggle:hover{border-color:var(--border-hi);color:var(--text-primary)}
+.theme-picker{display:inline-flex;align-items:center;gap:2px;padding:3px;background:var(--glass-bg-strong);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border-hi);border-radius:10px}
+@supports not (backdrop-filter:blur(10px)){.theme-picker{background:var(--bg-raised)}}
+.theme-opt{width:30px;height:28px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;border-radius:7px;cursor:pointer;color:var(--text-muted);font-size:14px;line-height:1;transition:background .15s,color .15s,transform .15s}
+.theme-opt:hover{color:var(--text-primary);background:var(--bg-hover)}
+.theme-opt.active{background:var(--bg-card);color:var(--accent);box-shadow:var(--shadow),0 0 0 1px var(--border-hi)}
+[data-theme="gold"] .theme-opt.active{box-shadow:var(--shadow),0 0 0 1px var(--accent),var(--accent-glow)}
+[data-theme="indigo"] .theme-opt.active{background:var(--grad-hero-bg);color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.15),var(--accent-glow)}
 .demo-badge{font-family:var(--font-data);font-size:11px;font-weight:500;letter-spacing:0.04em;padding:4px 10px;border-radius:4px;border:1px solid var(--amber-border);color:var(--amber);background:var(--amber-tint);text-transform:uppercase}
 .load-btn{font-family:var(--font-data);font-size:10px;font-weight:500;letter-spacing:0.06em;padding:7px 14px;border-radius:6px;border:1px solid var(--border-mid);background:var(--bg-raised);color:var(--text-secondary);cursor:pointer;transition:all .15s}
 .load-btn:hover{border-color:var(--green);color:var(--green);background:var(--green-tint)}
@@ -105,7 +266,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 .delta-chip.neu{background:var(--bg-raised);border:1px solid var(--border-mid);color:var(--text-muted)}
 
 /* PAGE-LEVEL NAV TABS */
-.page-nav{background:var(--bg);border-bottom:2px solid var(--border);padding:0 28px;display:flex;gap:2px;overflow-x:auto}
+.page-nav{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--glass-border-hi);padding:0 28px;display:flex;gap:2px;overflow-x:auto;position:sticky;top:60px;z-index:90}
+@supports not (backdrop-filter:blur(10px)){.page-nav{background:var(--bg)}}
 .page-tab{font-family:var(--font-body);font-size:13px;font-weight:500;padding:11px 16px 10px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap;user-select:none;background:none;border-top:none;border-left:none;border-right:none}
 .page-tab:hover{color:var(--text-secondary)}
 .page-tab.active{color:var(--text-primary);border-bottom-color:var(--blue)}
@@ -137,7 +299,8 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 /* META CARDS */
 .meta-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:20px}
 .meta-row .mc:nth-child(13){grid-column:span 2}
-.mc{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .2s var(--ease),box-shadow .2s}
+.mc{background:var(--glass-bg);backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);border:1px solid var(--glass-border-hi);border-radius:10px;padding:16px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden;transition:transform .2s var(--ease),box-shadow .2s}
+@supports not (backdrop-filter:blur(10px)){.mc{background:var(--bg-card)}}
 .mc:hover{transform:translateY(-2px);box-shadow:var(--shadow-lg)}
 .mc-accent{position:absolute;top:0;left:0;width:100%;height:3px;border-radius:10px 10px 0 0}
 .mc.g .mc-accent{background:var(--green)}.mc.r .mc-accent{background:var(--red)}.mc.a .mc-accent{background:var(--amber)}.mc.b .mc-accent{background:var(--blue)}.mc.p .mc-accent{background:var(--purple)}.mc.w .mc-accent{background:var(--border-hi)}
@@ -306,7 +469,12 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <div class="hdr-right">
     <div class="demo-badge" id="demo-badge" style="display:none">⚠ Demo Data</div>
     <button class="load-btn" onclick="document.getElementById('json-loader').click()">↑ Load model_stats.json</button>
-    <button class="theme-toggle" id="theme-toggle" title="Toggle theme">☀</button>
+    <div class="theme-picker" role="radiogroup" aria-label="Theme">
+      <button class="theme-opt" data-theme="dark"   title="Dark"   aria-label="Dark theme">☀</button>
+      <button class="theme-opt" data-theme="light"  title="Light"  aria-label="Light theme">☾</button>
+      <button class="theme-opt" data-theme="gold"   title="Gold"   aria-label="Gold theme">✦</button>
+      <button class="theme-opt" data-theme="indigo" title="Indigo" aria-label="Indigo theme">◆</button>
+    </div>
   </div>
 </header>
 
@@ -388,7 +556,7 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <div class="page-pane active" id="pane-overview">
 
     <div class="sec-label">Model Overview</div>
-    <details class="panel" style="border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)">
+    <details class="panel" style="border-radius:12px;overflow:hidden;box-shadow:var(--shadow)">
       <summary class="ph" style="cursor:pointer;list-style:none">
         <span class="ph-title">Fractal Sweep + CISD · Setup Anatomy</span>
         <span class="ph-note">Click to expand · Sweep → Return → Confirm → Execute</span>
@@ -616,18 +784,29 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
 
 <script>
 // ── THEME ──────────────────────────────────────────────────────────────────
+// Four themes in a segmented picker: dark / light / gold / indigo.
 const html = document.documentElement;
-const themeBtn = document.getElementById('theme-toggle');
-let isDark = true;
-function applyTheme(dark){
-  isDark = dark;
-  html.setAttribute('data-theme', dark ? 'dark' : 'light');
-  themeBtn.textContent = dark ? '☀' : '☾';
-  localStorage.setItem('hub-theme', dark ? 'dark' : 'light');
+const THEME_ORDER = ['dark','light','gold','indigo'];
+let currentTheme = 'dark';
+let isDark = true; // kept for legacy chart-color code paths
+function applyTheme(name){
+  if (!THEME_ORDER.includes(name)) name = 'dark';
+  currentTheme = name;
+  isDark = (name !== 'light');   // gold and indigo are still "dark-ish" so chart text stays light
+  html.setAttribute('data-theme', name);
+  document.querySelectorAll('.theme-opt').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === name);
+  });
+  localStorage.setItem('hub-theme', name);
   setTimeout(() => renderActive(), 50);
 }
-themeBtn.addEventListener('click', () => applyTheme(!isDark));
-if (localStorage.getItem('hub-theme') === 'light') applyTheme(false);
+document.querySelectorAll('.theme-opt').forEach(btn => {
+  btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+});
+// Restore from localStorage; legacy 'light'/'dark' still work, new 'gold'/'indigo' too.
+const _savedTheme = localStorage.getItem('hub-theme');
+if (_savedTheme && THEME_ORDER.includes(_savedTheme)) applyTheme(_savedTheme);
+else applyTheme('dark');
 
 // ── EXCURSION SEGMENT STATE (locked to 'all' — segment UI removed) ────────
 var _excSegment = 'all';
@@ -739,16 +918,36 @@ function switchPageTab(tab){
 }
 
 // ── CHART COLOR HELPERS ────────────────────────────────────────────────────
-const C = () => ({
-  green: isDark?'#10b981':'#059669', red: isDark?'#ef4444':'#dc2626',
-  amber: isDark?'#f59e0b':'#d97706', blue: isDark?'#3b82f6':'#2563eb',
-  purple: isDark?'#8b5cf6':'#7c3aed',
-  gridLine: isDark?'rgba(255,255,255,.04)':'rgba(0,0,0,.06)',
-  beLine:   isDark?'rgba(245,158,11,.5)' :'rgba(217,119,6,.5)',
-  axisText: isDark?'#4a6480':'#94a3b8',
-  barMid:   isDark?'#2e4460':'#cbd5e1',
-  bgCard:   isDark?'#111827':'#ffffff',
-});
+// Per-theme palette. Gold theme remaps green/red/amber/blue to warm metallic tones
+// so charts stay on-theme. Light mode uses darker saturations for contrast.
+const C = () => {
+  if (currentTheme === 'gold') {
+    return {
+      green:'#d4af37', red:'#c0432f', amber:'#e5b743', blue:'#8a6d2a', purple:'#b8860b',
+      gridLine:'rgba(212,175,55,.06)', beLine:'rgba(212,175,55,.6)',
+      axisText:'#7a6236', barMid:'#3d2f1d', bgCard:'#14110c',
+    };
+  }
+  if (currentTheme === 'indigo') {
+    return {
+      green:'#34d399', red:'#f87171', amber:'#fbbf24', blue:'#60a5fa', purple:'#a78bfa',
+      gridLine:'rgba(139,124,254,.07)', beLine:'rgba(251,191,36,.55)',
+      axisText:'#7e75a8', barMid:'#3a3263', bgCard:'#1a1530',
+    };
+  }
+  if (currentTheme === 'light') {
+    return {
+      green:'#059669', red:'#dc2626', amber:'#d97706', blue:'#2563eb', purple:'#7c3aed',
+      gridLine:'rgba(15,23,42,.06)', beLine:'rgba(217,119,6,.6)',
+      axisText:'#64748b', barMid:'#cbd5e1', bgCard:'#ffffff',
+    };
+  }
+  return {
+    green:'#10b981', red:'#ef4444', amber:'#f59e0b', blue:'#3b82f6', purple:'#8b5cf6',
+    gridLine:'rgba(255,255,255,.04)', beLine:'rgba(245,158,11,.5)',
+    axisText:'#4a6480', barMid:'#2e4460', bgCard:'#111827',
+  };
+};
 const SVG_FONT = "'JetBrains Mono',monospace";
 
 // ── DEMO DATA ──────────────────────────────────────────────────────────────
@@ -1271,28 +1470,48 @@ function renderEdgeStudy(D) {
     const evs = data.map(d=>d.ev).filter(v=>v!=null);
     const evMax = Math.max(0.1, ...evs);
     const evMin = Math.min(0, ...evs);
-    const evColor = ev => {
+    // Stronger color ramp — 0.25 floor → 0.95 ceiling so weak cells aren't muddy
+    // and strong cells don't become unreadable on white text.
+    const evBg = ev => {
       if (ev == null) return 'var(--bg-raised)';
       if (ev >= 0) {
         const t = Math.min(1, ev/evMax);
-        return `rgba(16,185,129,${0.15 + t*0.65})`;
-      } else {
-        const t = Math.min(1, Math.abs(ev)/Math.abs(evMin||1));
-        return `rgba(239,68,68,${0.15 + t*0.65})`;
+        return `rgba(16,185,129,${0.22 + t*0.55})`;
       }
+      const t = Math.min(1, Math.abs(ev)/Math.abs(evMin||1));
+      return `rgba(239,68,68,${0.22 + t*0.55})`;
     };
-    let html = `<div style="overflow-x:auto"><table style="border-collapse:collapse;font-family:var(--font-data);font-size:10px;margin:0 auto"><thead><tr>
-      <th style="padding:4px 8px"></th>
-      ${hrs.map(h=>`<th style="padding:5px 6px;text-align:center;color:var(--text-muted);font-weight:500">${String(h).padStart(2,'0')}</th>`).join('')}
-    </tr></thead><tbody>`;
+    // Saturated cells → bold white text; pale cells → strong theme text.
+    const evText = ev => {
+      if (ev == null) return 'var(--text-muted)';
+      const intensity = ev >= 0 ? ev/evMax : Math.abs(ev)/Math.abs(evMin||1);
+      return intensity >= 0.35 ? '#ffffff' : 'var(--text-primary)';
+    };
+    let html = `
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;font-family:var(--font-data);font-size:10px;color:var(--text-muted);flex-wrap:wrap">
+        <span style="text-transform:uppercase;letter-spacing:.08em;font-weight:700">Color scale</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;background:rgba(239,68,68,.75);border-radius:3px"></span>worst EV (${evMin.toFixed(2)}R)</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;background:var(--bg-raised);border:1px solid var(--border);border-radius:3px"></span>~flat</span>
+        <span style="display:inline-flex;align-items:center;gap:6px"><span style="display:inline-block;width:14px;height:14px;background:rgba(16,185,129,.75);border-radius:3px"></span>best EV (+${evMax.toFixed(2)}R)</span>
+      </div>
+      <div style="overflow-x:auto">
+      <table style="border-collapse:separate;border-spacing:2px;font-family:var(--font-data);font-size:12px;margin:0 auto">
+        <thead><tr>
+          <th style="padding:6px 10px"></th>
+          ${hrs.map(h=>`<th style="padding:6px 4px;text-align:center;color:var(--text-muted);font-weight:600;font-size:11px;min-width:52px">${String(h).padStart(2,'0')}:00</th>`).join('')}
+        </tr></thead><tbody>`;
     DOW_ORDER.forEach(dn => {
-      html += `<tr><td style="padding:4px 8px;color:var(--text-muted);font-weight:600">${dn}</td>`;
+      html += `<tr><td style="padding:6px 12px 6px 2px;color:var(--text-secondary);font-weight:700;font-size:12px;text-align:right">${dn}</td>`;
       hrs.forEach(h => {
         const c = byKey[`${dn}_${h}`];
-        if (!c) { html += `<td style="background:var(--bg-raised);width:34px;height:24px"></td>`; return; }
-        const bg = evColor(c.ev);
-        const textColor = Math.abs(c.ev) > evMax*0.5 ? '#ffffff' : 'var(--text-primary)';
-        html += `<td style="background:${bg};width:34px;height:24px;padding:0;text-align:center;border:1px solid rgba(0,0,0,0.1);color:${textColor};font-weight:600" title="${dn} ${h}:00 · n=${c.n} · WR ${(c.wr*100).toFixed(0)}% · EV ${c.ev>0?'+':''}${c.ev.toFixed(3)}R">${c.ev>=0?'+':''}${c.ev.toFixed(2)}</td>`;
+        if (!c) { html += `<td style="background:var(--bg-raised);min-width:52px;height:44px;border-radius:6px"></td>`; return; }
+        const bg = evBg(c.ev);
+        const textColor = evText(c.ev);
+        const nStr = c.n.toLocaleString();
+        html += `<td style="background:${bg};min-width:52px;height:44px;padding:0;text-align:center;border-radius:6px;color:${textColor};font-weight:700;font-size:12px;cursor:help;line-height:1.2;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)" title="${dn} ${h}:00\u000An=${nStr}\u000AWR ${(c.wr*100).toFixed(1)}%\u000APF ${c.pf!=null?c.pf.toFixed(2):'\u2014'}\u000AEV ${c.ev>0?'+':''}${c.ev.toFixed(3)}R">
+          <div>${c.ev>=0?'+':''}${c.ev.toFixed(2)}</div>
+          <div style="font-size:9px;font-weight:500;opacity:.75;margin-top:1px">n=${nStr}</div>
+        </td>`;
       });
       html += `</tr>`;
     });

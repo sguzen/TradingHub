@@ -29,11 +29,11 @@ split_tp1_size  = input.float(90.0,   "TP1 Exit %", group=G9, step=5.0, minval=5
 var string G3 = "R:R Box"
 rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
 rr_ratio       = input.float(1.0, "R:R Target", group=G3, step=0.5, minval=0.5, tooltip="e.g. 2 = TP at 2R. Ignored when Split Profile is on.")
-rr_risk_col    = input.color(color.new(color.red,  85), "Risk Zone Fill",    group=G3)
-rr_risk_border = input.color(color.new(color.red,  40), "Risk Zone Border",  group=G3)
-rr_rew_col     = input.color(color.new(color.teal, 85), "Reward Zone Fill",  group=G3)
-rr_rew_border  = input.color(color.new(color.teal, 40), "Reward Zone Border", group=G3)
-rr_entry_col   = input.color(color.white,               "Entry Line Color",  group=G3)
+rr_risk_col    = input.color(color.new(#ef4444, 85), "Risk Zone Fill",    group=G3)
+rr_risk_border = input.color(color.new(#ef4444, 40), "Risk Zone Border",  group=G3)
+rr_rew_col     = input.color(color.new(#06b6d4, 85), "Reward Zone Fill",  group=G3, tooltip="Cyan by default — separates from bullish green candles")
+rr_rew_border  = input.color(color.new(#06b6d4, 40), "Reward Zone Border", group=G3)
+rr_entry_col   = input.color(color.new(#e2e8f0, 0),   "Entry Line Color",  group=G3)
 
 var string G4 = "Sweep Line"
 sweep_style_inp = input.string("Dotted",   "Line Style",     options=["Dotted", "Dashed", "Solid"], group=G4)
@@ -56,9 +56,24 @@ proj_color      = input.color(color.gray, "Projection Color",    group=G7)
 
 var string G6 = "R:R Labels"
 rr_lbl_pos    = input.string("Right",                        "Label Position", options=["Left", "Right"], group=G6)
-rr_lbl_tp_col = input.color(color.new(color.teal, 20), "TP Label Color",    group=G6)
-rr_lbl_sl_col = input.color(color.new(color.red,  20), "SL Label Color",    group=G6)
-rr_lbl_en_col = input.color(color.new(color.gray, 60), "Entry Label Color", group=G6)
+rr_lbl_tp_col = input.color(color.new(#06b6d4, 20), "TP Label Color",    group=G6)
+rr_lbl_sl_col = input.color(color.new(#ef4444, 20), "SL Label Color",    group=G6)
+rr_lbl_en_col = input.color(color.new(#64748b, 40), "Entry Label Color", group=G6)
+
+// ── COLOR PALETTE ─────────────────────────────────────────────────────────────
+// All indicator markup colors in one place. Defaults chosen to stay clear of
+// candle green/red so markup reads cleanly on any theme.
+var string G11 = "Colors"
+c_sweep        = input.color(#f59e0b, "Sweep Level", group=G11, tooltip="Amber — swept HTF high/low. Avoids red/green candle collision.")
+c_cisd         = input.color(#3b82f6, "CISD Level",  group=G11, tooltip="Blue — CISD confirmation line. Unaffected by candle colors.")
+c_sl           = input.color(#ef4444, "Stop Loss",   group=G11, tooltip="Red — the loss line. Universal.")
+c_tp           = input.color(#06b6d4, "Take Profit", group=G11, tooltip="Cyan — separates from bullish green candles.")
+c_tspot        = input.color(#8b5cf6, "T-Spot Zone", group=G11, tooltip="Violet — structural zone. Distinct from TP teal/cyan.")
+c_tp2          = input.color(#a855f7, "TP2 Runner",  group=G11, tooltip="Purple — split profile runner target.")
+c_mid          = input.color(#94a3b8, "Midpoint (BE / Partial)", group=G11, tooltip="Slate — neutral management line (not a loss).")
+c_overrisk     = input.color(#ff6600, "Over-Risk Warning", group=G11, tooltip="Orange — unambiguous risk-too-large flag.")
+c_proj         = input.color(#64748b, "CISD Projection", group=G11, tooltip="Slate — ghost lines for projection levels.")
+c_dbg          = input.color(#0f172a, "Debug Label BG", group=G11)
 
 // ── STYLE HELPERS ─────────────────────────────────────────────────────────────
 // "Right" → anchor at END of line, text flows right → style_label_left
@@ -350,12 +365,12 @@ if is_new_anchor and tf_supported
     // ── Draw sweep lines for pre-seeded setups ───────────────────────────────
     if swept_long
         ps_x = sweep_lbl_pos == "Right" ? bar_index + rr_extend : anc_lo_bar
-        sweep_line_long := line.new(anc_lo_bar, anc_lo, bar_index + rr_extend, anc_lo, color=color.new(color.red, 25), width=1, style=line.style_dashed)
-        sweep_lbl_long  := label.new(ps_x, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.new(color.red, 25), style=sweep_lbl_style, size=size.small)
+        sweep_line_long := line.new(anc_lo_bar, anc_lo, bar_index + rr_extend, anc_lo, color=color.new(c_sweep, 25), width=1, style=line.style_dashed)
+        sweep_lbl_long  := label.new(ps_x, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=color.new(c_sweep, 25), style=sweep_lbl_style, size=size.small)
     if swept_short
         ps_x = sweep_lbl_pos == "Right" ? bar_index + rr_extend : anc_hi_bar
-        sweep_line_short := line.new(anc_hi_bar, anc_hi, bar_index + rr_extend, anc_hi, color=color.new(color.red, 25), width=1, style=line.style_dashed)
-        sweep_lbl_short  := label.new(ps_x, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.new(color.red, 25), style=sweep_lbl_style, size=size.small)
+        sweep_line_short := line.new(anc_hi_bar, anc_hi, bar_index + rr_extend, anc_hi, color=color.new(c_sweep, 25), width=1, style=line.style_dashed)
+        sweep_lbl_short  := label.new(ps_x, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=color.new(c_sweep, 25), style=sweep_lbl_style, size=size.small)
 
 
 // ── BAR COUNTER + RUNNING SWEEP EXTREMES ─────────────────────────────────────
@@ -398,8 +413,8 @@ if tf_supported and not na(anc_hi) and not na(anc_lo)
             sweep_close_long  := close
             sweep_pct_long    := ref_range > 0 ? ext / ref_range : 0.0
             sweep_x_long    = sweep_lbl_pos == "Right" ? bar_index + rr_extend : anc_lo_bar
-            sweep_line_long := line.new(anc_lo_bar, anc_lo, bar_index + rr_extend, anc_lo, color=color.new(color.red, 25), width=1, style=line.style_dashed)
-            sweep_lbl_long  := label.new(sweep_x_long, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.new(color.red, 25), style=sweep_lbl_style, size=size.small)
+            sweep_line_long := line.new(anc_lo_bar, anc_lo, bar_index + rr_extend, anc_lo, color=color.new(c_sweep, 25), width=1, style=line.style_dashed)
+            sweep_lbl_long  := label.new(sweep_x_long, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=color.new(c_sweep, 25), style=sweep_lbl_style, size=size.small)
             if show_smt and not na(es_prior_low)
                 smt_long := es_ltf_low > es_prior_low
     if not swept_short
@@ -412,8 +427,8 @@ if tf_supported and not na(anc_hi) and not na(anc_lo)
             sweep_close_short  := close
             sweep_pct_short    := ref_range > 0 ? ext / ref_range : 0.0
             sweep_x_short    = sweep_lbl_pos == "Right" ? bar_index + rr_extend : anc_hi_bar
-            sweep_line_short := line.new(anc_hi_bar, anc_hi, bar_index + rr_extend, anc_hi, color=color.new(color.red, 25), width=1, style=line.style_dashed)
-            sweep_lbl_short  := label.new(sweep_x_short, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.new(color.red, 25), style=sweep_lbl_style, size=size.small)
+            sweep_line_short := line.new(anc_hi_bar, anc_hi, bar_index + rr_extend, anc_hi, color=color.new(c_sweep, 25), width=1, style=line.style_dashed)
+            sweep_lbl_short  := label.new(sweep_x_short, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=color.new(c_sweep, 25), style=sweep_lbl_style, size=size.small)
             if show_smt and not na(es_prior_high)
                 smt_short := es_ltf_high < es_prior_high
 
@@ -530,8 +545,8 @@ if tf_supported
     if swept_long and not alerted_long and not na(cisd_long_lvl)
         line.delete(cisd_prev_long)
         label.delete(cisd_prev_lbl_long)
-        cisd_prev_long     := line.new(bar_index - cisd_long_off, cisd_long_lvl, bar_index + 5, cisd_long_lvl, color=color.new(color.blue, 50), width=1, style=line.style_dashed)
-        cisd_prev_lbl_long := label.new(bar_index + 5, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.new(color.blue, 50), style=label.style_label_left, size=size.small)
+        cisd_prev_long     := line.new(bar_index - cisd_long_off, cisd_long_lvl, bar_index + 5, cisd_long_lvl, color=color.new(c_cisd, 50), width=1, style=line.style_dashed)
+        cisd_prev_lbl_long := label.new(bar_index + 5, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=color.new(c_cisd, 50), style=label.style_label_left, size=size.small)
     else if not swept_long or alerted_long
         line.delete(cisd_prev_long)
         label.delete(cisd_prev_lbl_long)
@@ -540,8 +555,8 @@ if tf_supported
     if swept_short and not alerted_short and not na(cisd_short_lvl)
         line.delete(cisd_prev_short)
         label.delete(cisd_prev_lbl_short)
-        cisd_prev_short     := line.new(bar_index - cisd_short_off, cisd_short_lvl, bar_index + 5, cisd_short_lvl, color=color.new(color.blue, 50), width=1, style=line.style_dashed)
-        cisd_prev_lbl_short := label.new(bar_index + 5, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.new(color.blue, 50), style=label.style_label_left, size=size.small)
+        cisd_prev_short     := line.new(bar_index - cisd_short_off, cisd_short_lvl, bar_index + 5, cisd_short_lvl, color=color.new(c_cisd, 50), width=1, style=line.style_dashed)
+        cisd_prev_lbl_short := label.new(bar_index + 5, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=color.new(c_cisd, 50), style=label.style_label_left, size=size.small)
     else if not swept_short or alerted_short
         line.delete(cisd_prev_short)
         label.delete(cisd_prev_lbl_short)
@@ -570,7 +585,7 @@ if show_debug and tf_supported and barstate.islast
          + "\nhi_bar_off=" + str.tostring(bar_index - anc_hi_bar) + " lo_bar_off=" + str.tostring(bar_index - anc_lo_bar)
     var label dbg_lbl = na
     label.delete(dbg_lbl)
-    dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(color.black, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
+    dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(c_dbg, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
 
 // ── FIRE: LONG — store draw state; R:R box drawn next bar at open (matches backtest entry) ─
 if long_valid
@@ -666,13 +681,13 @@ if draw_long
     _tp2  = use_split ? entry + entry * split_p50_pct / 100 : float(na)
     _tp1_r = risk > 0 ? (tp - entry) / risk : 0.0
     r_end = bar_index + rr_extend
-    f_reg_line(line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=color.blue, width=2, style=line.style_solid))
+    f_reg_line(line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_long
-    f_reg_label(label.new(cisd_x, draw_cisd_lvl_long, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_anc_lo_bar, draw_anc_lo, r_end, draw_anc_lo, color=color.red, width=2, style=line.style_solid))
+    f_reg_label(label.new(cisd_x, draw_cisd_lvl_long, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small))
+    f_reg_line(line.new(draw_anc_lo_bar, draw_anc_lo, r_end, draw_anc_lo, color=c_sweep, width=2, style=line.style_solid))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_lo_bar
-    f_reg_label(label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_sl_anchor_long, sl, r_end, sl, color=color.red, width=2, style=sweep_lstyle))
+    f_reg_label(label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
+    f_reg_line(line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle))
     f_reg_box(box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col))
     f_reg_box(box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
@@ -683,26 +698,26 @@ if draw_long
     if show_midlines and risk > 0
         _be_level      = entry - risk * 0.5
         _partial_level = entry + risk * 0.5
-        _mid_col = color.new(#7f1d1d, 30)
+        _mid_col = color.new(c_mid, 30)
         f_reg_line(line.new(bar_index, _be_level,      r_end, _be_level,      color=_mid_col, width=1, style=line.style_dashed))
         f_reg_line(line.new(bar_index, _partial_level, r_end, _partial_level, color=_mid_col, width=1, style=line.style_dashed))
         f_reg_label(label.new(bar_index + rr_lbl_x, _be_level,      "Move to BE", color=color.new(_mid_col, 100), textcolor=_mid_col, style=rr_lbl_style, size=size.tiny))
         f_reg_label(label.new(bar_index + rr_lbl_x, _partial_level, "Take Partial", color=color.new(_mid_col, 100), textcolor=_mid_col, style=rr_lbl_style, size=size.tiny))
     if use_split and not na(_tp2)
-        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(color.purple, 30), width=1, style=line.style_dotted))
-        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(_tp2 - entry, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(color.purple, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(c_tp2, 30), width=1, style=line.style_dotted))
+        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(_tp2 - entry, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(c_tp2, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(draw_sweep_logmid_long) and not na(draw_sweep_close_long)
         tspot_top  = math.max(draw_sweep_logmid_long, draw_sweep_close_long)
         tspot_bot  = math.min(draw_sweep_logmid_long, draw_sweep_close_long)
         sb = not na(draw_sweep_bar_long) ? draw_sweep_bar_long : bar_index
-        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.teal, tspot_transp), border_color=color.new(color.teal, tspot_transp + 5)))
-        f_reg_line(line.new(sb, draw_sweep_logmid_long, r_end, draw_sweep_logmid_long, color=color.teal, width=1, style=line.style_dotted))
+        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(c_tspot, tspot_transp), border_color=color.new(c_tspot, tspot_transp + 5)))
+        f_reg_line(line.new(sb, draw_sweep_logmid_long, r_end, draw_sweep_logmid_long, color=c_tspot, width=1, style=line.style_dotted))
     if show_c_labels
-        f_reg_label(label.new(draw_anc_lo_bar, draw_anc_lo, "C2", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small))
-        f_reg_label(label.new(bar_index, draw_cisd_lvl_long, "C3", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_up, size=size.small))
+        f_reg_label(label.new(draw_anc_lo_bar, draw_anc_lo, "C2", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_up, size=size.small))
+        f_reg_label(label.new(bar_index, draw_cisd_lvl_long, "C3", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_up, size=size.small))
     if show_tspot_type and not na(draw_sweep_pct_long)
         ttype = draw_sweep_pct_long < 0.30 ? "ProTrend" : draw_sweep_pct_long < 0.80 ? "Normal" : "Expansive"
-        f_reg_label(label.new(bar_index, tp, ttype + " LONG", color=color.new(color.teal, 100), textcolor=color.teal, style=label.style_label_down, size=size.tiny))
+        f_reg_label(label.new(bar_index, tp, ttype + " LONG", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_down, size=size.tiny))
     if show_proj and draw_cisd_long_off > 0
         series_hi = high[draw_cisd_long_off + 1]
         series_lo = low[draw_cisd_long_off + 1]
@@ -762,13 +777,13 @@ if draw_short
     _tp2  = use_split ? entry - entry * split_p50_pct / 100 : float(na)
     _tp1_r = risk > 0 ? (entry - tp) / risk : 0.0
     r_end = bar_index + rr_extend
-    f_reg_line(line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=color.blue, width=2, style=line.style_solid))
+    f_reg_line(line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_short
-    f_reg_label(label.new(cisd_x, draw_cisd_lvl_short, cisd_text + " " + cisd_tf_lbl, color=color.new(color.blue, 100), textcolor=color.blue, style=cisd_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_anc_hi_bar, draw_anc_hi, r_end, draw_anc_hi, color=color.red, width=2, style=line.style_solid))
+    f_reg_label(label.new(cisd_x, draw_cisd_lvl_short, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small))
+    f_reg_line(line.new(draw_anc_hi_bar, draw_anc_hi, r_end, draw_anc_hi, color=c_sweep, width=2, style=line.style_solid))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_hi_bar
-    f_reg_label(label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(color.red, 100), textcolor=color.red, style=sweep_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_sl_anchor_short, sl, r_end, sl, color=color.red, width=2, style=sweep_lstyle))
+    f_reg_label(label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
+    f_reg_line(line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle))
     f_reg_box(box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col))
     f_reg_box(box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
@@ -779,26 +794,26 @@ if draw_short
     if show_midlines and risk > 0
         _be_level      = entry + risk * 0.5
         _partial_level = entry - risk * 0.5
-        _mid_col = color.new(#7f1d1d, 30)
+        _mid_col = color.new(c_mid, 30)
         f_reg_line(line.new(bar_index, _be_level,      r_end, _be_level,      color=_mid_col, width=1, style=line.style_dashed))
         f_reg_line(line.new(bar_index, _partial_level, r_end, _partial_level, color=_mid_col, width=1, style=line.style_dashed))
         f_reg_label(label.new(bar_index + rr_lbl_x, _be_level,      "Move to BE", color=color.new(_mid_col, 100), textcolor=_mid_col, style=rr_lbl_style, size=size.tiny))
         f_reg_label(label.new(bar_index + rr_lbl_x, _partial_level, "Take Partial", color=color.new(_mid_col, 100), textcolor=_mid_col, style=rr_lbl_style, size=size.tiny))
     if use_split and not na(_tp2)
-        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(color.purple, 30), width=1, style=line.style_dotted))
-        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(entry - _tp2, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(color.purple, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+        f_reg_line(line.new(bar_index, _tp2, r_end, _tp2, color=color.new(c_tp2, 30), width=1, style=line.style_dotted))
+        f_reg_label(label.new(bar_index + rr_lbl_x, _tp2, "TP2  +" + str.tostring(entry - _tp2, "#.##") + " pts  (runner " + str.tostring(100 - split_tp1_size, "#") + "%)", color=color.new(c_tp2, 20), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
     if show_tspot and not na(draw_sweep_logmid_short) and not na(draw_sweep_close_short)
         tspot_top  = math.max(draw_sweep_logmid_short, draw_sweep_close_short)
         tspot_bot  = math.min(draw_sweep_logmid_short, draw_sweep_close_short)
         sb = not na(draw_sweep_bar_short) ? draw_sweep_bar_short : bar_index
-        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(color.red, tspot_transp), border_color=color.new(color.red, tspot_transp + 5)))
-        f_reg_line(line.new(sb, draw_sweep_logmid_short, r_end, draw_sweep_logmid_short, color=color.red, width=1, style=line.style_dotted))
+        f_reg_box(box.new(sb, tspot_top, r_end, tspot_bot, bgcolor=color.new(c_tspot, tspot_transp), border_color=color.new(c_tspot, tspot_transp + 5)))
+        f_reg_line(line.new(sb, draw_sweep_logmid_short, r_end, draw_sweep_logmid_short, color=c_tspot, width=1, style=line.style_dotted))
     if show_c_labels
-        f_reg_label(label.new(draw_anc_hi_bar, draw_anc_hi, "C2", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small))
-        f_reg_label(label.new(bar_index, draw_cisd_lvl_short, "C3", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_down, size=size.small))
+        f_reg_label(label.new(draw_anc_hi_bar, draw_anc_hi, "C2", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_down, size=size.small))
+        f_reg_label(label.new(bar_index, draw_cisd_lvl_short, "C3", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_down, size=size.small))
     if show_tspot_type and not na(draw_sweep_pct_short)
         ttype = draw_sweep_pct_short < 0.30 ? "ProTrend" : draw_sweep_pct_short < 0.80 ? "Normal" : "Expansive"
-        f_reg_label(label.new(bar_index, tp, ttype + " SHORT", color=color.new(color.red, 100), textcolor=color.red, style=label.style_label_up, size=size.tiny))
+        f_reg_label(label.new(bar_index, tp, ttype + " SHORT", color=color.new(c_tspot, 100), textcolor=c_tspot, style=label.style_label_up, size=size.tiny))
     if show_proj and draw_cisd_short_off > 0
         series_hi = high[draw_cisd_short_off + 1]
         series_lo = low[draw_cisd_short_off + 1]
@@ -869,7 +884,7 @@ if long_over
     risk  = entry - sl
     tp    = entry + risk * rr_ratio
     r_end = bar_index + rr_extend
-    _ov_col  = color.new(#ff6600, 30)
+    _ov_col  = color.new(c_overrisk, 30)
     cisd_bar = bar_index - cisd_long_off
     if not na(sweep_line_long)
         line.delete(sweep_line_long)
@@ -877,19 +892,19 @@ if long_over
         label.delete(sweep_lbl_long)
     f_reg_line(line.new(anc_lo_bar, anc_lo, r_end, anc_lo, color=_ov_col, width=1, style=line.style_dashed))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : anc_lo_bar
-    f_reg_label(label.new(sweep_x, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(#ff6600, 100), textcolor=_ov_col, style=sweep_lbl_style, size=size.small))
+    f_reg_label(label.new(sweep_x, anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=sweep_lbl_style, size=size.small))
     f_reg_line(line.new(cisd_bar, cisd_long_lvl, r_end, cisd_long_lvl, color=_ov_col, width=1, style=line.style_dashed))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
-    f_reg_label(label.new(cisd_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(#ff6600, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
+    f_reg_label(label.new(cisd_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_long) ? sweep_bar_long : bar_index
     f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_box(box.new(bar_index, entry, r_end, sl, border_color=color.new(color.red, 60), bgcolor=color.new(color.red, 92)))
-    f_reg_box(box.new(bar_index, tp, r_end, entry, border_color=color.new(color.teal, 60), bgcolor=color.new(color.teal, 92)))
-    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(#ff6600, 40), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(color.red, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(color.teal, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index, tp + (tp - entry) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(#ff6600, 10), textcolor=color.white, style=label.style_label_down, size=size.small))
+    f_reg_box(box.new(bar_index, entry, r_end, sl, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
+    f_reg_box(box.new(bar_index, tp, r_end, entry, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
+    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index, tp + (tp - entry) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_down, size=size.small))
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
@@ -934,7 +949,7 @@ if short_over
     risk  = sl - entry
     tp    = entry - risk * rr_ratio
     r_end = bar_index + rr_extend
-    _ov_col  = color.new(#ff6600, 30)
+    _ov_col  = color.new(c_overrisk, 30)
     cisd_bar = bar_index - cisd_short_off
     if not na(sweep_line_short)
         line.delete(sweep_line_short)
@@ -942,19 +957,19 @@ if short_over
         label.delete(sweep_lbl_short)
     f_reg_line(line.new(anc_hi_bar, anc_hi, r_end, anc_hi, color=_ov_col, width=1, style=line.style_dashed))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : anc_hi_bar
-    f_reg_label(label.new(sweep_x, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(#ff6600, 100), textcolor=_ov_col, style=sweep_lbl_style, size=size.small))
+    f_reg_label(label.new(sweep_x, anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=sweep_lbl_style, size=size.small))
     f_reg_line(line.new(cisd_bar, cisd_short_lvl, r_end, cisd_short_lvl, color=_ov_col, width=1, style=line.style_dashed))
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
-    f_reg_label(label.new(cisd_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(#ff6600, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
+    f_reg_label(label.new(cisd_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_short) ? sweep_bar_short : bar_index
     f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
     f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_box(box.new(bar_index, sl, r_end, entry, border_color=color.new(color.red, 60), bgcolor=color.new(color.red, 92)))
-    f_reg_box(box.new(bar_index, entry, r_end, tp, border_color=color.new(color.teal, 60), bgcolor=color.new(color.teal, 92)))
-    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(#ff6600, 40), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(color.red, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(color.teal, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index, tp - (entry - tp) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(#ff6600, 10), textcolor=color.white, style=label.style_label_up, size=size.small))
+    f_reg_box(box.new(bar_index, sl, r_end, entry, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
+    f_reg_box(box.new(bar_index, entry, r_end, tp, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
+    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    f_reg_label(label.new(bar_index, tp - (entry - tp) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_up, size=size.small))
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
