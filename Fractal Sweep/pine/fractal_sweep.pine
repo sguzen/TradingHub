@@ -29,6 +29,8 @@ var string G8 = "Display"
 show_debug    = input.bool(false, "Show Debug Labels", group=G8)
 max_setups    = input.int(5, "Max Setups to Show", group=G8, minval=1, maxval=20, tooltip="How many past setups stay visible on the chart. Increase for journaling/review.")
 show_midlines = input.bool(true, "Show 50% Midpoint Lines", group=G8, tooltip="Dashed lines at 50% of risk zone (Move to BE) and 50% of reward zone (Take Partial)")
+truncate_on_hit = input.bool(true, "Truncate on TP/SL Hit", group=G8, tooltip="Shrink R:R boxes + entry/SL/TP lines when price hits TP or SL. Sweep & CISD lines stay for context.")
+show_outcome_markers = input.bool(true, "Show Outcome Markers", group=G8, tooltip="Drop ✓ at TP hit or ✗ at SL hit. Requires Truncate on TP/SL Hit.")
 
 var string G3 = "R:R Box"
 rr_extend      = input.int(20,    "Box Width (bars)", group=G3, minval=5, maxval=100)
@@ -241,6 +243,18 @@ var fired_boxes  = array.new_box()
 var setup_line_counts  = array.new_int()
 var setup_label_counts = array.new_int()
 var setup_box_counts   = array.new_int()
+// Active (unresolved) setups — parallel arrays. Resolve to TP/SL hits post-fire.
+var active_dir        = array.new_int()     //  1 = long, -1 = short
+var active_tp         = array.new_float()
+var active_sl         = array.new_float()
+var active_entry      = array.new_float()
+var active_risk_box   = array.new_box()
+var active_reward_box = array.new_box()
+var active_entry_ln   = array.new_line()
+var active_sl_ln      = array.new_line()
+var active_tp_lbl     = array.new_label()
+var active_sl_lbl     = array.new_label()
+var active_entry_lbl  = array.new_label()
 // snapshot sizes before registering a new setup's drawings
 var int _snap_lines  = 0
 var int _snap_labels = 0
@@ -589,6 +603,56 @@ if show_debug and tf_supported and barstate.islast
     label.delete(dbg_lbl)
     dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(c_dbg, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
 
+// ── RESOLVE ACTIVE SETUPS — truncate R:R drawings on TP/SL hit ───────────────
+// Walk from tail to head so we can pop resolved rows without index drift.
+// Intrabar wick-based: SL takes priority if both touched on the same bar.
+if truncate_on_hit and array.size(active_dir) > 0
+    _i = array.size(active_dir) - 1
+    while _i >= 0
+        _d  = array.get(active_dir,  _i)
+        _tp = array.get(active_tp,   _i)
+        _sl = array.get(active_sl,   _i)
+        _en = array.get(active_entry, _i)
+        _hit_sl = _d == 1 ? low  <= _sl : high >= _sl
+        _hit_tp = _d == 1 ? high >= _tp : low  <= _tp
+        _resolved_sl = _hit_sl
+        _resolved_tp = _hit_tp and not _hit_sl
+        if _resolved_sl or _resolved_tp
+            _rb = array.get(active_risk_box,   _i)
+            _wb = array.get(active_reward_box, _i)
+            _el = array.get(active_entry_ln,   _i)
+            _sn = array.get(active_sl_ln,      _i)
+            _tl = array.get(active_tp_lbl,     _i)
+            _snl= array.get(active_sl_lbl,     _i)
+            _enl= array.get(active_entry_lbl,  _i)
+            box.set_right(_rb, bar_index)
+            box.set_right(_wb, bar_index)
+            line.set_x2(_el,   bar_index)
+            line.set_x2(_sn,   bar_index)
+            // Re-anchor labels to the resolution bar so they don't float past the truncated edge
+            label.set_x(_tl,   bar_index + 1)
+            label.set_x(_snl,  bar_index + 1)
+            label.set_x(_enl,  bar_index + 1)
+            if show_outcome_markers
+                _mark_price = _resolved_sl ? _sl : _tp
+                _mark_text  = _resolved_sl ? "✗" : "✓"
+                _mark_col   = _resolved_sl ? color.new(c_sl, 10) : color.new(c_tp, 10)
+                _mark_style = _d == 1 ? (_resolved_sl ? label.style_label_up : label.style_label_down) : (_resolved_sl ? label.style_label_down : label.style_label_up)
+                f_reg_label(label.new(bar_index, _mark_price, _mark_text, color=_mark_col, textcolor=color.white, style=_mark_style, size=size.small))
+            // Pop this setup from active tracking
+            array.remove(active_dir,        _i)
+            array.remove(active_tp,         _i)
+            array.remove(active_sl,         _i)
+            array.remove(active_entry,      _i)
+            array.remove(active_risk_box,   _i)
+            array.remove(active_reward_box, _i)
+            array.remove(active_entry_ln,   _i)
+            array.remove(active_sl_ln,      _i)
+            array.remove(active_tp_lbl,     _i)
+            array.remove(active_sl_lbl,     _i)
+            array.remove(active_entry_lbl,  _i)
+        _i -= 1
+
 // ── FIRE: LONG — store draw state; R:R box drawn next bar at open (matches backtest entry) ─
 if long_valid
     alerted_long     := true
@@ -688,14 +752,34 @@ if draw_long[1]
     f_reg_line(line.new(draw_anc_lo_bar, draw_anc_lo, r_end, draw_anc_lo, color=c_sweep, width=2, style=line.style_solid))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_lo_bar
     f_reg_label(label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle))
-    f_reg_box(box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col))
-    f_reg_box(box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col))
-    f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
+    _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
+    _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
+    _rew_box_L  = box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
+    _entry_ln_L = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
     _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    _tp_lbl_L    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    _entry_lbl_L = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    _sl_lbl_L    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    f_reg_line(_sl_ln_L)
+    f_reg_box(_risk_box_L)
+    f_reg_box(_rew_box_L)
+    f_reg_line(_entry_ln_L)
+    f_reg_label(_tp_lbl_L)
+    f_reg_label(_entry_lbl_L)
+    f_reg_label(_sl_lbl_L)
+    // Track for TP/SL truncation
+    if truncate_on_hit
+        array.push(active_dir, 1)
+        array.push(active_tp, tp)
+        array.push(active_sl, sl)
+        array.push(active_entry, entry)
+        array.push(active_risk_box, _risk_box_L)
+        array.push(active_reward_box, _rew_box_L)
+        array.push(active_entry_ln, _entry_ln_L)
+        array.push(active_sl_ln, _sl_ln_L)
+        array.push(active_tp_lbl, _tp_lbl_L)
+        array.push(active_sl_lbl, _sl_lbl_L)
+        array.push(active_entry_lbl, _entry_lbl_L)
     if show_midlines and risk > 0
         _be_level      = entry - risk * 0.5
         _partial_level = entry + risk * 0.5
@@ -780,14 +864,33 @@ if draw_short[1]
     f_reg_line(line.new(draw_anc_hi_bar, draw_anc_hi, r_end, draw_anc_hi, color=c_sweep, width=2, style=line.style_solid))
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_hi_bar
     f_reg_label(label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle))
-    f_reg_box(box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col))
-    f_reg_box(box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col))
-    f_reg_line(line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid))
+    _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
+    _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
+    _rew_box_S  = box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
+    _entry_ln_S = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
     _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
-    f_reg_label(label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
-    f_reg_label(label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny))
+    _tp_lbl_S    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=rr_lbl_tp_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    _entry_lbl_S = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=rr_lbl_en_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    _sl_lbl_S    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=rr_lbl_sl_col, textcolor=color.white, style=rr_lbl_style, size=size.tiny)
+    f_reg_line(_sl_ln_S)
+    f_reg_box(_risk_box_S)
+    f_reg_box(_rew_box_S)
+    f_reg_line(_entry_ln_S)
+    f_reg_label(_tp_lbl_S)
+    f_reg_label(_entry_lbl_S)
+    f_reg_label(_sl_lbl_S)
+    if truncate_on_hit
+        array.push(active_dir, -1)
+        array.push(active_tp, tp)
+        array.push(active_sl, sl)
+        array.push(active_entry, entry)
+        array.push(active_risk_box, _risk_box_S)
+        array.push(active_reward_box, _rew_box_S)
+        array.push(active_entry_ln, _entry_ln_S)
+        array.push(active_sl_ln, _sl_ln_S)
+        array.push(active_tp_lbl, _tp_lbl_S)
+        array.push(active_sl_lbl, _sl_lbl_S)
+        array.push(active_entry_lbl, _entry_lbl_S)
     if show_midlines and risk > 0
         _be_level      = entry + risk * 0.5
         _partial_level = entry - risk * 0.5
