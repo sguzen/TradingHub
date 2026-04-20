@@ -66,6 +66,7 @@ MAX_RISK_PTS     = RISK_PER_TRADE / POINT_VALUE  # 112.5 pts for MNQ @ $225 risk
 OUTCOME_MAX_BARS = 360
 SWEEP_MAX_PCT    = 0.50
 CISD_FAST_BARS   = None  # None = no limit; CISD can form any time before session end
+SESSION_FILTER_ENABLED = False  # default: all 24h (Globex/ETH included); --rth-only restricts to 07:00-16:00 ET
 UNSWEPT_LOOKBACK = 10
 
 # ── RISK PROFILES ─────────────────────────────────────────────────────────────
@@ -93,25 +94,25 @@ MODELS = {
         label        = '4H Sweep · 15M CISD',
         sweep_tf_min = 4 * 60,
         cisd_tf_min  = 15,
-        session_hrs  = (7.0, 16.0),
+        session_hrs  = None,
     ),
     '1H_5M': dict(
         label        = '1H Sweep · 5M CISD',
         sweep_tf_min = 60,
         cisd_tf_min  = 5,
-        session_hrs  = (7.0, 16.0),
+        session_hrs  = None,
     ),
     '1H_3M': dict(
         label        = '1H Sweep · 3M CISD',
         sweep_tf_min = 60,
         cisd_tf_min  = 3,
-        session_hrs  = (7.0, 16.0),
+        session_hrs  = None,
     ),
     '30M_3M': dict(
         label        = '30M Sweep · 3M CISD',
         sweep_tf_min = 30,
         cisd_tf_min  = 3,
-        session_hrs  = (7.0, 16.0),
+        session_hrs  = None,
     ),
 }
 SWEEP_MODES = ['PREV']
@@ -310,14 +311,15 @@ def find_cisd(c_arrs, return_ts_ns, direction, max_bars, cisd_mode):
     if start_idx >= len(c_arrs['ts_ns']):
         return None, None
     if max_bars is None:
-        # Cap at 16:00 ET same day to prevent cross-session CISD
-        # Use hr array: session ends when hour >= 16 on the same trade_date
+        # Cap at 16:00 ET same day to prevent cross-session CISD.
+        # When session filter is off, cap at end of the same trade_date
+        # instead — CISD can still form on any bar up to midnight ET.
         start_date = c_arrs['trade_date'][start_idx]
         day_end = start_idx
         while day_end < len(c_arrs['ts_ns']):
             if c_arrs['trade_date'][day_end] != start_date:
                 break
-            if c_arrs['hr'][day_end] >= 16:
+            if SESSION_FILTER_ENABLED and c_arrs['hr'][day_end] >= 16:
                 day_end += 1  # include 16:00 bar itself
                 break
             day_end += 1
@@ -2401,7 +2403,7 @@ def compute_filter_variants(df_all):
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 def main():
-    global TABLE, CISD_FAST_BARS
+    global TABLE, CISD_FAST_BARS, SESSION_FILTER_ENABLED
     parser = argparse.ArgumentParser()
     parser.add_argument('--db',             default=str(DB_PATH))
     parser.add_argument('--table',          default=TABLE)
@@ -2411,26 +2413,38 @@ def main():
     parser.add_argument('--cisd-fast-bars', type=int,  default=None,
                                             dest='cisd_fast_bars',
                                             help='Max CISD bars (default: no limit)')
+    parser.add_argument('--rth-only', action='store_true',
+                                            dest='rth_only',
+                                            help='Restrict to RTH 07:00-16:00 ET; default is all 24h (Globex/ETH included)')
     args = parser.parse_args()
     TABLE          = args.table
     CISD_FAST_BARS = args.cisd_fast_bars
+    SESSION_FILTER_ENABLED = args.rth_only
+
+    if SESSION_FILTER_ENABLED:
+        for mk in MODELS:
+            MODELS[mk]['session_hrs'] = (7.0, 16.0)
 
     print("\n" + "═"*65)
     print(f"  SWEEP MODEL ENGINE v6.0  ·  {TABLE.upper()}")
     print(f"  Profiles: {', '.join(pk for _, __, pk, ___ in RR_PROFILES)}")
     print(f"  Models: {', '.join(args.models)}")
     print(f"  Sweep mode: PREV  ·  CISD bars: {'unlimited' if CISD_FAST_BARS is None else CISD_FAST_BARS}")
+    print(f"  Session:    {'RTH 07:00-16:00 ET' if SESSION_FILTER_ENABLED else 'ALL 24H (Globex/ETH included)'}")
     print("═"*65)
 
     con = connect(args.db)
     df_1m_full, df_1m_rth = load_1m(con, args.table)
-    trading_days = df_1m_rth['trade_date'].nunique()
+    # When session filter is off, use the full 24h dataset everywhere RTH was used.
+    df_1m_base = df_1m_rth if SESSION_FILTER_ENABLED else df_1m_full
+    trading_days = df_1m_base['trade_date'].nunique()
 
     # ── Load ES data for SMT divergence (NQ sweep vs ES sweep) ──────────────
     smt_table = 'es_1m' if args.table == 'nq_1m' else 'nq_1m'
     print(f"\n[1b] Loading {smt_table} for SMT divergence ...")
     try:
         es_1m_full, es_1m_rth = load_1m(con, smt_table)
+        es_1m_base = es_1m_rth if SESSION_FILTER_ENABLED else es_1m_full
         has_smt = True
     except Exception as e:
         print(f"   ⚠  SMT data not available ({e}), skipping SMT divergence")
@@ -2440,19 +2454,19 @@ def main():
     needed_sweep_tfs = {MODELS[mk]['sweep_tf_min'] for mk in args.models}
     needed_cisd_tfs  = {MODELS[mk]['cisd_tf_min']  for mk in args.models}
     sweep_dfs = {
-        tf: resample(df_1m_full if tf >= 1440 else df_1m_rth, tf,
+        tf: resample(df_1m_full if tf >= 1440 else df_1m_base, tf,
                      "1D" if tf >= 1440 else f"{tf}min")
         for tf in sorted(needed_sweep_tfs)
     }
     cisd_dfs = {
-        tf: resample(df_1m_rth, tf, f"{tf}min")
+        tf: resample(df_1m_base, tf, f"{tf}min")
         for tf in sorted(needed_cisd_tfs)
     }
     # ES sweep-TF candles for SMT comparison (same timeframes as NQ)
     es_sweep_dfs = {}
     if has_smt:
         for tf in sorted(needed_sweep_tfs):
-            es_sweep_dfs[tf] = resample(es_1m_full if tf >= 1440 else es_1m_rth, tf,
+            es_sweep_dfs[tf] = resample(es_1m_full if tf >= 1440 else es_1m_base, tf,
                                         f"ES_{'1D' if tf >= 1440 else f'{tf}min'}")
 
     print("\n[3] Converting to numpy arrays (built once, reused across all runs) ...")
@@ -2460,9 +2474,9 @@ def main():
     cisd_arrs    = {tf: df_to_arrays(df)    for tf, df in cisd_dfs.items()}
     es_sweep_arrs  = {tf: df_to_arrays(df)   for tf, df in es_sweep_dfs.items()} if has_smt else {}
     es_m1_full_arrs = df_1m_to_arrays(es_1m_full) if has_smt else None
-    es_m1_rth_arrs  = df_1m_to_arrays(es_1m_rth)  if has_smt else None
+    es_m1_base_arrs = df_1m_to_arrays(es_1m_base) if has_smt else None
     m1_full_arrs = df_1m_to_arrays(df_1m_full)
-    m1_rth_arrs  = df_1m_to_arrays(df_1m_rth)
+    m1_base_arrs = df_1m_to_arrays(df_1m_base)
     print("   Done.")
 
     all_stats    = {}
@@ -2472,7 +2486,7 @@ def main():
         cfg    = MODELS[mk]
         s_arrs = sweep_arrs[cfg['sweep_tf_min']]
         c_arrs = cisd_arrs[cfg['cisd_tf_min']]
-        m1     = m1_full_arrs if cfg['sweep_tf_min'] >= 1440 else m1_rth_arrs
+        m1     = m1_full_arrs if cfg['sweep_tf_min'] >= 1440 else m1_base_arrs
 
         full_key = f"{mk}_PREV_CISD"
         print(f"\n{'─'*65}")
@@ -2480,7 +2494,7 @@ def main():
         print(f"{'─'*65}")
 
         es_s  = es_sweep_arrs.get(cfg['sweep_tf_min']) if has_smt else None
-        es_m1 = (es_m1_full_arrs if cfg['sweep_tf_min'] >= 1440 else es_m1_rth_arrs) if has_smt else None
+        es_m1 = (es_m1_full_arrs if cfg['sweep_tf_min'] >= 1440 else es_m1_base_arrs) if has_smt else None
         base_rows, base_pending = detect_setups_base(
             m1, s_arrs, c_arrs, mk, cfg, cisd_fast_bars=CISD_FAST_BARS,
             es_s_arrs=es_s, es_m1_arrs=es_m1)
