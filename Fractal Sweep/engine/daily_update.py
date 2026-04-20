@@ -27,7 +27,7 @@ import pandas as pd
 import pytz
 
 # ── CONFIG ─────────────────────────────────────────────────────────────────────
-DB_PATH    = Path(__file__).parent / "candle_science.duckdb"
+DB_PATH    = Path(__file__).parent.parent / "candle_science.duckdb"
 API_KEY    = os.environ.get("DATABENTO_API_KEY", "")
 DATASET    = "GLBX.MDP3"
 SCHEMA     = "ohlcv-1m"
@@ -84,7 +84,7 @@ def fetch_new_bars(con, key: str, force: bool = False) -> int:
 
     try:
         client   = db.Historical(API_KEY)
-        dbn_path = Path(__file__).parent / f"{key.lower()}_1m_latest.dbn"
+        dbn_path = Path(__file__).parent.parent / "data" / f"{key.lower()}_1m_latest.dbn"
 
         def _do_fetch(end_ts):
             if dbn_path.exists():
@@ -168,7 +168,7 @@ BACKTESTS = [
     },
     {
         "name": "TTrades Fractal Model",
-        "script": Path(__file__).parent.parent / "TTrades Fractal Model Analysis" / "ttfm_backtest.py",
+        "script": Path(__file__).parent.parent.parent / "TTrades Fractal Model Analysis" / "ttfm_backtest.py",
     },
 ]
 

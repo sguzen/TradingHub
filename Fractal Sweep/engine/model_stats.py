@@ -48,8 +48,8 @@ from pathlib import Path
 import scipy.stats as _scipy_stats
 
 # ── PATHS ─────────────────────────────────────────────────────────────────────
-DB_PATH   = Path(__file__).parent / 'candle_science.duckdb'
-OUT_PATH  = Path(__file__).parent / 'model_stats.json'
+DB_PATH   = Path(__file__).parent.parent / 'candle_science.duckdb'
+OUT_PATH  = Path(__file__).parent.parent / 'model_stats.json'
 TABLE     = 'nq_1m'
 
 # Daily classification (DWP/DNP/R1/R2) is no longer wired up — the classifier

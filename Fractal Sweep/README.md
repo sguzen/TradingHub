@@ -17,19 +17,24 @@ It tests **4 timeframe combinations** (e.g. 4-Hour sweep, 15-Minute CISD). Each 
 
 ---
 
-## Files in This Folder
+## Folder Layout
 
-| File | What it does |
+| Path | What it does |
 |---|---|
 | `model_dashboard.html` | The dashboard — open in your browser to see results |
-| `model_stats.py` | The backtest engine — runs the analysis, writes `model_stats.json` |
-| `model_stats.json` | Build artifact — **gitignored**. Run `python3 model_stats.py` once to generate. |
-| `daily_update.py` | Optional — fetches new bar data from Databento |
-| `install_cron.sh` | One-time cron setup helper for `daily_update.py` |
-| `fractal_sweep.pine` | TradingView Pine indicator |
-| `fractal_sweep_strategy.pine` | TradingView Pine strategy |
-| `ttfm+fadi.pine` | TTFM+Fadi indicator (separate experiment) |
+| `model_stats.json` | Engine output — **gitignored**. Run `python3 engine/model_stats.py` once to generate. |
 | `candle_science.duckdb` | Shared DB (gitignored, ~550 MB). Recreate locally from Databento. |
+| `engine/model_stats.py` | The backtest engine — runs the analysis, writes `model_stats.json` |
+| `engine/daily_update.py` | Optional — fetches new bar data from Databento |
+| `engine/install_cron.sh` | One-time cron setup helper for `daily_update.py` |
+| `engine/master_backtester.py`, `engine/sltp_analyzer.py`, `engine/recalc.py` | Supporting tooling |
+| `pine/fractal_sweep.pine` | TradingView Pine indicator |
+| `pine/fractal_sweep_strategy.pine` | TradingView Pine strategy |
+| `pine/ttfm+fadi.pine` | TTFM+Fadi indicator (separate experiment) |
+| `pine/snapshots/` | Dated backups of the indicator |
+| `data/` | Raw Databento `.dbn` dumps (gitignored) |
+| `docs/` | Indicator description and standalone analysis write-ups |
+| `assets/` | Images used by the dashboard and hub |
 | `tests/` | pytest suite |
 
 ---
@@ -59,13 +64,13 @@ pip install duckdb pandas numpy
    **Mac:**
    ```
    cd "path/to/Statistic.ally/Fractal Sweep"
-   python3 model_stats.py
+   python3 engine/model_stats.py
    ```
 
    **Windows:**
    ```
    cd "C:\path\to\Statistic.ally\Fractal Sweep"
-   python model_stats.py
+   python engine\model_stats.py
    ```
 
    Takes roughly 20–40 seconds and writes `model_stats.json` next to the dashboard.
@@ -91,15 +96,15 @@ pip install duckdb pandas numpy
 
    Or navigate from the hub page at `http://localhost:8001`.
 
-   If `model_stats.json` is missing, the dashboard renders a "Run `python3 model_stats.py` to generate data" fallback.
+   If `model_stats.json` is missing, the dashboard renders a "Run `python3 engine/model_stats.py` to generate data" fallback.
 
 ---
 
 ## Step 3 (Optional) — Re-Run Specific Models
 
 ```
-python3 model_stats.py --models 1H_5M 1H_3M
-python3 model_stats.py --table es_1m
+python3 engine/model_stats.py --models 1H_5M 1H_3M
+python3 engine/model_stats.py --table es_1m
 ```
 
 ---
@@ -109,10 +114,10 @@ python3 model_stats.py --table es_1m
 With a Databento API key:
 
 ```
-python3 daily_update.py
+python3 engine/daily_update.py
 ```
 
-Schedule it via `install_cron.sh`.
+Schedule it via `bash engine/install_cron.sh`.
 
 ---
 
@@ -155,14 +160,14 @@ All 2⁶ = 64 combinations are pre-computed and sortable by EV in the Filters ta
 
 ## Common Problems
 
-**Dashboard shows "Run `python3 model_stats.py` to generate data"**
+**Dashboard shows "Run `python3 engine/model_stats.py` to generate data"**
 → `model_stats.json` is missing. Run the engine as shown in Step 2.
 
 **Dashboard shows no data / blank page**
 → Web server isn't running, or you're opening the HTML file directly. Serve from the repo root and use `http://localhost:8001/...`.
 
-**`python3 model_stats.py` gives a database error**
-→ `candle_science.duckdb` (~550 MB) isn't in the repo. You need the DB locally — fetch it via `daily_update.py` or restore from backup.
+**`python3 engine/model_stats.py` gives a database error**
+→ `candle_science.duckdb` (~550 MB) isn't in the repo. You need the DB locally — fetch it via `python3 engine/daily_update.py` or restore from backup.
 
 **Port already in use**
 → Change the port: `python3 -m http.server 8002`, then use `http://localhost:8002/Fractal Sweep/model_dashboard.html`.

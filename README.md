@@ -144,14 +144,17 @@ Statistic.ally/
 ├── index.html                                ← Hub page (open this in browser)
 ├── Fractal Sweep/                            [Sweep + CISD]
 │   ├── model_dashboard.html                  ← Dashboard with 6 runtime filter chips
-│   ├── model_stats.py                        ← Backtest engine (F1 removed)
-│   ├── daily_update.py                       ← Fetches new bars from Databento
-│   ├── fractal_sweep.pine                    ← TradingView indicator
-│   ├── fractal_sweep_strategy.pine           ← TradingView strategy
-│   ├── ttfm+fadi.pine                        ← TTFM+Fadi indicator
+│   ├── model_stats.json                      ← Engine output (gitignored, ~140 MB)
 │   ├── candle_science.duckdb                 ← Shared DB (gitignored, ~550 MB)
-│   ├── LEGACY_NOTE.md                        ← Earlier-era history
-│   └── tests/                                ← pytest suite
+│   ├── engine/                               ← Python backtest code
+│   │   ├── model_stats.py                    ← Backtest engine (F1 removed)
+│   │   ├── daily_update.py                   ← Fetches new bars from Databento
+│   │   └── …                                 ← master_backtester, sltp_analyzer, recalc, install_cron
+│   ├── pine/                                 ← TradingView scripts + snapshots
+│   ├── data/                                 ← Raw Databento .dbn dumps (gitignored)
+│   ├── docs/                                 ← Indicator description, analysis write-ups
+│   ├── tests/                                ← pytest suite
+│   └── LEGACY_NOTE.md                        ← Earlier-era history
 └── TTrades Fractal Model Analysis/
     ├── index.html                            ← TTrades dashboard
     ├── ttfm_backtest.py                      ← Backtest engine

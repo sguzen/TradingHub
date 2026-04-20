@@ -89,7 +89,7 @@ Backward scan from the return bar finds the consecutive opposing delivery run. C
 
 ---
 
-## Risk Profiles (`RR_PROFILES` in `model_stats.py`)
+## Risk Profiles (`RR_PROFILES` in `engine/model_stats.py`)
 
 | Key | profile_type | Stop / Target |
 |---|---|---|
@@ -201,7 +201,7 @@ Client-side in `model_dashboard.html`. User defines consecutive date ranges.
 
 ## Pine Indicator
 
-Lives in `../Fractal Sweep/fractal_sweep.pine` (indicator) and `fractal_sweep_strategy.pine` (strategy version). Auto-detects chart TF → maps to sweep/CISD combo. Draws sweep lines, CISD lines, R:R boxes, T-Spot zones, SMT labels, over-risk badges.
+Lives in `Fractal Sweep/pine/fractal_sweep.pine` (indicator) and `pine/fractal_sweep_strategy.pine` (strategy version). Auto-detects chart TF → maps to sweep/CISD combo. Draws sweep lines, CISD lines, R:R boxes, T-Spot zones, SMT labels, over-risk badges.
 
 ### Visual Hierarchy
 | Setup Type | Lines | Boxes | Badge |
@@ -215,7 +215,7 @@ Lives in `../Fractal Sweep/fractal_sweep.pine` (indicator) and `fractal_sweep_st
 
 ## Daily Update Pipeline
 
-**File:** `Fractal Sweep/daily_update.py`
+**File:** `Fractal Sweep/engine/daily_update.py`
 
 ```
 Cron (7am ET, weekdays)
@@ -266,13 +266,13 @@ Applied to: `by_hour`, `by_session`, `by_dow`, `by_year`, `dir_summary`, `tspot_
 
 ```bash
 # Run backtest (all models) — writes model_stats.json to this folder
-python3 model_stats.py
+python3 engine/model_stats.py
 
 # Run specific models
-python3 model_stats.py --models 1H_5M 1H_3M
+python3 engine/model_stats.py --models 1H_5M 1H_3M
 
 # Run for ES
-python3 model_stats.py --table es_1m
+python3 engine/model_stats.py --table es_1m
 
 # Run the test suite (188 pass, 7 pre-existing failures, 20 skipped)
 python3 -m pytest tests/ -q
@@ -291,16 +291,23 @@ python3 -m http.server 8001
 Statistic.ally/
 ├── Fractal Sweep/                           [sweep+CISD engine, F1 removed]
 │   ├── candle_science.duckdb                [gitignored, ~550 MB]
-│   ├── model_stats.py                       [backtest engine, ~2700 lines]
 │   ├── model_stats.json                     [build artifact, gitignored]
 │   ├── model_dashboard.html                 [dashboard, ~6700 lines]
-│   ├── daily_update.py                      [cron data fetcher]
-│   ├── fractal_sweep.pine                   [Pine indicator]
-│   ├── fractal_sweep_strategy.pine          [Pine strategy]
-│   ├── ttfm+fadi.pine                       [TTFM+Fadi indicator]
-│   ├── master_backtester.py                 [supporting tool]
-│   ├── sltp_analyzer.py                     [supporting tool]
-│   ├── recalc.py                            [supporting tool]
+│   ├── engine/                              [Python backtest code]
+│   │   ├── model_stats.py                   [backtest engine, ~2700 lines]
+│   │   ├── daily_update.py                  [cron data fetcher]
+│   │   ├── install_cron.sh                  [cron setup helper]
+│   │   ├── master_backtester.py             [supporting tool]
+│   │   ├── sltp_analyzer.py                 [supporting tool]
+│   │   └── recalc.py                        [supporting tool]
+│   ├── pine/                                [TradingView scripts]
+│   │   ├── fractal_sweep.pine               [Pine indicator]
+│   │   ├── fractal_sweep_strategy.pine      [Pine strategy]
+│   │   ├── ttfm+fadi.pine                   [TTFM+Fadi indicator]
+│   │   └── snapshots/                       [dated indicator backups]
+│   ├── data/                                [gitignored Databento .dbn dumps]
+│   ├── docs/                                [standalone analysis write-ups]
+│   ├── assets/                              [images]
 │   ├── tests/                               [pytest suite]
 │   ├── CLAUDE.md                            [project context]
 │   ├── PIPELINE.md                          [this file]

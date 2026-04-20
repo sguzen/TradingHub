@@ -8,23 +8,39 @@ Statistical backtesting engine for NQ and ES futures. Detects sweep + CISD setup
 - Python 3.14 · DuckDB 1.4.4 · pandas
 - Dashboards are standalone HTML (zero CDN deps)
 
-## Key Files
-- `model_stats.py` — sweep+CISD detection engine → `model_stats.json` (gitignored)
-- `model_dashboard.html` — dashboard with 6 runtime filter chips + 64 filter combinations
-- `daily_update.py` — cron entry point (weekdays 7am); fetches missing bars from Databento
-- `install_cron.sh` — one-time cron setup helper
-- `fractal_sweep.pine` / `fractal_sweep_strategy.pine` — TradingView indicator + strategy
-- `ttfm+fadi.pine` — TTFM+Fadi indicator (separate experiment)
-- `master_backtester.py`, `sltp_analyzer.py`, `recalc.py` — supporting tooling
-- `tests/` — pytest suite (188 pass · 7 pre-existing fail · 20 skip as of 2026-04-15)
+## Folder Layout
+```
+Fractal Sweep/
+├── model_dashboard.html        dashboard (served from repo root)
+├── model_stats.json            engine output (gitignored, ~140 MB)
+├── candle_science.duckdb       shared DB (gitignored, ~550 MB)
+├── engine/                     Python backtest code
+│   ├── model_stats.py          sweep+CISD detection engine
+│   ├── daily_update.py         cron entry point — Databento fetch + rerun backtests
+│   ├── master_backtester.py    supporting tool
+│   ├── sltp_analyzer.py        supporting tool
+│   ├── recalc.py               supporting tool
+│   └── install_cron.sh         one-time cron setup helper
+├── pine/                       TradingView scripts
+│   ├── fractal_sweep.pine      indicator
+│   ├── fractal_sweep_strategy.pine
+│   ├── ttfm+fadi.pine          separate experiment
+│   └── snapshots/              dated backups of the indicator
+├── data/                       raw Databento dumps (gitignored)
+├── docs/                       standalone notes (indicator description, analysis write-ups)
+├── assets/                     images used by the dashboard/hub
+└── tests/                      pytest suite — 195 pass · 20 skip as of 2026-04-19
+```
 
 ## Running
+All engine scripts self-locate — run them from the `Fractal Sweep/` folder (they resolve `candle_science.duckdb` and `model_stats.json` via `Path(__file__).parent.parent`).
+
 ```bash
-python3 model_stats.py                          # all 4 sweep models
-python3 model_stats.py --models 1H_5M 1H_3M    # subset
-python3 model_stats.py --table es_1m            # ES instead of NQ
-python3 -m pytest tests/ -q                     # test suite
-python3 daily_update.py                         # fetch new bars from Databento
+python3 engine/model_stats.py                         # all 4 sweep models
+python3 engine/model_stats.py --models 1H_5M 1H_3M   # subset
+python3 engine/model_stats.py --table es_1m           # ES instead of NQ
+python3 -m pytest tests/ -q                           # test suite
+python3 engine/daily_update.py                        # fetch new bars from Databento
 ```
 
 Dashboard served from the repo root: `python3 -m http.server 8001`, then open `http://localhost:8001/Fractal Sweep/model_dashboard.html`.
@@ -61,11 +77,11 @@ Filters work on **every Period** (All Time, 2y, 1y, 6m, 3m, 1m). `_compute_by_tf
 
 SMT = NQ sweeps its HTF level but ES does **not** sweep its corresponding level. Exposed as "NQ-ES Divergence" in the dashboard filter bar.
 
-- `model_stats.py` loads `es_1m` alongside `nq_1m`, builds ES sweep-TF candles, checks the ES window at NQ sweep detection time
+- `engine/model_stats.py` loads `es_1m` alongside `nq_1m`, builds ES sweep-TF candles, checks the ES window at NQ sweep detection time
 - Each trade row carries `smt: bool`
 - `smt_summary` in JSON output: WR/EV/PF split for SMT vs non-SMT
 
-## Risk Profiles (`RR_PROFILES` in `model_stats.py`)
+## Risk Profiles (`RR_PROFILES` in `engine/model_stats.py`)
 
 | profile_type | Key | Description |
 |---|---|---|
@@ -77,7 +93,7 @@ SMT = NQ sweeps its HTF level but ES does **not** sweep its corresponding level.
 ### MAE/MFE Recommendation Logic
 - **PTQ**: highest reach_rate where P(positive exit | MFE ≥ X) ≥ 0.70, fallback 0.50
 - **opt_sl**: tightest MAE where P(genuine loss | MAE ≥ X) ≥ 0.70, fallback 0.50
-- Computed both in `model_stats.py` and client-side in `model_dashboard.html` for recent trades
+- Computed both in `engine/model_stats.py` and client-side in `model_dashboard.html` for recent trades
 
 ## Hourly Normalization
 - `hour_range_pts` — high minus low of all 1m bars sharing the trade's (date, hour)

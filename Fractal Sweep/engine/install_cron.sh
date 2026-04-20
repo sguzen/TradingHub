@@ -6,8 +6,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCRIPT="$SCRIPT_DIR/daily_update.py"
-LOG="$SCRIPT_DIR/daily_update.log"
+LOG="$PARENT_DIR/daily_update.log"
 PYTHON="$(which python3)"
 
 # Verify the script exists

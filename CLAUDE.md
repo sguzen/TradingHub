@@ -35,11 +35,11 @@ Python 3.9+ works; active development uses Python 3.14.
 - Tables: `nq_1m`, `es_1m`
 - Schema: `timestamp TIMESTAMPTZ, open, high, low, close DOUBLE, volume BIGINT`
 - Timestamps stored as `America/Toronto` — **always convert**: `timezone('America/New_York', timestamp)`
-- Scripts inside `Fractal Sweep/` connect via `Path(__file__).parent / 'candle_science.duckdb'`; scripts elsewhere use `Path(__file__).parent.parent / 'Fractal Sweep' / 'candle_science.duckdb'`
+- Engine scripts in `Fractal Sweep/engine/` connect via `Path(__file__).parent.parent / 'candle_science.duckdb'`; scripts elsewhere (e.g. `TTrades Fractal Model Analysis/`) use `Path(__file__).parent.parent / 'Fractal Sweep' / 'candle_science.duckdb'`
 
 ## Data Updates
 
-Only `Fractal Sweep/daily_update.py` fetches new bars from Databento. Cron installed via `install_cron.sh` runs it 7am ET weekdays. All other engines read from the shared DB read-only.
+Only `Fractal Sweep/engine/daily_update.py` fetches new bars from Databento. Cron installed via `engine/install_cron.sh` runs it on weekdays. All other engines read from the shared DB read-only.
 
 ## Theme System
 

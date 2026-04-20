@@ -61,7 +61,7 @@ EOD_HOUR, EOD_MINUTE = 16, 59
 DEFAULT_ACCOUNT  = 4500
 DEFAULT_RISK     = 225
 DEFAULT_RETEST_CUTOFF = dtime(10, 0)
-DB_PATH = Path(__file__).parent.parent / 'Fractal Sweep' / 'candle_science.duckdb'
+DB_PATH = Path(__file__).parent.parent / 'candle_science.duckdb'
 
 # ── STYLE HELPERS ─────────────────────────────────────────────────────────────
 def fill(c):    return PatternFill('solid', fgColor=c)

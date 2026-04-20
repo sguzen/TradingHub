@@ -7,14 +7,31 @@ paths:
 
 Sweep+CISD backtesting engine. F1 (min prior range) and the Q1 window gate are removed — detection runs over the full HTF period. Setup-quality filters (F3 shallow sweep, F4 close-back) are runtime-toggleable from the dashboard, not baked-in rejections.
 
+## Folder Layout
+
+```
+Fractal Sweep/
+├── model_dashboard.html
+├── model_stats.json           (gitignored engine output)
+├── candle_science.duckdb      (gitignored shared DB)
+├── engine/                    Python backtest code
+├── pine/                      TradingView scripts (+ snapshots/)
+├── data/                      Databento .dbn dumps (gitignored)
+├── docs/                      analysis write-ups
+├── assets/                    images
+└── tests/                     pytest suite
+```
+
+Engine scripts self-locate via `Path(__file__).parent.parent` — run from the `Fractal Sweep/` folder.
+
 ## Engine
 
 ```bash
-python3 model_stats.py                          # all 4 sweep models → model_stats.json
-python3 model_stats.py --models 1H_5M 1H_3M    # subset
-python3 model_stats.py --table es_1m            # ES instead of NQ
-python3 daily_update.py                         # fetch new bars from Databento
-python3 -m pytest tests/ -q                     # test suite
+python3 engine/model_stats.py                         # all 4 sweep models → model_stats.json
+python3 engine/model_stats.py --models 1H_5M 1H_3M   # subset
+python3 engine/model_stats.py --table es_1m           # ES instead of NQ
+python3 engine/daily_update.py                        # fetch new bars from Databento
+python3 -m pytest tests/ -q                           # test suite
 ```
 
 ## 4 Sweep Models
@@ -26,7 +43,7 @@ python3 -m pytest tests/ -q                     # test suite
 | `1H_3M` | 1 Hour | 3 Min |
 | `30M_3M` | 30 Min | 3 Min |
 
-## Constants (`model_stats.py`)
+## Constants (`engine/model_stats.py`)
 
 - `SWEEP_MAX_PCT = 0.50` — now a runtime-toggleable reference, not a baked rejection
 - `CISD_FAST_BARS = None` — no bar limit, CISD can form anytime after sweep returns
@@ -65,7 +82,7 @@ Beyond `outcome`/`r`/`mae_pct`/`mfe_pct`/`smt`, each row carries:
 
 ## MAE/MFE Recommendation Logic
 
-Both Python (`model_stats.py`) and JS (`model_dashboard.html`) compute:
+Both Python (`engine/model_stats.py`) and JS (`model_dashboard.html`) compute:
 - **PTQ**: highest reach_rate where P(positive exit | MFE ≥ X) ≥ 0.70, fallback 0.50
 - **opt_sl**: tightest MAE where P(genuine loss | MAE ≥ X) ≥ 0.70, fallback 0.50
 
@@ -79,7 +96,7 @@ Segment behavior:
 
 SMT = NQ sweeps its HTF level but ES does **not** sweep its corresponding level.
 
-- `model_stats.py` loads `es_1m`, builds ES sweep-TF candles, checks the ES window at NQ sweep detection time
+- `engine/model_stats.py` loads `es_1m`, builds ES sweep-TF candles, checks the ES window at NQ sweep detection time
 - Each trade row carries `smt: bool`
 - `smt_summary` in JSON output: WR/EV/PF for SMT vs non-SMT
 
@@ -100,11 +117,13 @@ Used in: `by_hour`, `by_session`, `by_dow`, `dir_summary`, `by_year`, `tspot_bre
 
 ## Pine Scripts
 
-- `fractal_sweep.pine` — indicator
-- `fractal_sweep_strategy.pine` — strategy
-- `fractal-sweep-indicator-apr16` — older snapshot (Pine v5 source, no extension)
-- `fractal-sweep-indicator-apr19` — snapshot after fixing same-bar return-to-range (F4 lockout) and same-bar DRAW (entry mis-placement) bugs
-- `ttfm+fadi.pine` — TTFM+Fadi experimental indicator
+All Pine scripts live under `pine/`.
+
+- `pine/fractal_sweep.pine` — indicator
+- `pine/fractal_sweep_strategy.pine` — strategy
+- `pine/ttfm+fadi.pine` — TTFM+Fadi experimental indicator
+- `pine/snapshots/fractal-sweep-indicator-apr16` — older snapshot (Pine v5 source, no extension)
+- `pine/snapshots/fractal-sweep-indicator-apr19` — snapshot after fixing same-bar return-to-range (F4 lockout) and same-bar DRAW (entry mis-placement) bugs
 
 ## Database
 
