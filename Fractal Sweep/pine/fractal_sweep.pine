@@ -265,6 +265,14 @@ var fired_boxes  = array.new_box()
 var setup_line_counts  = array.new_int()
 var setup_label_counts = array.new_int()
 var setup_box_counts   = array.new_int()
+// Outcome markers (✓/✗) — kept in a dedicated pool so they don't leak into
+// fired_labels uncounted. Each marker records the bar_index of its parent
+// setup's entry, so we can prune markers whose parent setup was pruned.
+var outcome_markers = array.new_label()
+var outcome_parent_bar = array.new_int()
+// Parallel to setup_*_counts: the entry bar_index of each tracked setup, so
+// outcome pruning can identify which parents still live.
+var setup_entry_bars = array.new_int()
 // Active (unresolved) setups — parallel arrays. Resolve to TP/SL hits post-fire.
 var active_dir        = array.new_int()     //  1 = long, -1 = short
 var active_tp         = array.new_float()
@@ -281,6 +289,7 @@ var active_cisd_ln    = array.new_line()
 var active_sweep_ln   = array.new_line()
 var active_cisd_lbl   = array.new_label()
 var active_sweep_lbl  = array.new_label()
+var active_entry_bar  = array.new_int()
 // Variable-count per-setup extras (midlines, projections, T-Spot zone+line).
 // Flat pools hold all extras; each setup records how many it owns. To find
 // setup _i's slice we sum the counts of setups [0.._i-1] → that's the start
@@ -659,6 +668,8 @@ if show_debug and tf_supported and barstate.islast
          + "\nsweep_ext_L=" + (not na(sweep_ext_long) ? str.tostring(sweep_ext_long, "#.##") : "na") + " sweep_pct_L=" + (not na(sweep_pct_long) ? str.tostring(sweep_pct_long, "#.###") : "na")
          + "\nF3_S=" + str.tostring(pass_f3_short) + " F4_S=" + str.tostring(pass_f4_short) + " filt_S=" + str.tostring(filt_pass_short)
          + "\nF3_L=" + str.tostring(pass_f3_long) + " F4_L=" + str.tostring(pass_f4_long) + " filt_L=" + str.tostring(filt_pass_long)
+         + "\nfired_lines=" + str.tostring(array.size(fired_lines)) + " fired_labels=" + str.tostring(array.size(fired_labels)) + " fired_boxes=" + str.tostring(array.size(fired_boxes))
+         + "\nsetup_counts=" + str.tostring(array.size(setup_line_counts)) + " active_dir=" + str.tostring(array.size(active_dir)) + " outcomes=" + str.tostring(array.size(outcome_markers)) + " extras(ln/lbl/bx)=" + str.tostring(array.size(active_extra_lines)) + "/" + str.tostring(array.size(active_extra_labels)) + "/" + str.tostring(array.size(active_extra_boxes))
     var label dbg_lbl = na
     label.delete(dbg_lbl)
     dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(c_dbg, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
@@ -745,11 +756,18 @@ if truncate_on_hit and array.size(active_dir) > 0
                 array.remove(active_extra_lbl_count, _i)
                 array.remove(active_extra_bx_count,  _i)
             if show_outcome_markers
-                _mark_price = _resolved_sl ? _sl : _tp
-                _mark_text  = _resolved_sl ? "✗" : "✓"
-                _mark_col   = _resolved_sl ? color.new(c_sl, 10) : color.new(c_tp, 10)
-                _mark_style = _d == 1 ? (_resolved_sl ? label.style_label_up : label.style_label_down) : (_resolved_sl ? label.style_label_down : label.style_label_up)
-                f_reg_label(label.new(bar_index, _mark_price, _mark_text, color=_mark_col, textcolor=color.white, style=_mark_style, size=size.small))
+                // Anchor below the R:R box at its horizontal midpoint.
+                // Bottom edge = min(sl, tp): for LONG this is sl, for SHORT this is tp.
+                _entry_bar = array.size(active_entry_bar) > _i ? array.get(active_entry_bar, _i) : bar_index
+                _mark_x    = math.round((_entry_bar + bar_index) / 2)
+                _mark_y    = math.min(_sl, _tp)
+                _mark_text = _resolved_sl ? "✗" : "✓"
+                _mark_col  = _resolved_sl ? c_sl : c_tp
+                _mark_lbl  = label.new(_mark_x, _mark_y, _mark_text, color=_mark_col, textcolor=color.white, style=label.style_label_up, size=size.normal, tooltip=_resolved_sl ? "Stop loss hit" : "Take profit hit")
+                array.push(outcome_markers, _mark_lbl)
+                // Record parent setup's entry bar so pruning can delete this
+                // marker when the parent setup ages out of max_setups.
+                array.push(outcome_parent_bar, _entry_bar)
             // Pop this setup from active tracking
             array.remove(active_dir,        _i)
             array.remove(active_tp,         _i)
@@ -766,6 +784,8 @@ if truncate_on_hit and array.size(active_dir) > 0
             array.remove(active_sweep_ln,   _i)
             array.remove(active_cisd_lbl,   _i)
             array.remove(active_sweep_lbl,  _i)
+            if array.size(active_entry_bar) > _i
+                array.remove(active_entry_bar, _i)
         _i -= 1
 
 // ── FIRE: LONG — store draw state; R:R box drawn next bar at open (matches backtest entry) ─
@@ -903,6 +923,7 @@ if draw_long[1]
         array.push(active_sweep_ln, _sweep_ln_L)
         array.push(active_cisd_lbl, _cisd_lbl_draw_L)
         array.push(active_sweep_lbl, _sweep_lbl_draw_L)
+        array.push(active_entry_bar, bar_index)
     // Snapshot extras pool sizes so we know how many this setup adds
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
@@ -960,10 +981,20 @@ if draw_long[1]
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    array.push(setup_entry_bars,   bar_index)
     while array.size(setup_line_counts) > max_setups
         _nl = array.shift(setup_line_counts)
         _nb = array.shift(setup_label_counts)
         _nx = array.shift(setup_box_counts)
+        _pruned_bar = array.size(setup_entry_bars) > 0 ? array.shift(setup_entry_bars) : -1
+        if _pruned_bar >= 0 and array.size(outcome_parent_bar) > 0
+            _oi = 0
+            while _oi < array.size(outcome_parent_bar)
+                if array.get(outcome_parent_bar, _oi) == _pruned_bar
+                    label.delete(array.remove(outcome_markers, _oi))
+                    array.remove(outcome_parent_bar, _oi)
+                else
+                    _oi += 1
         if _nl > 0
             for _i = 1 to _nl
                 if array.size(fired_lines) > 0
@@ -1031,6 +1062,7 @@ if draw_short[1]
         array.push(active_sweep_ln, _sweep_ln_S)
         array.push(active_cisd_lbl, _cisd_lbl_draw_S)
         array.push(active_sweep_lbl, _sweep_lbl_draw_S)
+        array.push(active_entry_bar, bar_index)
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
     _ex_bx_start  = array.size(active_extra_boxes)
@@ -1086,10 +1118,20 @@ if draw_short[1]
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    array.push(setup_entry_bars,   bar_index)
     while array.size(setup_line_counts) > max_setups
         _nl = array.shift(setup_line_counts)
         _nb = array.shift(setup_label_counts)
         _nx = array.shift(setup_box_counts)
+        _pruned_bar = array.size(setup_entry_bars) > 0 ? array.shift(setup_entry_bars) : -1
+        if _pruned_bar >= 0 and array.size(outcome_parent_bar) > 0
+            _oi = 0
+            while _oi < array.size(outcome_parent_bar)
+                if array.get(outcome_parent_bar, _oi) == _pruned_bar
+                    label.delete(array.remove(outcome_markers, _oi))
+                    array.remove(outcome_parent_bar, _oi)
+                else
+                    _oi += 1
         if _nl > 0
             for _i = 1 to _nl
                 if array.size(fired_lines) > 0
@@ -1152,10 +1194,20 @@ if long_over
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    array.push(setup_entry_bars,   bar_index)
     while array.size(setup_line_counts) > max_setups
         _nl = array.shift(setup_line_counts)
         _nb = array.shift(setup_label_counts)
         _nx = array.shift(setup_box_counts)
+        _pruned_bar = array.size(setup_entry_bars) > 0 ? array.shift(setup_entry_bars) : -1
+        if _pruned_bar >= 0 and array.size(outcome_parent_bar) > 0
+            _oi = 0
+            while _oi < array.size(outcome_parent_bar)
+                if array.get(outcome_parent_bar, _oi) == _pruned_bar
+                    label.delete(array.remove(outcome_markers, _oi))
+                    array.remove(outcome_parent_bar, _oi)
+                else
+                    _oi += 1
         if _nl > 0
             for _i = 1 to _nl
                 if array.size(fired_lines) > 0
@@ -1217,10 +1269,20 @@ if short_over
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    array.push(setup_entry_bars,   bar_index)
     while array.size(setup_line_counts) > max_setups
         _nl = array.shift(setup_line_counts)
         _nb = array.shift(setup_label_counts)
         _nx = array.shift(setup_box_counts)
+        _pruned_bar = array.size(setup_entry_bars) > 0 ? array.shift(setup_entry_bars) : -1
+        if _pruned_bar >= 0 and array.size(outcome_parent_bar) > 0
+            _oi = 0
+            while _oi < array.size(outcome_parent_bar)
+                if array.get(outcome_parent_bar, _oi) == _pruned_bar
+                    label.delete(array.remove(outcome_markers, _oi))
+                    array.remove(outcome_parent_bar, _oi)
+                else
+                    _oi += 1
         if _nl > 0
             for _i = 1 to _nl
                 if array.size(fired_lines) > 0
