@@ -34,7 +34,8 @@ max_setups    = input.int(5, "Max Setups to Show", group=G8, minval=1, maxval=20
 show_midlines = input.bool(false, "Show 50% Midpoint Lines", group=G8, tooltip="Dashed lines at 50% of risk zone (Move to BE) and 50% of reward zone (Take Partial)")
 truncate_on_hit = input.bool(true, "Truncate on TP/SL Hit", group=G8, tooltip="Shrink R:R boxes + entry/SL/TP lines when price hits TP or SL. Sweep & CISD lines stay for context.")
 show_outcome_markers = input.bool(true, "Show Outcome Markers", group=G8, tooltip="Drop ✓ at TP hit or ✗ at SL hit. Requires Truncate on TP/SL Hit.")
-show_scoreboard      = input.bool(true, "Show Scoreboard", group=G8, tooltip="Top-right table tracking today's resolved setups: Wins/Losses/WR split by LONG/SHORT.")
+show_scoreboard      = input.bool(true, "Show Scoreboard", group=G8, tooltip="Top-right table tracking resolved setups: Wins/Losses/WR split by LONG/SHORT.")
+scoreboard_scope     = input.string("Today", "Scorecard Scope", options=["Today", "Last N Trades", "All Time"], group=G8, tooltip="Today = resets at 18:00 ET session open. Last N Trades = rolling window sized by Max Setups to Show. All Time = every resolved trade in loaded history.")
 
 // ── POSITION SIZING ──────────────────────────────────────────────────────────
 var string G12 = "Position Sizing"
@@ -301,6 +302,22 @@ var float score_long_pnl     = 0.0
 var float score_short_pnl    = 0.0
 var int   score_day          = na
 var table scoreboard_tbl     = na
+// All-time counters — never reset. Scoreboard "All Time" mode reads these.
+var int   score_all_long_wins    = 0
+var int   score_all_long_losses  = 0
+var int   score_all_short_wins   = 0
+var int   score_all_short_losses = 0
+var float score_all_long_pts     = 0.0
+var float score_all_short_pts    = 0.0
+var float score_all_long_pnl     = 0.0
+var float score_all_short_pnl    = 0.0
+// Rolling window of recent trades — one entry per resolved trade. Scoreboard
+// "Last N Trades" mode re-aggregates the tail of each array at render time.
+// Pnl is NOT stored (it's re-derived from pts × contracts at render, so live
+// risk/point-value input changes propagate through).
+var trades_dir     = array.new_int()     // 1 = long, -1 = short
+var trades_pts     = array.new_float()   // signed points realized per trade
+var trades_risk    = array.new_float()   // |entry - sl| in pts (for contract recalc)
 
 // Reset the scoreboard at each new futures session (18:00 ET open).
 // Bars at or after 18:00 exchange time belong to the NEXT trading day;
@@ -720,23 +737,78 @@ if show_debug and tf_supported and barstate.islast
     label.delete(dbg_lbl)
     dbg_lbl := label.new(bar_index + 3, high, dbg, color=color.new(c_dbg, 20), textcolor=color.white, style=label.style_label_left, size=size.small, textalign=text.align_left)
 
-// ── SCOREBOARD — top-right table with today's resolved trade tallies ────────
+// ── SCOREBOARD — top-right table, scope = Today / Last N / All Time ─────────
 if show_scoreboard and barstate.islast
-    _total_wins   = score_long_wins + score_short_wins
-    _total_losses = score_long_losses + score_short_losses
+    // Pick counter source based on the scope dropdown. For "Last N Trades"
+    // we re-aggregate the tail of the trades ring buffer; the other two
+    // modes read pre-accumulated counters directly.
+    _sb_lw  = 0
+    _sb_ll  = 0
+    _sb_sw  = 0
+    _sb_slo = 0
+    _sb_lpts = 0.0
+    _sb_spts = 0.0
+    _sb_lpnl = 0.0
+    _sb_spnl = 0.0
+    if scoreboard_scope == "All Time"
+        _sb_lw   := score_all_long_wins
+        _sb_ll   := score_all_long_losses
+        _sb_sw   := score_all_short_wins
+        _sb_slo  := score_all_short_losses
+        _sb_lpts := score_all_long_pts
+        _sb_spts := score_all_short_pts
+        _sb_lpnl := score_all_long_pnl
+        _sb_spnl := score_all_short_pnl
+    else if scoreboard_scope == "Last N Trades"
+        _n_trades = array.size(trades_dir)
+        _start = math.max(0, _n_trades - max_setups)
+        if _start < _n_trades
+            for _ti = _start to _n_trades - 1
+                _tdir = array.get(trades_dir,  _ti)
+                _tpts = array.get(trades_pts,  _ti)
+                _trsk = array.get(trades_risk, _ti)
+                _tn   = _trsk > 0 ? math.floor(risk_usd / (_trsk * point_value_usd)) : 0
+                _tpnl = _tpts * _tn * point_value_usd
+                _is_win = _tpts > 0
+                if _tdir == 1
+                    if _is_win
+                        _sb_lw += 1
+                    else
+                        _sb_ll += 1
+                    _sb_lpts += _tpts
+                    _sb_lpnl += _tpnl
+                else
+                    if _is_win
+                        _sb_sw += 1
+                    else
+                        _sb_slo += 1
+                    _sb_spts += _tpts
+                    _sb_spnl += _tpnl
+    else
+        _sb_lw   := score_long_wins
+        _sb_ll   := score_long_losses
+        _sb_sw   := score_short_wins
+        _sb_slo  := score_short_losses
+        _sb_lpts := score_long_pts
+        _sb_spts := score_short_pts
+        _sb_lpnl := score_long_pnl
+        _sb_spnl := score_short_pnl
+    _total_wins   = _sb_lw + _sb_sw
+    _total_losses = _sb_ll + _sb_slo
     _total_n      = _total_wins + _total_losses
-    _long_n       = score_long_wins + score_long_losses
-    _short_n      = score_short_wins + score_short_losses
-    _long_wr      = _long_n   > 0 ? score_long_wins  / _long_n   * 100 : 0.0
-    _short_wr     = _short_n  > 0 ? score_short_wins / _short_n  * 100 : 0.0
-    _total_wr     = _total_n  > 0 ? _total_wins      / _total_n  * 100 : 0.0
-    _total_pts    = score_long_pts + score_short_pts
-    _total_pnl    = score_long_pnl + score_short_pnl
+    _long_n       = _sb_lw + _sb_ll
+    _short_n      = _sb_sw + _sb_slo
+    _long_wr      = _long_n   > 0 ? _sb_lw  / _long_n   * 100 : 0.0
+    _short_wr     = _short_n  > 0 ? _sb_sw  / _short_n  * 100 : 0.0
+    _total_wr     = _total_n  > 0 ? _total_wins / _total_n  * 100 : 0.0
+    _total_pts    = _sb_lpts + _sb_spts
+    _total_pnl    = _sb_lpnl + _sb_spnl
     _active_n     = array.size(active_dir)
-    // Date label — MM/DD of the futures session day (rolls at 18:00 ET open)
+    // Date / scope label — for "Today" shows MM/DD, otherwise shows scope name.
     _hdr_hr  = hour(time, syminfo.timezone)
     _hdr_ts  = time + (_hdr_hr >= 18 ? 6 * 3600 * 1000 : 0)
-    _date_str = str.tostring(month(_hdr_ts, syminfo.timezone)) + "/" + str.tostring(dayofmonth(_hdr_ts, syminfo.timezone))
+    _mm_dd_str = str.tostring(month(_hdr_ts, syminfo.timezone)) + "/" + str.tostring(dayofmonth(_hdr_ts, syminfo.timezone))
+    _date_str  = scoreboard_scope == "Today" ? _mm_dd_str : scoreboard_scope == "Last N Trades" ? "Last " + str.tostring(max_setups) : "All Time"
     // Theme-aware scoreboard palette. Light mode uses deep slate bg; dark mode
     // uses a lighter slate so rows stand out against a pure-black chart bg.
     _sb_bg    = _dark ? color.new(#0f172a, 0) : color.new(c_dbg, 0)
@@ -747,19 +819,19 @@ if show_scoreboard and barstate.islast
     _sb_sl    = _dark ? #f87171 : #ef4444
     _sb_frame = _dark ? #64748b : #475569
     // Helpers for signed color — green when positive, red when negative, neutral when zero.
-    _long_pts_col  = score_long_pts  > 0 ? _sb_tp : score_long_pts  < 0 ? _sb_sl : _sb_muted
-    _short_pts_col = score_short_pts > 0 ? _sb_tp : score_short_pts < 0 ? _sb_sl : _sb_muted
-    _total_pts_col = _total_pts      > 0 ? _sb_tp : _total_pts      < 0 ? _sb_sl : _sb_muted
-    _long_pnl_col  = score_long_pnl  > 0 ? _sb_tp : score_long_pnl  < 0 ? _sb_sl : _sb_muted
-    _short_pnl_col = score_short_pnl > 0 ? _sb_tp : score_short_pnl < 0 ? _sb_sl : _sb_muted
-    _total_pnl_col = _total_pnl      > 0 ? _sb_tp : _total_pnl      < 0 ? _sb_sl : _sb_muted
+    _long_pts_col  = _sb_lpts   > 0 ? _sb_tp : _sb_lpts   < 0 ? _sb_sl : _sb_muted
+    _short_pts_col = _sb_spts   > 0 ? _sb_tp : _sb_spts   < 0 ? _sb_sl : _sb_muted
+    _total_pts_col = _total_pts > 0 ? _sb_tp : _total_pts < 0 ? _sb_sl : _sb_muted
+    _long_pnl_col  = _sb_lpnl   > 0 ? _sb_tp : _sb_lpnl   < 0 ? _sb_sl : _sb_muted
+    _short_pnl_col = _sb_spnl   > 0 ? _sb_tp : _sb_spnl   < 0 ? _sb_sl : _sb_muted
+    _total_pnl_col = _total_pnl > 0 ? _sb_tp : _total_pnl < 0 ? _sb_sl : _sb_muted
     // Signed formatters — compute pre-built strings rather than nested functions.
-    _long_pts_str  = (score_long_pts  >= 0 ? "+" : "")  + str.tostring(score_long_pts, "#.##")
-    _short_pts_str = (score_short_pts >= 0 ? "+" : "")  + str.tostring(score_short_pts, "#.##")
-    _total_pts_str = (_total_pts      >= 0 ? "+" : "")  + str.tostring(_total_pts, "#.##")
-    _long_pnl_str  = (score_long_pnl  >= 0 ? "+$" : "-$") + str.tostring(math.abs(score_long_pnl), "#,###.##")
-    _short_pnl_str = (score_short_pnl >= 0 ? "+$" : "-$") + str.tostring(math.abs(score_short_pnl), "#,###.##")
-    _total_pnl_str = (_total_pnl      >= 0 ? "+$" : "-$") + str.tostring(math.abs(_total_pnl), "#,###.##")
+    _long_pts_str  = (_sb_lpts   >= 0 ? "+" : "")  + str.tostring(_sb_lpts, "#.##")
+    _short_pts_str = (_sb_spts   >= 0 ? "+" : "")  + str.tostring(_sb_spts, "#.##")
+    _total_pts_str = (_total_pts >= 0 ? "+" : "")  + str.tostring(_total_pts, "#.##")
+    _long_pnl_str  = (_sb_lpnl   >= 0 ? "+$" : "-$") + str.tostring(math.abs(_sb_lpnl), "#,###.##")
+    _short_pnl_str = (_sb_spnl   >= 0 ? "+$" : "-$") + str.tostring(math.abs(_sb_spnl), "#,###.##")
+    _total_pnl_str = (_total_pnl >= 0 ? "+$" : "-$") + str.tostring(math.abs(_total_pnl), "#,###.##")
     // Uniform font size across every cell. WR strings fall back to "–" for
     // empty directions to keep alignment clean.
     _wr_long_str  = _long_n  > 0 ? str.tostring(_long_wr,  "#.#") + "%" : "–"
@@ -771,7 +843,8 @@ if show_scoreboard and barstate.islast
     // 4 columns (Metric / LONG / SHORT / TOTAL) × 9 rows (title + header + 6 metrics + footer).
     scoreboard_tbl := table.new(position.top_right, 4, 9, bgcolor=_sb_bg, border_color=color.new(_sb_frame, 0), border_width=1, frame_color=color.new(_sb_frame, 0), frame_width=1)
     // Title row — combo/risk info lives here between title and date.
-    table.cell(scoreboard_tbl, 0, 0, "Today's Scorecard", text_color=_sb_text,  bgcolor=_sb_alt, text_size=size.small)
+    _title_str = scoreboard_scope == "Today" ? "Today's Scorecard" : scoreboard_scope == "Last N Trades" ? "Recent Scorecard" : "All-Time Scorecard"
+    table.cell(scoreboard_tbl, 0, 0, _title_str, text_color=_sb_text,  bgcolor=_sb_alt, text_size=size.small)
     table.cell(scoreboard_tbl, 1, 0, _meta_str,           text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
     table.cell(scoreboard_tbl, 2, 0, "",                  bgcolor=_sb_alt)
     table.cell(scoreboard_tbl, 3, 0, _date_str,           text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
@@ -787,13 +860,13 @@ if show_scoreboard and barstate.islast
     table.cell(scoreboard_tbl, 3, 2, str.tostring(_total_n),  text_color=_sb_text, bgcolor=_sb_bg, text_size=size.small)
     // Wins
     table.cell(scoreboard_tbl, 0, 3, "Wins",   text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
-    table.cell(scoreboard_tbl, 1, 3, str.tostring(score_long_wins),   text_color=_sb_tp, bgcolor=_sb_alt, text_size=size.small)
-    table.cell(scoreboard_tbl, 2, 3, str.tostring(score_short_wins),  text_color=_sb_tp, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 3, str.tostring(_sb_lw),   text_color=_sb_tp, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 3, str.tostring(_sb_sw),   text_color=_sb_tp, bgcolor=_sb_alt, text_size=size.small)
     table.cell(scoreboard_tbl, 3, 3, str.tostring(_total_wins),       text_color=_sb_tp, bgcolor=_sb_alt, text_size=size.small)
     // Losses
     table.cell(scoreboard_tbl, 0, 4, "Losses", text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 1, 4, str.tostring(score_long_losses),   text_color=_sb_sl, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 2, 4, str.tostring(score_short_losses),  text_color=_sb_sl, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 4, str.tostring(_sb_ll),   text_color=_sb_sl, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 4, str.tostring(_sb_slo),  text_color=_sb_sl, bgcolor=_sb_bg, text_size=size.small)
     table.cell(scoreboard_tbl, 3, 4, str.tostring(_total_losses),       text_color=_sb_sl, bgcolor=_sb_bg, text_size=size.small)
     // Win Rate
     table.cell(scoreboard_tbl, 0, 5, "WR",     text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
@@ -907,17 +980,34 @@ if truncate_on_hit and array.size(active_dir) > 0
             if _d == 1
                 if _resolved_sl
                     score_long_losses += 1
+                    score_all_long_losses += 1
                 else
                     score_long_wins += 1
+                    score_all_long_wins += 1
                 score_long_pts += _trade_pts
                 score_long_pnl += _trade_pnl
+                score_all_long_pts += _trade_pts
+                score_all_long_pnl += _trade_pnl
             else
                 if _resolved_sl
                     score_short_losses += 1
+                    score_all_short_losses += 1
                 else
                     score_short_wins += 1
+                    score_all_short_wins += 1
                 score_short_pts += _trade_pts
                 score_short_pnl += _trade_pnl
+                score_all_short_pts += _trade_pts
+                score_all_short_pnl += _trade_pnl
+            // Rolling window: record this trade. Cap at a generous 500 entries
+            // so "Last N" can go up to max_setups=20 × 25 = plenty.
+            array.push(trades_dir,  _d)
+            array.push(trades_pts,  _trade_pts)
+            array.push(trades_risk, _trade_risk_pts)
+            if array.size(trades_dir) > 500
+                array.shift(trades_dir)
+                array.shift(trades_pts)
+                array.shift(trades_risk)
             if show_outcome_markers
                 // Anchor below the R:R box at its horizontal midpoint.
                 // Bottom edge = min(sl, tp): for LONG this is sl, for SHORT this is tp.
