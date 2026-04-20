@@ -277,6 +277,10 @@ var active_sl_ln      = array.new_line()
 var active_tp_lbl     = array.new_label()
 var active_sl_lbl     = array.new_label()
 var active_entry_lbl  = array.new_label()
+var active_cisd_ln    = array.new_line()
+var active_sweep_ln   = array.new_line()
+var active_cisd_lbl   = array.new_label()
+var active_sweep_lbl  = array.new_label()
 // snapshot sizes before registering a new setup's drawings
 var int _snap_lines  = 0
 var int _snap_labels = 0
@@ -647,14 +651,24 @@ if truncate_on_hit and array.size(active_dir) > 0
             _tl = array.get(active_tp_lbl,     _i)
             _snl= array.get(active_sl_lbl,     _i)
             _enl= array.get(active_entry_lbl,  _i)
+            _cl = array.get(active_cisd_ln,    _i)
+            _wl = array.get(active_sweep_ln,   _i)
+            _cll= array.get(active_cisd_lbl,   _i)
+            _wll= array.get(active_sweep_lbl,  _i)
             box.set_right(_rb, bar_index)
             box.set_right(_wb, bar_index)
             line.set_x2(_el,   bar_index)
             line.set_x2(_sn,   bar_index)
+            line.set_x2(_cl,   bar_index)
+            line.set_x2(_wl,   bar_index)
             // Re-anchor labels to the resolution bar so they don't float past the truncated edge
             label.set_x(_tl,   bar_index + 1)
             label.set_x(_snl,  bar_index + 1)
             label.set_x(_enl,  bar_index + 1)
+            if cisd_lbl_pos == "Right"
+                label.set_x(_cll, bar_index + 1)
+            if sweep_lbl_pos == "Right"
+                label.set_x(_wll, bar_index + 1)
             if show_outcome_markers
                 _mark_price = _resolved_sl ? _sl : _tp
                 _mark_text  = _resolved_sl ? "✗" : "✓"
@@ -673,6 +687,10 @@ if truncate_on_hit and array.size(active_dir) > 0
             array.remove(active_tp_lbl,     _i)
             array.remove(active_sl_lbl,     _i)
             array.remove(active_entry_lbl,  _i)
+            array.remove(active_cisd_ln,    _i)
+            array.remove(active_sweep_ln,   _i)
+            array.remove(active_cisd_lbl,   _i)
+            array.remove(active_sweep_lbl,  _i)
         _i -= 1
 
 // ── FIRE: LONG — store draw state; R:R box drawn next bar at open (matches backtest entry) ─
@@ -768,12 +786,16 @@ if draw_long[1]
     risk  = entry - sl
     tp    = entry + risk * rr_ratio
     r_end = bar_index + rr_extend
-    f_reg_line(line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid))
+    _cisd_ln_L = line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid)
+    f_reg_line(_cisd_ln_L)
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_long
-    f_reg_label(label.new(cisd_x, draw_cisd_lvl_long, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_anc_lo_bar, draw_anc_lo, r_end, draw_anc_lo, color=c_sweep, width=2, style=line.style_solid))
+    _cisd_lbl_draw_L = label.new(cisd_x, draw_cisd_lvl_long, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small)
+    f_reg_label(_cisd_lbl_draw_L)
+    _sweep_ln_L = line.new(draw_anc_lo_bar, draw_anc_lo, r_end, draw_anc_lo, color=c_sweep, width=2, style=line.style_solid)
+    f_reg_line(_sweep_ln_L)
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_lo_bar
-    f_reg_label(label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
+    _sweep_lbl_draw_L = label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
+    f_reg_label(_sweep_lbl_draw_L)
     _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
     _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
     _rew_box_L  = box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
@@ -802,6 +824,10 @@ if draw_long[1]
         array.push(active_tp_lbl, _tp_lbl_L)
         array.push(active_sl_lbl, _sl_lbl_L)
         array.push(active_entry_lbl, _entry_lbl_L)
+        array.push(active_cisd_ln, _cisd_ln_L)
+        array.push(active_sweep_ln, _sweep_ln_L)
+        array.push(active_cisd_lbl, _cisd_lbl_draw_L)
+        array.push(active_sweep_lbl, _sweep_lbl_draw_L)
     if show_midlines and risk > 0
         _be_level      = entry - risk * 0.5
         _partial_level = entry + risk * 0.5
@@ -880,12 +906,16 @@ if draw_short[1]
     risk  = sl - entry
     tp    = entry - risk * rr_ratio
     r_end = bar_index + rr_extend
-    f_reg_line(line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid))
+    _cisd_ln_S = line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid)
+    f_reg_line(_cisd_ln_S)
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_short
-    f_reg_label(label.new(cisd_x, draw_cisd_lvl_short, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small))
-    f_reg_line(line.new(draw_anc_hi_bar, draw_anc_hi, r_end, draw_anc_hi, color=c_sweep, width=2, style=line.style_solid))
+    _cisd_lbl_draw_S = label.new(cisd_x, draw_cisd_lvl_short, cisd_text + " " + cisd_tf_lbl, color=color.new(c_cisd, 100), textcolor=c_cisd, style=cisd_lbl_style, size=size.small)
+    f_reg_label(_cisd_lbl_draw_S)
+    _sweep_ln_S = line.new(draw_anc_hi_bar, draw_anc_hi, r_end, draw_anc_hi, color=c_sweep, width=2, style=line.style_solid)
+    f_reg_line(_sweep_ln_S)
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_hi_bar
-    f_reg_label(label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small))
+    _sweep_lbl_draw_S = label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
+    f_reg_label(_sweep_lbl_draw_S)
     _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
     _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
     _rew_box_S  = box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
@@ -913,6 +943,10 @@ if draw_short[1]
         array.push(active_tp_lbl, _tp_lbl_S)
         array.push(active_sl_lbl, _sl_lbl_S)
         array.push(active_entry_lbl, _entry_lbl_S)
+        array.push(active_cisd_ln, _cisd_ln_S)
+        array.push(active_sweep_ln, _sweep_ln_S)
+        array.push(active_cisd_lbl, _cisd_lbl_draw_S)
+        array.push(active_sweep_lbl, _sweep_lbl_draw_S)
     if show_midlines and risk > 0
         _be_level      = entry + risk * 0.5
         _partial_level = entry - risk * 0.5
