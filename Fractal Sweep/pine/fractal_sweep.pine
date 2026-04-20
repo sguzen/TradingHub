@@ -28,7 +28,7 @@ smt_symbol    = input.string("ES1!", "ES Symbol", group=G10, tooltip="Continuous
 var string G8 = "Display"
 show_debug    = input.bool(false, "Show Debug Labels", group=G8)
 max_setups    = input.int(5, "Max Setups to Show", group=G8, minval=1, maxval=20, tooltip="How many past setups stay visible on the chart. Increase for journaling/review.")
-show_midlines = input.bool(true, "Show 50% Midpoint Lines", group=G8, tooltip="Dashed lines at 50% of risk zone (Move to BE) and 50% of reward zone (Take Partial)")
+show_midlines = input.bool(false, "Show 50% Midpoint Lines", group=G8, tooltip="Dashed lines at 50% of risk zone (Move to BE) and 50% of reward zone (Take Partial)")
 truncate_on_hit = input.bool(true, "Truncate on TP/SL Hit", group=G8, tooltip="Shrink R:R boxes + entry/SL/TP lines when price hits TP or SL. Sweep & CISD lines stay for context.")
 show_outcome_markers = input.bool(true, "Show Outcome Markers", group=G8, tooltip="Drop ✓ at TP hit or ✗ at SL hit. Requires Truncate on TP/SL Hit.")
 
@@ -54,9 +54,9 @@ cisd_lbl_pos    = input.string("Right",  "Label Position", options=["Left", "Rig
 var string G7 = "T-Spot Zone"
 show_tspot      = input.bool(false,       "Show T-Spot Zone",     group=G7)
 tspot_transp    = input.int(85,           "Zone Transparency",    group=G7, minval=0, maxval=100)
-show_c_labels   = input.bool(true,        "Show C2/C3 Labels",   group=G7)
-show_tspot_type = input.bool(true,        "Show T-Spot Type",    group=G7)
-show_proj       = input.bool(true,        "Show CISD Projections", group=G7)
+show_c_labels   = input.bool(false,       "Show C2/C3 Labels",   group=G7)
+show_tspot_type = input.bool(false,       "Show T-Spot Type",    group=G7)
+show_proj       = input.bool(false,       "Show CISD Projections", group=G7)
 proj_levels_str = input.string("0.5,1.0,1.5,2.0", "Projection Levels", group=G7, tooltip="Comma-separated multiples of CISD series range")
 proj_color      = input.color(color.gray, "Projection Color",    group=G7)
 
