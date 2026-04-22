@@ -36,6 +36,7 @@ truncate_on_hit = input.bool(true,   "Truncate on TP/SL Hit", group=G_TRADE, too
 
 // ── 3. CHART DISPLAY ─────────────────────────────────────────────────────────
 var string G_CHART = "Chart Display"
+show_trade_setup     = input.bool(true,  "Show Trade Setup",            group=G_CHART, tooltip="Master toggle for the R:R trade setup drawings (risk/reward boxes, entry/SL/TP lines, pills, size badge, midlines, outcome markers, over-risk boxes). Sweep and CISD lines remain visible regardless.")
 max_setups           = input.int(5,  "Max Setups on Chart",   group=G_CHART, minval=1, maxval=20, tooltip="How many past setups stay drawn. Older ones get pruned.")
 show_outcome_markers = input.bool(true,  "Show Outcome Markers (✓/✗)", group=G_CHART, tooltip="Drop ✓ at TP hit or ✗ at SL hit under each resolved R:R box.")
 show_rr_pills        = input.bool(false, "Show Entry/SL/TP Pills",     group=G_CHART, tooltip="Price-tagged pill labels at the right edge of each R:R box. Off by default to reduce clutter — hover the lines to see the values.")
@@ -1179,54 +1180,56 @@ if draw_long[1]
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_lo_bar
     _sweep_lbl_draw_L = label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_L)
-    _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
-    _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
-    _rew_box_L  = box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
-    _entry_ln_L = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    _contracts_L = risk > 0 ? math.floor(risk_usd / (risk * point_value_usd)) : 0
-    _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
-    // Pills are invisible when show_rr_pills=false — still created so the
-    // truncate/resolve paths can set_x on them without na guards.
-    _pill_bg_tp  = show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100)
-    _pill_bg_sl  = show_rr_pills ? rr_lbl_sl_col : color.new(color.black, 100)
-    _pill_bg_en  = show_rr_pills ? rr_lbl_en_col : color.new(color.black, 100)
-    _pill_fg     = show_rr_pills ? c_rr_lbl_text : color.new(color.black, 100)
-    _tp_lbl_L    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=_pill_bg_tp, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    _entry_lbl_L = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=_pill_bg_en, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    _sl_lbl_L    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=_pill_bg_sl, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    // Contract size badge — compact, centered above the R:R box.
-    if show_size_badge
-        f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(tp, sl), str.tostring(_contracts_L) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
-    f_reg_line(_sl_ln_L)
-    f_reg_box(_risk_box_L)
-    f_reg_box(_rew_box_L)
-    f_reg_line(_entry_ln_L)
-    f_reg_label(_tp_lbl_L)
-    f_reg_label(_entry_lbl_L)
-    f_reg_label(_sl_lbl_L)
-    // Track for TP/SL truncation
-    if truncate_on_hit
-        array.push(active_dir, 1)
-        array.push(active_tp, tp)
-        array.push(active_sl, sl)
-        array.push(active_entry, entry)
-        array.push(active_risk_box, _risk_box_L)
-        array.push(active_reward_box, _rew_box_L)
-        array.push(active_entry_ln, _entry_ln_L)
-        array.push(active_sl_ln, _sl_ln_L)
-        array.push(active_tp_lbl, _tp_lbl_L)
-        array.push(active_sl_lbl, _sl_lbl_L)
-        array.push(active_entry_lbl, _entry_lbl_L)
-        array.push(active_cisd_ln, _cisd_ln_L)
-        array.push(active_sweep_ln, _sweep_ln_L)
-        array.push(active_cisd_lbl, _cisd_lbl_draw_L)
-        array.push(active_sweep_lbl, _sweep_lbl_draw_L)
-        array.push(active_entry_bar, bar_index)
+    // R:R trade setup drawings — gated by Show Trade Setup
+    if show_trade_setup
+        _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
+        _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
+        _rew_box_L  = box.new(bar_index, tp,    r_end, entry, border_color=rr_rew_border,  bgcolor=rr_rew_col)
+        _entry_ln_L = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
+        _contracts_L = risk > 0 ? math.floor(risk_usd / (risk * point_value_usd)) : 0
+        _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
+        // Pills are invisible when show_rr_pills=false — still created so the
+        // truncate/resolve paths can set_x on them without na guards.
+        _pill_bg_tp  = show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100)
+        _pill_bg_sl  = show_rr_pills ? rr_lbl_sl_col : color.new(color.black, 100)
+        _pill_bg_en  = show_rr_pills ? rr_lbl_en_col : color.new(color.black, 100)
+        _pill_fg     = show_rr_pills ? c_rr_lbl_text : color.new(color.black, 100)
+        _tp_lbl_L    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=_pill_bg_tp, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        _entry_lbl_L = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=_pill_bg_en, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        _sl_lbl_L    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=_pill_bg_sl, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        // Contract size badge — compact, centered above the R:R box.
+        if show_size_badge
+            f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(tp, sl), str.tostring(_contracts_L) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
+        f_reg_line(_sl_ln_L)
+        f_reg_box(_risk_box_L)
+        f_reg_box(_rew_box_L)
+        f_reg_line(_entry_ln_L)
+        f_reg_label(_tp_lbl_L)
+        f_reg_label(_entry_lbl_L)
+        f_reg_label(_sl_lbl_L)
+        // Track for TP/SL truncation
+        if truncate_on_hit
+            array.push(active_dir, 1)
+            array.push(active_tp, tp)
+            array.push(active_sl, sl)
+            array.push(active_entry, entry)
+            array.push(active_risk_box, _risk_box_L)
+            array.push(active_reward_box, _rew_box_L)
+            array.push(active_entry_ln, _entry_ln_L)
+            array.push(active_sl_ln, _sl_ln_L)
+            array.push(active_tp_lbl, _tp_lbl_L)
+            array.push(active_sl_lbl, _sl_lbl_L)
+            array.push(active_entry_lbl, _entry_lbl_L)
+            array.push(active_cisd_ln, _cisd_ln_L)
+            array.push(active_sweep_ln, _sweep_ln_L)
+            array.push(active_cisd_lbl, _cisd_lbl_draw_L)
+            array.push(active_sweep_lbl, _sweep_lbl_draw_L)
+            array.push(active_entry_bar, bar_index)
     // Snapshot extras pool sizes so we know how many this setup adds
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
     _ex_bx_start  = array.size(active_extra_boxes)
-    if show_midlines and risk > 0
+    if show_trade_setup and show_midlines and risk > 0
         _be_level      = entry - risk * 0.5
         _partial_level = entry + risk * 0.5
         _mid_col = color.new(c_mid, 30)
@@ -1329,50 +1332,52 @@ if draw_short[1]
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_hi_bar
     _sweep_lbl_draw_S = label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_S)
-    _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
-    _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
-    _rew_box_S  = box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
-    _entry_ln_S = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
-    _contracts_S = risk > 0 ? math.floor(risk_usd / (risk * point_value_usd)) : 0
-    _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
-    _pill_bg_tp  = show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100)
-    _pill_bg_sl  = show_rr_pills ? rr_lbl_sl_col : color.new(color.black, 100)
-    _pill_bg_en  = show_rr_pills ? rr_lbl_en_col : color.new(color.black, 100)
-    _pill_fg     = show_rr_pills ? c_rr_lbl_text : color.new(color.black, 100)
-    _tp_lbl_S    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=_pill_bg_tp, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    _entry_lbl_S = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=_pill_bg_en, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    _sl_lbl_S    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=_pill_bg_sl, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
-    // Contract size badge — compact, centered above the R:R box.
-    if show_size_badge
-        f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(sl, tp), str.tostring(_contracts_S) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
-    f_reg_line(_sl_ln_S)
-    f_reg_box(_risk_box_S)
-    f_reg_box(_rew_box_S)
-    f_reg_line(_entry_ln_S)
-    f_reg_label(_tp_lbl_S)
-    f_reg_label(_entry_lbl_S)
-    f_reg_label(_sl_lbl_S)
-    if truncate_on_hit
-        array.push(active_dir, -1)
-        array.push(active_tp, tp)
-        array.push(active_sl, sl)
-        array.push(active_entry, entry)
-        array.push(active_risk_box, _risk_box_S)
-        array.push(active_reward_box, _rew_box_S)
-        array.push(active_entry_ln, _entry_ln_S)
-        array.push(active_sl_ln, _sl_ln_S)
-        array.push(active_tp_lbl, _tp_lbl_S)
-        array.push(active_sl_lbl, _sl_lbl_S)
-        array.push(active_entry_lbl, _entry_lbl_S)
-        array.push(active_cisd_ln, _cisd_ln_S)
-        array.push(active_sweep_ln, _sweep_ln_S)
-        array.push(active_cisd_lbl, _cisd_lbl_draw_S)
-        array.push(active_sweep_lbl, _sweep_lbl_draw_S)
-        array.push(active_entry_bar, bar_index)
+    // R:R trade setup drawings — gated by Show Trade Setup
+    if show_trade_setup
+        _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
+        _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
+        _rew_box_S  = box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
+        _entry_ln_S = line.new(bar_index, entry, r_end, entry, color=rr_entry_col, width=1, style=line.style_solid)
+        _contracts_S = risk > 0 ? math.floor(risk_usd / (risk * point_value_usd)) : 0
+        _tp_lbl = "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R"
+        _pill_bg_tp  = show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100)
+        _pill_bg_sl  = show_rr_pills ? rr_lbl_sl_col : color.new(color.black, 100)
+        _pill_bg_en  = show_rr_pills ? rr_lbl_en_col : color.new(color.black, 100)
+        _pill_fg     = show_rr_pills ? c_rr_lbl_text : color.new(color.black, 100)
+        _tp_lbl_S    = label.new(bar_index + rr_lbl_x, tp, _tp_lbl, color=_pill_bg_tp, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        _entry_lbl_S = label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=_pill_bg_en, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        _sl_lbl_S    = label.new(bar_index + rr_lbl_x, sl,    "SL  -" + str.tostring(risk, "#.##") + " pts", color=_pill_bg_sl, textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+        // Contract size badge — compact, centered above the R:R box.
+        if show_size_badge
+            f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(sl, tp), str.tostring(_contracts_S) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
+        f_reg_line(_sl_ln_S)
+        f_reg_box(_risk_box_S)
+        f_reg_box(_rew_box_S)
+        f_reg_line(_entry_ln_S)
+        f_reg_label(_tp_lbl_S)
+        f_reg_label(_entry_lbl_S)
+        f_reg_label(_sl_lbl_S)
+        if truncate_on_hit
+            array.push(active_dir, -1)
+            array.push(active_tp, tp)
+            array.push(active_sl, sl)
+            array.push(active_entry, entry)
+            array.push(active_risk_box, _risk_box_S)
+            array.push(active_reward_box, _rew_box_S)
+            array.push(active_entry_ln, _entry_ln_S)
+            array.push(active_sl_ln, _sl_ln_S)
+            array.push(active_tp_lbl, _tp_lbl_S)
+            array.push(active_sl_lbl, _sl_lbl_S)
+            array.push(active_entry_lbl, _entry_lbl_S)
+            array.push(active_cisd_ln, _cisd_ln_S)
+            array.push(active_sweep_ln, _sweep_ln_S)
+            array.push(active_cisd_lbl, _cisd_lbl_draw_S)
+            array.push(active_sweep_lbl, _sweep_lbl_draw_S)
+            array.push(active_entry_bar, bar_index)
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
     _ex_bx_start  = array.size(active_extra_boxes)
-    if show_midlines and risk > 0
+    if show_trade_setup and show_midlines and risk > 0
         _be_level      = entry + risk * 0.5
         _partial_level = entry - risk * 0.5
         _mid_col = color.new(c_mid, 30)
@@ -1489,15 +1494,17 @@ if long_over
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
     f_reg_label(label.new(cisd_x, cisd_long_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_long) ? sweep_bar_long : bar_index
-    f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_box(box.new(bar_index, entry, r_end, sl, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
-    f_reg_box(box.new(bar_index, tp, r_end, entry, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
-    if show_rr_pills
-        f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-        f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-        f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-    f_reg_label(label.new(bar_index, tp + (tp - entry) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_down, size=size.small))
+    // R:R trade setup drawings — gated by Show Trade Setup
+    if show_trade_setup
+        f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
+        f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
+        f_reg_box(box.new(bar_index, entry, r_end, sl, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
+        f_reg_box(box.new(bar_index, tp, r_end, entry, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
+        if show_rr_pills
+            f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+            f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+            f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+        f_reg_label(label.new(bar_index, tp + (tp - entry) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_down, size=size.small))
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
@@ -1565,15 +1572,17 @@ if short_over
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : cisd_bar
     f_reg_label(label.new(cisd_x, cisd_short_lvl, cisd_text + " " + cisd_tf_lbl, color=color.new(c_overrisk, 100), textcolor=_ov_col, style=cisd_lbl_style, size=size.small))
     sl_anchor = not na(sweep_bar_short) ? sweep_bar_short : bar_index
-    f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
-    f_reg_box(box.new(bar_index, sl, r_end, entry, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
-    f_reg_box(box.new(bar_index, entry, r_end, tp, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
-    if show_rr_pills
-        f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-        f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-        f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
-    f_reg_label(label.new(bar_index, tp - (entry - tp) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_up, size=size.small))
+    // R:R trade setup drawings — gated by Show Trade Setup
+    if show_trade_setup
+        f_reg_line(line.new(sl_anchor, sl, r_end, sl, color=_ov_col, width=1, style=line.style_dashed))
+        f_reg_line(line.new(bar_index, entry, r_end, entry, color=_ov_col, width=1, style=line.style_dashed))
+        f_reg_box(box.new(bar_index, sl, r_end, entry, border_color=color.new(c_sl, 60), bgcolor=color.new(c_sl, 92)))
+        f_reg_box(box.new(bar_index, entry, r_end, tp, border_color=color.new(c_tp, 60), bgcolor=color.new(c_tp, 92)))
+        if show_rr_pills
+            f_reg_label(label.new(bar_index + rr_lbl_x, entry, "Entry  " + str.tostring(entry, "#.##"), color=color.new(c_overrisk, 40), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+            f_reg_label(label.new(bar_index + rr_lbl_x, sl, "SL  -" + str.tostring(risk, "#.##") + " pts", color=color.new(c_sl, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+            f_reg_label(label.new(bar_index + rr_lbl_x, tp, "TP  +" + str.tostring(risk * rr_ratio, "#.##") + " pts  " + str.tostring(rr_ratio, "#.#") + "R", color=color.new(c_tp, 30), textcolor=c_rr_lbl_text, style=rr_lbl_style, size=size.small))
+        f_reg_label(label.new(bar_index, tp - (entry - tp) * 0.1, "OVER RISK  " + str.tostring(risk, "#.#") + " pts", color=color.new(c_overrisk, 10), textcolor=color.white, style=label.style_label_up, size=size.small))
     array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
     array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
     array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
