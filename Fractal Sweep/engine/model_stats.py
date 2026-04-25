@@ -1026,7 +1026,7 @@ def _full_mfe_stats(wl, n_bins=50):
 # ── SETUP DETECTOR  (profile-agnostic — no stop/target computed here) ─────────
 def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                        cisd_fast_bars=CISD_FAST_BARS, es_s_arrs=None,
-                       es_m1_arrs=None):
+                       es_m1_arrs=None, h4_arrs=None, day_arrs=None):
     """
     Detect all sweep+CISD setups.  Returns (base_rows, base_pending).
 
@@ -1310,6 +1310,33 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             else:
                 _cisd_aligned = bool(_cisd_close < _cisd_hour_open)
 
+            # HTF directional bias at entry time. Two flavors:
+            #   - h4_bias_long:    most-recently-CLOSED 4H candle's close > open (bullish 4H)
+            #   - daily_bias_long: prior trading day's close > the day before's close (bullish day)
+            # "Most recently closed" excludes the bar containing entry.
+            # `*_aligned` is the filter-ready flag: True when trade direction matches bias.
+            h4_bias_long       = None
+            daily_bias_long    = None
+            h4_bias_aligned    = None
+            daily_bias_aligned = None
+            if h4_arrs is not None:
+                # Find the 4H bar containing entry, then step back one to get most-recent-closed
+                _h4_idx = int(np.searchsorted(h4_arrs['ts_ns'], entry_ts_ns, side='right')) - 1
+                _h4_idx_closed = _h4_idx - 1 if _h4_idx >= 1 else -1
+                if _h4_idx_closed >= 0:
+                    _h4_o = float(h4_arrs['open'][_h4_idx_closed])
+                    _h4_c = float(h4_arrs['close'][_h4_idx_closed])
+                    h4_bias_long = bool(_h4_c > _h4_o)
+                    h4_bias_aligned = (h4_bias_long if direction == 'LONG' else not h4_bias_long)
+            if day_arrs is not None:
+                _d_idx = int(np.searchsorted(day_arrs['ts_ns'], entry_ts_ns, side='right')) - 1
+                _d_idx_closed = _d_idx - 1 if _d_idx >= 1 else -1
+                if _d_idx_closed >= 1:
+                    _d_c   = float(day_arrs['close'][_d_idx_closed])
+                    _d_c_1 = float(day_arrs['close'][_d_idx_closed - 1])
+                    daily_bias_long = bool(_d_c > _d_c_1)
+                    daily_bias_aligned = (daily_bias_long if direction == 'LONG' else not daily_bias_long)
+
             base_row.update(
                 date         = str(_entry_date),
                 dow          = int(m1_dow[entry_start]),
@@ -1323,6 +1350,10 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 cisd_close      = round(_cisd_close, 2),
                 cisd_hour_open  = round(_cisd_hour_open, 2) if _cisd_hour_open is not None else None,
                 cisd_aligned    = _cisd_aligned,
+                h4_bias_long       = h4_bias_long,
+                daily_bias_long    = daily_bias_long,
+                h4_bias_aligned    = h4_bias_aligned,
+                daily_bias_aligned = daily_bias_aligned,
                 rejected_by  = rejected_by,
                 # profile-dependent fields — filled by apply_profile_and_resolve
                 stop_price   = None,
@@ -1723,7 +1754,8 @@ def build_model_stats(df_raw, trading_days, model_key, model_cfg,
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
-                   'prior_engulfing']
+                   'prior_engulfing','prior_counter_close','passes_f3','passes_f4',
+                   'h4_bias_long','daily_bias_long','h4_bias_aligned','daily_bias_aligned']
     # Only include columns that actually exist in wl_full (defensive against
     # older base_row schemas missing some fields).
     _avail = [c for c in recent_cols if c in wl_full.columns]
@@ -2158,7 +2190,8 @@ def _build_slice_stats(wl_sub, stop_mult, target_mult, agg_fn, hr_labels,
                    'sweep_extreme','target_price','risk_pts','r','outcome',
                    'mae_pct','mfe_pct','mae_pct_hr','mfe_pct_hr','hour_range_pts','smt',
                    'cisd_close','cisd_hour_open','cisd_aligned',
-                   'prior_engulfing']
+                   'prior_engulfing','prior_counter_close','passes_f3','passes_f4',
+                   'h4_bias_long','daily_bias_long','h4_bias_aligned','daily_bias_aligned']
     rt_source = wl_sub_full if wl_sub_full is not None else wl_sub
     available = [c for c in recent_cols if c in rt_source.columns]
     rt = rt_source[available].sort_values('date', ascending=False).copy()
@@ -2296,7 +2329,8 @@ def compute_filter_variants(df_all):
       - cumulative_additive: adding filters one at a time in optimal order
       - best_combo: the filter combination that maximizes EV
     """
-    FILTERS = ['F3', 'F4', 'SMT', 'HOUR_ALIGNED', 'PRIOR_COUNTER', 'PRIOR_ENGULFING']
+    FILTERS = ['F3', 'F4', 'SMT', 'HOUR_ALIGNED', 'PRIOR_COUNTER', 'PRIOR_ENGULFING',
+               'H4_BIAS', 'DAILY_BIAS']
     FILTER_LABELS = {
         'F3':                'Shallow Sweep (F3)',
         'F4':                'Closed Back Inside (F4)',
@@ -2304,8 +2338,11 @@ def compute_filter_variants(df_all):
         'HOUR_ALIGNED':      'Hour Open Aligned',
         'PRIOR_COUNTER':     'Prior Bar Counters',
         'PRIOR_ENGULFING':   'Prior Bar Engulfs',
+        'H4_BIAS':           '4H Bias Aligned',
+        'DAILY_BIAS':        'Daily Bias Aligned',
     }
-    POSITIVE_FILTERS = {'F3', 'F4', 'SMT', 'HOUR_ALIGNED', 'PRIOR_COUNTER', 'PRIOR_ENGULFING'}
+    POSITIVE_FILTERS = {'F3', 'F4', 'SMT', 'HOUR_ALIGNED', 'PRIOR_COUNTER', 'PRIOR_ENGULFING',
+                        'H4_BIAS', 'DAILY_BIAS'}
 
     def stats_of(df):
         wl = df[df['outcome'].isin(['WIN', 'LOSS'])].copy()
@@ -2356,6 +2393,8 @@ def compute_filter_variants(df_all):
     has_hour_aligned = 'cisd_aligned' in all_valid.columns
     has_prior_counter = 'prior_counter_close' in all_valid.columns
     has_prior_engulfing = 'prior_engulfing' in all_valid.columns
+    has_h4_bias    = 'h4_bias_aligned' in all_valid.columns
+    has_daily_bias = 'daily_bias_aligned' in all_valid.columns
 
     # Helper: apply a set of filters to all_valid
     def apply_filters(active_set):
@@ -2380,6 +2419,12 @@ def compute_filter_variants(df_all):
             elif f == 'PRIOR_ENGULFING':
                 if has_prior_engulfing:
                     mask &= all_valid['prior_engulfing'] == True
+            elif f == 'H4_BIAS':
+                if has_h4_bias:
+                    mask &= all_valid['h4_bias_aligned'] == True
+            elif f == 'DAILY_BIAS':
+                if has_daily_bias:
+                    mask &= all_valid['daily_bias_aligned'] == True
         return all_valid[mask]
 
     # Baseline = unfiltered. F3/F4 are now also enumerable filters
@@ -2507,6 +2552,9 @@ def main():
         tf: resample(df_1m_base, tf, f"{tf}min")
         for tf in sorted(needed_cisd_tfs)
     }
+    # HTF bias candles — 4H and 1D, used for DAILY_BIAS / H4_BIAS filters
+    h4_df  = resample(df_1m_full, 240,  "240min")
+    day_df = resample(df_1m_full, 1440, "1D")
     # ES sweep-TF candles for SMT comparison (same timeframes as NQ)
     es_sweep_dfs = {}
     if has_smt:
@@ -2522,6 +2570,8 @@ def main():
     es_m1_base_arrs = df_1m_to_arrays(es_1m_base) if has_smt else None
     m1_full_arrs = df_1m_to_arrays(df_1m_full)
     m1_base_arrs = df_1m_to_arrays(df_1m_base)
+    h4_arrs  = df_to_arrays(h4_df)
+    day_arrs = df_to_arrays(day_df)
     print("   Done.")
 
     all_stats    = {}
@@ -2542,7 +2592,8 @@ def main():
         es_m1 = (es_m1_full_arrs if cfg['sweep_tf_min'] >= 1440 else es_m1_base_arrs) if has_smt else None
         base_rows, base_pending = detect_setups_base(
             m1, s_arrs, c_arrs, mk, cfg, cisd_fast_bars=CISD_FAST_BARS,
-            es_s_arrs=es_s, es_m1_arrs=es_m1)
+            es_s_arrs=es_s, es_m1_arrs=es_m1,
+            h4_arrs=h4_arrs, day_arrs=day_arrs)
         if not base_rows:
             print(f"   ⚠  No setups found")
             continue
