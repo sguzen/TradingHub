@@ -27,18 +27,19 @@ const SHARED_SECRET = "";
 const SHEET_NAME = "Trades";
 
 // Map from JSON payload field → spreadsheet column header.
-// Add/remove entries here without touching the rest of the script.
+// The indicator emits short names (entry, sl, tp); the sheet uses prefixed
+// names (planned_entry, planned_sl, planned_tp). Translate here.
 const FIELD_TO_HEADER = {
-  date:           "date",
-  time_et:        "time_et",
-  combo:          "combo",
-  direction:      "direction",
-  smt:            "smt",
-  planned_entry:  "planned_entry",
-  planned_sl:     "planned_sl",
-  planned_tp:     "planned_tp",
-  contracts:      "contracts",
-  notes:          "notes",
+  date:        "date",
+  time_et:     "time_et",
+  combo:       "combo",
+  direction:   "direction",
+  smt:         "smt",
+  entry:       "planned_entry",
+  sl:          "planned_sl",
+  tp:          "planned_tp",
+  contracts:   "contracts",
+  notes:       "notes",
 };
 
 
@@ -72,10 +73,14 @@ function doPost(e) {
       });
     }
 
-    const row = buildRow_(sheet, payload);
-    appendRowAtNextEmpty_(sheet, row);
+    // Find the target row first, so trade_no can be derived from it.
+    const targetRow = findNextEmptyRow_(sheet);
+    const row = buildRow_(sheet, payload, targetRow);
+    sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
 
-    return jsonResponse_(200, { ok: true, id: payload.id, ticker: payload.ticker });
+    return jsonResponse_(200, {
+      ok: true, id: payload.id, ticker: payload.ticker, row: targetRow,
+    });
   } catch (err) {
     return jsonResponse_(500, { ok: false, error: String(err), stack: err.stack });
   }
@@ -112,7 +117,7 @@ function parsePayload_(e) {
 }
 
 
-function buildRow_(sheet, payload) {
+function buildRow_(sheet, payload, targetRow) {
   // Read the header row once and build a column→index lookup.
   const lastCol = sheet.getLastColumn();
   const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
@@ -122,10 +127,12 @@ function buildRow_(sheet, payload) {
   // Initialize an empty row of the correct width.
   const row = new Array(lastCol).fill("");
 
-  // Find the next trade_no by counting non-empty rows in the trade_no column.
+  // trade_no = the spreadsheet's row number minus 1 (so row 2 → trade 1,
+  // row 3 → trade 2, etc.). This stays in sync with the row's physical
+  // position regardless of any pre-populated placeholder numbers.
   const tradeNoIdx = headerToIdx["trade_no"];
   if (tradeNoIdx !== undefined) {
-    row[tradeNoIdx] = nextTradeNumber_(sheet, tradeNoIdx);
+    row[tradeNoIdx] = targetRow - 1;
   }
 
   // Convert fired_at_ms epoch → NY local date + time strings.
@@ -164,54 +171,29 @@ function buildRow_(sheet, payload) {
 }
 
 
-function nextTradeNumber_(sheet, tradeNoColIdx) {
-  // Find the highest existing trade_no, return +1.
-  // Reads only the first column — fast even with 500 pre-numbered rows.
-  const colValues = sheet.getRange(2, tradeNoColIdx + 1, sheet.getLastRow() - 1, 1).getValues();
-  let maxNo = 0;
-  let highestNonEmptyRow = 0;
-  for (let i = 0; i < colValues.length; i++) {
-    const v = colValues[i][0];
-    if (typeof v === "number" && v > maxNo) {
-      maxNo = v;
-    }
-    // Track which row is the next one with NO trade data filled in (only trade_no).
-    // We need this so the receiver writes at the correct row, not at the bottom.
-  }
-  return maxNo + 1; // simple: next sequential number
-}
-
-
-function appendRowAtNextEmpty_(sheet, row) {
-  // The template pre-populates rows with `trade_no` already set (1, 2, 3, ...).
-  // We need to find the first row where the "outcome" column (or any payload
-  // column) is empty, and write our values there — overwriting the empty slot
-  // rather than appending a brand-new row at the bottom.
+function findNextEmptyRow_(sheet) {
+  // Find the first row where the `date` column is still empty (i.e., no
+  // real trade has been logged there yet). The template pre-populates 500
+  // rows with placeholder trade_no values, but `date` is left blank — that's
+  // our marker for "this row is available."
   const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  let datColIdx = headers.indexOf("date");
-  if (datColIdx < 0) datColIdx = 1; // fallback — should never happen
+  let dateColIdx = headers.indexOf("date");
+  if (dateColIdx < 0) dateColIdx = 1; // fallback — should never happen
 
   const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 2;
+
   const dateColValues = sheet
-    .getRange(2, datColIdx + 1, lastRow - 1, 1)
+    .getRange(2, dateColIdx + 1, lastRow - 1, 1)
     .getValues();
 
-  // First row where the date column is still empty (i.e., no trade logged yet).
-  let targetRow = -1;
   for (let i = 0; i < dateColValues.length; i++) {
     if (dateColValues[i][0] === "" || dateColValues[i][0] === null) {
-      targetRow = i + 2; // +2 because data starts at row 2 (1-indexed)
-      break;
+      return i + 2; // +2 because data starts at row 2 (1-indexed)
     }
   }
-
-  if (targetRow < 0) {
-    // All pre-populated rows are filled. Append a brand-new row.
-    targetRow = lastRow + 1;
-  }
-
-  // Write the row.
-  sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+  // All 500 pre-populated rows used up — append at the bottom.
+  return lastRow + 1;
 }
 
 
