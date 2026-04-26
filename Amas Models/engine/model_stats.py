@@ -37,7 +37,7 @@ from engine import db  # noqa: E402
 from engine.constants import OUTCOME_MAX_BARS  # noqa: E402
 from engine.filters import enumerate_combos, apply_combo  # noqa: E402
 from engine.models import MODELS  # noqa: E402
-from engine.outcomes import Setup, resolve_outcome  # noqa: E402
+from engine.outcomes import Setup, resolve_outcome, compute_draw_hit  # noqa: E402
 from engine.stats import agg  # noqa: E402
 
 
@@ -88,6 +88,20 @@ def run(table: str = "nq_1m", model_keys: Optional[list[str]] = None) -> dict:
                 "mfe_pts": outcome.mfe_pts,
                 "bars_to_resolve": outcome.bars_to_resolve,
             }
+            # Carry forward optional model-attached metadata: anchor, draw, entry_pattern.
+            # `anchor_ts` already added above via getattr fallback.
+            if hasattr(setup, "draw_price"):
+                row["draw_price"] = setup.draw_price
+            if hasattr(setup, "entry_pattern"):
+                row["entry_pattern"] = setup.entry_pattern
+            # Draw-hit measurement: did price reach the prior-H1 extreme before SL?
+            # This is the mentor's actual edge claim; the 1R take-profit is risk
+            # management. Computed independently of the outcome resolver — the trade
+            # may have booked at 1R but eventually reached the draw, or vice versa.
+            if hasattr(setup, "draw_price"):
+                hit, hit_ts = compute_draw_hit(bars, setup, setup.draw_price, max_bars=OUTCOME_MAX_BARS)
+                row["draw_hit"] = hit
+                row["draw_hit_ts"] = str(hit_ts) if hit_ts is not None else None
             # Carry forward any passes_<filter> flags the detector attached.
             for attr in dir(setup):
                 if attr.startswith("passes_"):

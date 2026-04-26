@@ -124,3 +124,48 @@ def resolve_outcome(bars: pd.DataFrame, setup: Setup, max_bars: int = OUTCOME_MA
         outcome="EXPIRED", r=None, resolution_ts=None,
         mae_pts=mae, mfe_pts=mfe, bars_to_resolve=len(scan),
     )
+
+
+def compute_draw_hit(
+    bars: pd.DataFrame,
+    setup: Setup,
+    draw_price: float,
+    max_bars: int = OUTCOME_MAX_BARS,
+) -> tuple[bool, Optional[pd.Timestamp]]:
+    """Did price reach `draw_price` within max_bars after entry, before SL?
+
+    The mentor's edge claim is "the prior H1 extreme is hit ~80% of the time
+    after the H1 closes outside it." That's measured by THIS function, not by
+    the 1R take profit. The 1R is risk management; the draw_hit is the edge.
+
+    Returns (hit: bool, hit_ts: Timestamp | None). hit=True if any bar's high
+    reached `draw_price` (long) or low reached `draw_price` (short) before
+    SL was hit; the timestamp is that bar's ts. hit=False otherwise.
+
+    Note: this scan ignores TP — it's measuring "did the draw get touched
+    eventually," even if the trade was already booked at 1R. SL still
+    invalidates the draw thesis (if price reverses past SL before reaching
+    the draw, the move never happened and hit=False).
+    """
+    post_entry = bars[bars["ts"] > setup.entry_ts]
+    if len(post_entry) == 0:
+        return (False, None)
+    scan = post_entry.iloc[:max_bars]
+
+    for bar in scan.itertuples(index=False):
+        if setup.direction == "long":
+            sl_hit = bar.low <= setup.sl_price
+            draw_hit = bar.high >= draw_price
+        else:  # short
+            sl_hit = bar.high >= setup.sl_price
+            draw_hit = bar.low <= draw_price
+
+        # Same-bar tie → SL invalidates the draw thesis
+        if sl_hit and draw_hit:
+            return (False, None)
+        if draw_hit:
+            return (True, bar.ts)
+        if sl_hit:
+            return (False, None)
+
+    return (False, None)

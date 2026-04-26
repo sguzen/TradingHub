@@ -9,7 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from engine.outcomes import resolve_outcome, Setup, Outcome
+from engine.outcomes import resolve_outcome, Setup, Outcome, compute_draw_hit
 
 
 def _make_bars(prices: list[tuple[float, float, float, float]], start_ts: str = "2024-01-02 10:00") -> pd.DataFrame:
@@ -211,3 +211,105 @@ def test_invalid_direction_raises():
     with pytest.raises(ValueError, match="direction"):
         Setup(entry_ts=bars["ts"].iloc[0], entry_price=100.0,
               sl_price=95.0, tp_price=105.0, direction="sideways")
+
+
+# ----- compute_draw_hit tests -----
+# Measures whether price reaches the prior-H1 extreme (the mentor's "draw")
+# before SL invalidates the trade thesis. Independent of TP — a trade can
+# book at 1R but still eventually reach the draw, or never reach it.
+
+def test_draw_hit_long_reaches_draw_before_sl():
+    bars = _make_bars([
+        (100.0, 100.5, 99.8, 100.2),  # entry bar — excluded
+        (100.2, 100.6, 100.1, 100.5),
+        (100.5, 110.5, 100.4, 110.0),  # high reaches draw=110
+    ])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=95.0, tp_price=105.0, direction="long",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is True
+    assert hit_ts == bars["ts"].iloc[2]
+
+
+def test_draw_hit_long_sl_first_means_no_hit():
+    bars = _make_bars([
+        (100.0, 100.5, 99.8, 100.2),
+        (100.2, 100.6, 99.0, 99.5),    # SL hit at low=99 (sl=99.5; low<=sl)
+        (99.5, 110.5, 99.4, 110.0),    # draw hit AFTER SL — must not count
+    ])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=99.5, tp_price=105.0, direction="long",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is False
+    assert hit_ts is None
+
+
+def test_draw_hit_short_reaches_draw():
+    bars = _make_bars([
+        (100.0, 100.2, 99.5, 99.8),    # entry bar
+        (99.8, 99.9, 89.0, 89.5),      # low reaches draw=90
+    ])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=105.0, tp_price=95.0, direction="short",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=90.0)
+    assert hit is True
+    assert hit_ts == bars["ts"].iloc[1]
+
+
+def test_draw_hit_same_bar_sl_and_draw_resolves_to_no_hit():
+    """Per the same-bar tie convention, SL invalidates the draw thesis."""
+    bars = _make_bars([
+        (100.0, 100.5, 99.8, 100.2),
+        (100.0, 110.5, 94.0, 100.0),   # both draw=110 AND sl=95 hit same bar
+    ])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=95.0, tp_price=105.0, direction="long",
+    )
+    hit, _ = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is False
+
+
+def test_draw_hit_never_reached_returns_false():
+    bars = _make_bars([(100.0, 100.5, 99.8, 100.2)] * 100)
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=95.0, tp_price=105.0, direction="long",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is False
+    assert hit_ts is None
+
+
+def test_draw_hit_works_after_tp_already_booked():
+    """The mentor's draw can be reached AFTER 1R was hit. compute_draw_hit
+    measures the draw independently — it doesn't stop at TP."""
+    bars = _make_bars([
+        (100.0, 100.5, 99.8, 100.2),
+        (100.2, 105.5, 100.0, 105.0),  # TP=105 hit (resolved here for outcome)
+        (105.0, 110.5, 104.0, 110.0),  # draw=110 hit AFTER TP — should still count
+    ])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=95.0, tp_price=105.0, direction="long",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is True
+    assert hit_ts == bars["ts"].iloc[2]
+
+
+def test_draw_hit_no_post_entry_bars():
+    bars = _make_bars([(100.0, 100.5, 99.8, 100.2)])
+    setup = Setup(
+        entry_ts=bars["ts"].iloc[0], entry_price=100.0,
+        sl_price=95.0, tp_price=105.0, direction="long",
+    )
+    hit, hit_ts = compute_draw_hit(bars, setup, draw_price=110.0)
+    assert hit is False
+    assert hit_ts is None
