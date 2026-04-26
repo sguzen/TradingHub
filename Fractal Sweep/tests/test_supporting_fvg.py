@@ -352,11 +352,14 @@ def _wl_fixture_for_fvg_summary():
         'sweep_mode': 'PREV',
         'cisd_mode': 'CISD',
         'ref_lookback': 1,
-        'smt':                     rng.choice([True, False], n, p=[0.5, 0.5]),
-        'passes_fvg_cisd_strict':  rng.choice([True, False], n, p=[0.4, 0.6]),
-        'passes_fvg_cisd_loose':   rng.choice([True, False], n, p=[0.6, 0.4]),
-        'passes_fvg_1m_strict':    rng.choice([True, False], n, p=[0.4, 0.6]),
-        'passes_fvg_1m_loose':     rng.choice([True, False], n, p=[0.7, 0.3]),
+        # Deliberately distinct counts so a mask-wiring regression (e.g. swapping
+        # cisd_strict and m1_strict) flips literal-count assertions in the test
+        # below. n=30; counts chosen to be pairwise distinct.
+        'smt':                     [True]*10 + [False]*20,                    # n_smt = 10
+        'passes_fvg_cisd_strict':  [True]* 5 + [False]*25,                    # n=5
+        'passes_fvg_cisd_loose':   [True]*12 + [False]*18,                    # n=12 — superset of cisd_strict
+        'passes_fvg_1m_strict':    [True]* 8 + [False]*22,                    # n=8
+        'passes_fvg_1m_loose':     [True]*15 + [False]*15,                    # n=15 — superset of m1_strict
         'hr': rng.choice(range(8, 16), n),
         'mn': rng.choice(range(0, 60, 5), n),
         'session': 'NY1',
@@ -403,7 +406,9 @@ def test_fvg_summary_block_exists_with_expected_keys():
 
 
 def test_fvg_summary_counts_match_masks():
-    """Verify each cell's `n` matches the count of rows satisfying its mask."""
+    """Verify each cell's `n` matches the literal count expected from the
+    deterministic fixture. Catches mask-wiring regressions: if the engine
+    swaps cisd and m1 masks, the literal-count assertions break."""
     df = _wl_fixture_for_fvg_summary()
     cfg = dict(label='Test', sweep_tf_min=60, cisd_tf_min=5,
                min_range=12, session_hrs=(7.0, 16.0))
@@ -413,25 +418,22 @@ def test_fvg_summary_counts_match_masks():
                                   profile_key='simple_1r', profile_type='mult')
     fs = stats['fvg_summary']
 
-    # build_model_stats filters df to wl (only WIN/LOSS rows). For our fixture,
-    # all rows have outcome WIN or LOSS so wl == df.
-    wl = df  # since rejected_by is '' and all outcomes are WIN/LOSS
-
-    cs  = wl['passes_fvg_cisd_strict']
-    cl  = wl['passes_fvg_cisd_loose']
-    m1s = wl['passes_fvg_1m_strict']
-    m1l = wl['passes_fvg_1m_loose']
-    smt = wl['smt']
-    any_strict = cs | m1s
-
-    assert fs['cisd_strict']['n']     == int(cs.sum())
-    assert fs['cisd_loose']['n']      == int(cl.sum())
-    assert fs['no_cisd_fvg']['n']     == int((~cl).sum())
-    assert fs['m1_strict']['n']       == int(m1s.sum())
-    assert fs['m1_loose']['n']        == int(m1l.sum())
-    assert fs['no_m1_fvg']['n']       == int((~m1l).sum())
-    assert fs['any_strict']['n']      == int(any_strict.sum())
-    assert fs['any_loose']['n']       == int((cl | m1l).sum())
-    assert fs['cisd_strict_smt']['n'] == int((cs & smt).sum())
-    assert fs['m1_strict_smt']['n']   == int((m1s & smt).sum())
-    assert fs['any_strict_smt']['n']  == int((any_strict & smt).sum())
+    # Fixture has these distinct counts (n=30):
+    #   cisd_strict=5, cisd_loose=12, m1_strict=8, m1_loose=15, smt=10.
+    # Strict rows are subsets of their loose counterparts (indices 0..N-1 each).
+    # any_strict = cisd_strict ∪ m1_strict = indices 0..7 = 8.
+    # any_loose  = cisd_loose  ∪ m1_loose  = indices 0..14 = 15.
+    # cisd_strict_smt: cisd_strict (0..4) ∩ smt (0..9) = 5.
+    # m1_strict_smt:   m1_strict   (0..7) ∩ smt (0..9) = 8.
+    # any_strict_smt:  any_strict  (0..7) ∩ smt (0..9) = 8.
+    assert fs['cisd_strict']['n']     == 5
+    assert fs['cisd_loose']['n']      == 12
+    assert fs['no_cisd_fvg']['n']     == 18   # 30 - 12
+    assert fs['m1_strict']['n']       == 8
+    assert fs['m1_loose']['n']        == 15
+    assert fs['no_m1_fvg']['n']       == 15   # 30 - 15
+    assert fs['any_strict']['n']      == 8    # m1_strict ⊃ cisd_strict (since 0..4 ⊂ 0..7)
+    assert fs['any_loose']['n']       == 15   # m1_loose  ⊃ cisd_loose
+    assert fs['cisd_strict_smt']['n'] == 5
+    assert fs['m1_strict_smt']['n']   == 8
+    assert fs['any_strict_smt']['n']  == 8
