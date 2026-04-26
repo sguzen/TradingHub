@@ -198,9 +198,10 @@ This `quarter_features.parquet` is the workhorse for the dashboard's interactive
 - Three-quarter conditionals (Q1+Q2+Q3 → Q4) deferred — 27 cells get thin per slice; easy to add later
 
 **E. Early-extreme persistence**
-- When `q_of_high == 1`: trivially true that Q1's high is the hour's high; the deeper stat is **distribution of overshoot** `(hour_high - q1_high)` for hours where Q1's high *failed* to hold
-- Mirrored for Q1's low
-- Same for Q4 (does the last quarter often print the hour extreme?)
+- Hold rate: `P(q_of_high == 1)` — % of hours where Q1's high was the hour's high (i.e. no later quarter exceeded it)
+- For hours where Q1's high failed to hold (`q_of_high != 1`), report the **distribution of overshoot** `(hour_high - q1_high)` — how much room above Q1's high was eventually printed
+- Mirrored analysis for Q1's low (hold rate + overshoot when it failed)
+- Same pair of stats for Q4: hold rate `P(q_of_high == 4)` and overshoot when Q4's high failed (which by construction means a later quarter had the high — but Q4 is the *last* quarter, so "Q4 failed" actually means an earlier quarter held it; report this as Q4-extreme persistence: how often is the last quarter's extreme also the hour extreme)
 
 **F. Q1-range expansion**
 - Bucket hours into Q1-range quintiles (auto-adapts to volatility regime per slice)
