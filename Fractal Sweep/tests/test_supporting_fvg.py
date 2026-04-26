@@ -244,3 +244,83 @@ def test_strict_implies_loose_invariant_random():
     # strict case, the property test is degenerate and should fail loudly.
     assert long_loose_only_seen,  "LONG: strict-false/loose-true case never exercised"
     assert short_loose_only_seen, "SHORT: strict-false/loose-true case never exercised"
+
+
+from helpers import NS_PER_MIN, BASE_TS, make_controlled_m1
+
+
+def _build_long_setup_with_known_geometry():
+    """Build a minimal LONG setup that triggers detect_setups_base end-to-end.
+
+    Reuses the bar shape from test_detection.py's `test_long_sweep_detected`,
+    which is known to produce a valid LONG setup.
+    """
+    prior = (24000, 24050, 23950, 24000)  # prior HTF candle
+    m1_bars = [
+        (23960, 23970, 23940, 23955),  # sweeps below 23950
+        (23955, 23960, 23948, 23952),  # still below
+        (23952, 23960, 23950, 23955),  # returns above 23950
+        (23960, 23965, 23955, 23958),  # bearish (CISD setup)
+        (23958, 23970, 23955, 23965),  # crosses above CISD level
+    ]
+    for _ in range(50):
+        m1_bars.append((23965, 23975, 23960, 23970))
+
+    cfg = dict(label='Test', sweep_tf_min=60, cisd_tf_min=5,
+               min_range=12, session_hrs=(7.0, 16.0))
+    tf_step = NS_PER_MIN * cfg['sweep_tf_min']
+
+    s_ts = np.array([BASE_TS, BASE_TS + tf_step], dtype='int64')
+    po, ph, pl, pc = prior
+    m1_opens = [b[0] for b in m1_bars]
+    m1_highs = [b[1] for b in m1_bars]
+    m1_lows  = [b[2] for b in m1_bars]
+    m1_closes = [b[3] for b in m1_bars]
+
+    s_arrs = dict(
+        ts_ns=s_ts,
+        open=np.array([po, m1_opens[0]], dtype='float64'),
+        high=np.array([ph, max(m1_highs)], dtype='float64'),
+        low=np.array([pl, min(m1_lows)], dtype='float64'),
+        close=np.array([pc, m1_closes[-1]], dtype='float64'),
+        trade_date=np.array(['2023-11-14', '2023-11-14']),
+        yr=np.array([2023, 2023], dtype='int32'),
+        dow=np.array([2, 2], dtype='int32'),
+        hr=np.array([9, 10], dtype='int32'),
+    )
+
+    m1_start = int(BASE_TS + tf_step)
+    m1 = make_controlled_m1(m1_bars, start_ts=m1_start)
+    m1['hr'][:] = 9
+
+    # CISD-TF: same as 1m (matches the test_detection.py convention)
+    c_arrs = dict(
+        ts_ns=m1['ts_ns'].copy(),
+        open=m1['open'].copy(),
+        high=m1['high'].copy(),
+        low=m1['low'].copy(),
+        close=m1['close'].copy(),
+        trade_date=m1['trade_date'].copy(),
+        yr=m1['yr'].copy(),
+        dow=m1['dow'].copy(),
+        hr=m1['hr'].copy(),
+    )
+
+    return m1, s_arrs, c_arrs, cfg
+
+
+def test_detect_setups_base_writes_four_fvg_flags():
+    """Smoke test: every trade row carries the four supporting-FVG flag
+    fields as booleans, and strict ⇒ loose holds per TF."""
+    m1, s_arrs, c_arrs, cfg = _build_long_setup_with_known_geometry()
+    rows, _ = ms.detect_setups_base(m1, s_arrs, c_arrs, '1H_5M', cfg)
+
+    assert len(rows) > 0, "expected at least one row from detect_setups_base"
+    for row in rows:
+        for key in ('passes_fvg_cisd_strict', 'passes_fvg_cisd_loose',
+                    'passes_fvg_1m_strict',  'passes_fvg_1m_loose'):
+            assert key in row, f"row missing {key}: keys are {list(row.keys())}"
+            assert isinstance(row[key], bool), f"{key} is {type(row[key])}, not bool"
+        # strict ⇒ loose invariant per TF
+        assert (not row['passes_fvg_cisd_strict']) or row['passes_fvg_cisd_loose']
+        assert (not row['passes_fvg_1m_strict'])   or row['passes_fvg_1m_loose']

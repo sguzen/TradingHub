@@ -1285,6 +1285,14 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
             else:
                 passes_f4 = bool(ret_close <= float(s_high[i - 1]))
 
+            # Default supporting-FVG flags. Real values are computed once we
+            # know entry_price and entry_idx (after CISD fires + entry bar
+            # resolved). The no-CISD / pre-entry path keeps these defaults.
+            passes_fvg_cisd_strict = False
+            passes_fvg_cisd_loose  = False
+            passes_fvg_1m_strict   = False
+            passes_fvg_1m_loose    = False
+
             base_row = dict(
                 date          = str(s_arrs['trade_date'][i]),
                 yr            = int(s_arrs['yr'][i]),
@@ -1300,6 +1308,10 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 cisd_mode     = 'CISD',
                 ref_lookback  = ref_lookback,
                 smt           = smt_divergence,
+                passes_fvg_cisd_strict = passes_fvg_cisd_strict,
+                passes_fvg_cisd_loose  = passes_fvg_cisd_loose,
+                passes_fvg_1m_strict   = passes_fvg_1m_strict,
+                passes_fvg_1m_loose    = passes_fvg_1m_loose,
             )
 
             if cisd_ts_ns is None:
@@ -1329,6 +1341,24 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
 
             # base_risk = |entry − sweep_extreme| = 1 full R-unit
             base_risk = abs(entry_price - sweep_extreme)
+
+            # ── Supporting FVG flags (computed at entry, scoped to anchor window) ──
+            # Scan CISD-TF candles for an unfilled same-side FVG between
+            # window start and entry. Then scan 1M bars over the same window.
+            cisd_window_start = int(np.searchsorted(c_arrs['ts_ns'], q1_start_ns, side='left'))
+            cisd_entry_idx    = int(np.searchsorted(c_arrs['ts_ns'], entry_ts_ns, side='left'))
+            passes_fvg_cisd_strict, passes_fvg_cisd_loose = find_supporting_fvg(
+                c_arrs, cisd_window_start, cisd_entry_idx,
+                sweep_extreme=float(sweep_extreme),
+                entry_price=entry_price,
+                direction=direction,
+            )
+            passes_fvg_1m_strict, passes_fvg_1m_loose = find_supporting_fvg(
+                m1_arrs, q1_s, entry_start,
+                sweep_extreme=float(sweep_extreme),
+                entry_price=entry_price,
+                direction=direction,
+            )
 
             # Entry must be on the correct side of the sweep extreme
             if direction == 'LONG'  and entry_price <= sweep_extreme:
@@ -1365,6 +1395,10 @@ def detect_setups_base(m1_arrs, s_arrs, c_arrs, model_key, model_cfg,
                 mfe_pct      = None,
                 mae_pct_hr   = None,
                 mfe_pct_hr   = None,
+                passes_fvg_cisd_strict = passes_fvg_cisd_strict,
+                passes_fvg_cisd_loose  = passes_fvg_cisd_loose,
+                passes_fvg_1m_strict   = passes_fvg_1m_strict,
+                passes_fvg_1m_loose    = passes_fvg_1m_loose,
             )
             base_rows.append(base_row)
             base_pending.append(dict(
