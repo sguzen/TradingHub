@@ -116,19 +116,18 @@ All changes confined to `engine/model_stats.py` and `tests/`.
 
 1. New helper near `find_cisd`:
    ```python
-   def find_supporting_fvgs(
-       arrs,                       # tuple of (opens, highs, lows, closes, ts_ns)
-       window_start_idx, window_end_idx,
+   def find_supporting_fvg(
+       arrs,                       # dict of OHLC numpy arrays (high, low, ...)
+       window_start_idx, entry_idx,
        sweep_extreme, entry_price, direction,
-       entry_idx,                  # index in this TF at/before which entry occurred
    ) -> tuple[bool, bool]:         # (strict, loose)
    ```
-   Scans `[window_start_idx, entry_idx)` for 3-bar FVGs of correct polarity,
-   verifies unfilled-at-entry, returns the two booleans. Vectorisable over the
-   small windows involved; correctness over speed for v1.
+   Scans `[window_start_idx + 2, entry_idx)` for 3-bar FVGs of correct
+   polarity, verifies unfilled-at-entry, returns the two booleans. Returns
+   early on the first strict hit. Correctness over speed for v1.
 
 2. Inside `detect_setups_base`, for each setup that reaches the entry phase,
-   call `find_supporting_fvgs` twice — once on `c_arrs` (CISD-TF) and once on
+   call `find_supporting_fvg` twice — once on `c_arrs` (CISD-TF) and once on
    `m1_arrs` (1M) — and write the four resulting flags onto the row.
 
 3. Inside `build_model_stats`, after `smt_summary` is built, build
@@ -138,7 +137,7 @@ All changes confined to `engine/model_stats.py` and `tests/`.
 
 ### `tests/`
 
-Unit tests for `find_supporting_fvgs` covering:
+Unit tests for `find_supporting_fvg` covering:
 
 - Bullish FVG strictly between SL and entry → strict True, loose True
 - Bullish FVG below entry but extending below SL → strict False, loose True
@@ -191,7 +190,7 @@ work.
 | File | Change |
 |---|---|
 | `engine/model_stats.py` | Add `find_supporting_fvgs` helper; call twice in `detect_setups_base`; add four flag fields to trade rows; add `fvg_summary` block to `build_model_stats`. |
-| `tests/test_<new>.py` | Unit tests for `find_supporting_fvgs` plus the strict-implies-loose invariant. |
+| `tests/test_<new>.py` | Unit tests for `find_supporting_fvg` plus the strict-implies-loose invariant. |
 | `model_stats.json` | Auto-regenerated; gains `fvg_summary` block per model × profile. |
 | `engine/CLAUDE.md`, `PIPELINE.md`, `.claude/rules/fractal-sweep.md` | Document the four new fields and `fvg_summary` after the engine run lands and we know whether to expose them. |
 
