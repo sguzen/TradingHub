@@ -239,9 +239,38 @@ Plus a model-specific flag:
 5. **Opposite structure threshold.** Same — initial heuristic: a body-sized opposite wick on the H1 (wick on the *opposite* side ≥ 50% of the body) is "opposite structure." To be refined.
 6. **HTF rejection definition.** Mentor uses H4 and daily liquidity. Initial: H1 close-direction wick takes out the recent H4 high/low (within last 24 H4 bars). To be refined.
 7. **":42" exact semantics.** "High formed after :42" — is that the timestamp of the bar that contains the high price, the *bar's start* time, or the *bar's close*? For v1, use the start-time of the 1m bar that contains the H1's high price.
+8. **OB rule fired on micro-breaks** — the loose formal OB definition caught one-tick "structural breaks" with tiny-body candles, patterns the mentor would never call OBs. Tightened in 2026-04-26 to require `min_body_ratio ≥ 0.5` (OB candle's body ≥ 50% of its range) and `min_break_displacement_pts ≥ 1.0` (NQ point) on the breaking bar. Both parameters are in `engine/models/h1_continuation.py` constants and can be parameter-swept in Phase 4.
+9. **Inversion-FVG dropped from v1 entry triggers** — the formal INV_FVG definition produced 19% draw-hit on 12y NQ data while tightened OB produced 68%. INV_FVG was actively dragging down the overall WR. The primitive remains in `engine/m1_patterns.py` but is excluded from the H1 Continuation candidate list for v1. Likely the formal definition doesn't match the mentor's intent for "best in trading" pattern; needs re-formalization in Phase 4+.
 
 ### Backtest results
-_(filled in during Phase 4)_
+
+**Run date:** 2026-04-26
+**Data:** NQ 1-minute, 2014-08-31 → 2026-04-24 (~12 years)
+**Configuration:** Tightened OB (`min_body_ratio=0.5, min_break_displacement_pts=1.0`); INV_FVG dropped; Breaker kept (n=17 over 12y, contributes negligibly)
+
+#### Baseline (no filter chips active)
+- **N**: 774 trades (~65/year)
+- **1R Win Rate**: 68.6% [Wilson 95% CI: 65.2%, 71.8%]
+- **Draw-hit rate** (the mentor's actual edge claim, ~80%): **67.1%**
+- **EV**: +0.372R per trade
+- **Profit factor**: 2.19
+- **Year-by-year**: stable. 13/13 years above 50% 1R-WR. Range 58% (2021) to 88% (2014, n=8). Two years above 80% 1R-WR (2014, 2017).
+
+#### Best filter combo (most picky)
+Filters: `aggressive_body + avoid_lunch + distribution_candle + no_opposite_struct_h1 + within_5m_structure`
+- **N**: 115 trades (~10/year)
+- **1R Win Rate**: 72.2%
+- **Draw-hit rate**: **76.5%** (within 3.5 pp of mentor's 80% claim, Wilson 95% CI lower bound ~68%)
+- **EV**: +0.443R per trade
+
+#### Notable breakdowns
+- **Long vs Short**: roughly symmetric. Long n=421 WR 68.5%, Short n=353 WR 68.8% — no directional bias detected.
+- **Pattern**: 97.8% Order Block (n=757, 68.0% draw-hit), 2.2% Breaker (n=17, 23.5% draw-hit — small sample noise).
+- **Risk distribution**: median 2.75 NQ pts, p25 1.0, p75 5.5. Mean 4.0 pts. The MAX_RISK_PTS=20 gate is rarely binding.
+- **Expired trades**: 0 (all trades resolved within OUTCOME_MAX_BARS=1440).
+
+#### Walk-forward
+_Not yet computed; deferred to Phase 5._
 
 ---
 
