@@ -61,3 +61,5 @@ def test_classify_first_row_excluded():
     result = bs.classify(hourly)
     # First (only) row has null prev_hour_high → not classified
     assert result.iloc[0]['breakout'] == 'no_prev'
+    # Also verify h1_open_vs_prev_mid is null for no_prev rows
+    assert pd.isna(result.iloc[0]['h1_open_vs_prev_mid'])

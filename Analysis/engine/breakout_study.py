@@ -34,5 +34,7 @@ def classify(hourly: pd.DataFrame) -> pd.DataFrame:
         df['open'] > df['prev_hour_mid'], 'above',
         np.where(df['open'] < df['prev_hour_mid'], 'below', 'equal')
     )
-    df.loc[no_prev_mask, 'h1_open_vs_prev_mid'] = None
+    # Use pd.NA so downstream code can check with pd.isna(); plain None
+    # would be silently coerced to float NaN due to the string-typed column.
+    df.loc[no_prev_mask, 'h1_open_vs_prev_mid'] = pd.NA
     return df
