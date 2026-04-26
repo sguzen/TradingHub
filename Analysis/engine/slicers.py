@@ -9,17 +9,29 @@ import pandas as pd
 
 MetricFn = Callable[[pd.DataFrame], dict[str, Any]]
 
+_RESERVED = frozenset({'count'})
+
 
 def _apply(df: pd.DataFrame, by: list[str] | None, metric_fn: MetricFn) -> pd.DataFrame:
     if by is None:
-        rec = metric_fn(df)
+        rec = dict(metric_fn(df))
+        if _RESERVED & rec.keys():
+            raise ValueError(
+                f"metric_fn returned reserved key(s): {sorted(_RESERVED & rec.keys())!r}"
+            )
         rec['count'] = len(df)
         return pd.DataFrame([rec])
     rows = []
+    reserved = _RESERVED | set(by)
     for keys, sub in df.groupby(by):
         if not isinstance(keys, tuple):
             keys = (keys,)
-        rec = metric_fn(sub)
+        rec = dict(metric_fn(sub))
+        if reserved & rec.keys():
+            raise ValueError(
+                f"metric_fn returned reserved key(s) overlapping with count or {by!r}: "
+                f"{sorted(reserved & rec.keys())!r}"
+            )
         rec['count'] = len(sub)
         for k_name, k_val in zip(by, keys):
             rec[k_name] = k_val

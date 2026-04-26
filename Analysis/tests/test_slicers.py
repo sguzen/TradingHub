@@ -53,3 +53,21 @@ def test_slice_by_hour_dow_grid():
 def test_count_column_always_present():
     out = slicers.slice_by_year(_sample_df(), _mean_metric)
     assert 'count' in out.columns
+
+
+def test_metric_fn_returning_reserved_count_raises():
+    def bad_metric(sub):
+        return {'count': 99}  # collides with auto-attached count
+
+    with pytest.raises(ValueError, match='count'):
+        slicers.slice_aggregate(_sample_df(), bad_metric)
+    with pytest.raises(ValueError, match='count'):
+        slicers.slice_by_year(_sample_df(), bad_metric)
+
+
+def test_metric_fn_returning_slice_key_raises():
+    def bad_metric(sub):
+        return {'year': 9999}  # collides with the groupby key column
+
+    with pytest.raises(ValueError, match='year'):
+        slicers.slice_by_year(_sample_df(), bad_metric)
