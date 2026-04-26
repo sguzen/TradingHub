@@ -102,45 +102,46 @@ def _h1_bars(anchor_ts_str: str, *, open_: float, high: float, low: float, close
 def _bullish_continuation_fixture():
     """Two H1 candles: prior closes lower, current closes ABOVE prior.high.
 
-    Then 10 minutes of post-close M1 bars forming a long OB on a PULLBACK below
-    prior.high (the draw): the breakout retraces back through prior.high=105.0
-    forming an M1 OB whose entry is below 105.0 (so entry_price < draw geometry
-    is satisfied).
+    Then post-close M1 bars forming a long OB with REAL displacement
+    (≥ OB_MIN_BREAK_DISPLACEMENT_PTS = 1.0) and a clear-body OB candle
+    (body-ratio ≥ OB_MIN_BODY_RATIO = 0.5). The OB pulls back BELOW
+    prior.high (the draw=105.0) so entry_price < draw.
     """
     # Prior H1: 09:00-10:00. open=100, high=105, low=99, close=104.
     # extreme high at minute 50 (>=42, so passes T42).
     prior = _h1_bars("2024-01-02 09:00", open_=100.0, high=105.0, low=99.0, close=104.0,
                       em_high_minute=50, em_low_minute=5)
-    # Current H1: 10:00-11:00. open=104, close=107 (> prior.high=105 → bullish continuation).
-    current = _h1_bars("2024-01-02 10:00", open_=104.0, high=107.5, low=103.0, close=107.0,
+    # Current H1: 10:00-11:00. open=104, close=110 (> prior.high=105 → bullish continuation).
+    current = _h1_bars("2024-01-02 10:00", open_=104.0, high=110.5, low=103.0, close=110.0,
                         em_high_minute=55, em_low_minute=10)
-    # Post-close window: 11:00-11:10. Price pulls back BELOW prior.high=105, forms an
-    # M1 OB whose entry is at 104.5 (below draw), then resumes up.
-    # bar 0: down-close (OB candidate). open=104.8, close=104.3, high=104.9, low=104.0.
-    #   entry=104.8, invalidation=104.0, risk=0.8.
-    # bar 1: up-close, no OB violation, no high break (high <= 104.9, low >= 104.0).
-    # bar 2: higher high (high=105.0 > 104.9) → OB confirmed.
+    # Post-close window: 11:00-11:10. Price pulls back BELOW prior.high=105, forms a
+    # CLEAR-BODY long M1 OB with strong displacement on the break.
+    # bar 0: clear-body down-close OB candidate. o=104.5, c=103.0, h=104.6, l=102.5.
+    #   body=1.5, range=2.1, body-ratio≈0.71 ≥ 0.5 ✓
+    #   entry=104.5, invalidation=102.5, risk=2.0
+    # bar 1: small up-close, no break of 104.6, no violation of 102.5.
+    # bar 2: STRONG break — high=106.0, exceeding running max 104.6 by 1.4 pts ≥ 1.0 ✓
     base11 = pd.Timestamp("2024-01-02 11:00", tz="America/New_York")
     post = [
         {"ts": base11 + pd.Timedelta(minutes=0),
-         "open": 104.8, "high": 104.9, "low": 104.0, "close": 104.3, "volume": 10},  # OB candidate (down-close)
+         "open": 104.5, "high": 104.6, "low": 102.5, "close": 103.0, "volume": 10},  # clear-body OB
         {"ts": base11 + pd.Timedelta(minutes=1),
-         "open": 104.3, "high": 104.85, "low": 104.1, "close": 104.7, "volume": 10},  # no break
+         "open": 103.0, "high": 104.5, "low": 102.8, "close": 104.2, "volume": 10},  # no break
         {"ts": base11 + pd.Timedelta(minutes=2),
-         "open": 104.7, "high": 105.0, "low": 104.5, "close": 104.9, "volume": 10},  # break (105.0 > 104.9)
+         "open": 104.2, "high": 106.0, "low": 104.0, "close": 105.8, "volume": 10},  # 1.4-pt displacement
     ]
     for i in range(3, 10):
         post.append({
             "ts": base11 + pd.Timedelta(minutes=i),
-            "open": 104.9, "high": 105.1, "low": 104.8, "close": 105.0, "volume": 10,
+            "open": 105.8, "high": 106.5, "low": 105.0, "close": 106.0, "volume": 10,
         })
-    # Add follow-on bars so outcome resolver can run. After M1 OB, price runs up;
-    # entry=104.8, sl=104.0, risk=0.8, tp = 104.8 + 0.8 = 105.6.
+    # Follow-on so outcome resolver can run. entry=104.5, sl=102.5, risk=2.0,
+    # tp = 104.5 + 2.0 = 106.5. Price drifts up to 107.
     follow = []
     for i in range(10, 600):
         follow.append({
             "ts": base11 + pd.Timedelta(minutes=i),
-            "open": 105.0, "high": 106.0, "low": 104.9, "close": 105.5, "volume": 10,
+            "open": 106.0, "high": 107.0, "low": 105.8, "close": 106.5, "volume": 10,
         })
     rows = prior + current + post + follow
     return _build_bars(rows)
@@ -150,35 +151,37 @@ def _bearish_continuation_fixture():
     """Mirror of bullish. Prior closes higher, current closes BELOW prior.low.
 
     Post-close window: price PULLS BACK UP through prior.low (the draw=105.0),
-    forms a short M1 OB whose entry is above 105.0. Then drops back down.
+    forms a short M1 OB with REAL displacement and clear body. Then drops back.
     """
     prior = _h1_bars("2024-01-02 09:00", open_=110.0, high=111.0, low=105.0, close=106.0,
                       em_high_minute=5, em_low_minute=50)
-    current = _h1_bars("2024-01-02 10:00", open_=106.0, high=106.5, low=102.0, close=103.0,
+    current = _h1_bars("2024-01-02 10:00", open_=106.0, high=106.5, low=99.0, close=100.0,
                         em_high_minute=10, em_low_minute=55)
     base11 = pd.Timestamp("2024-01-02 11:00", tz="America/New_York")
-    # Short OB: bar 0 up-close (entry > draw=105). bar 2 makes lower-low.
-    # bar 0: open=105.2, close=105.7, high=106.0, low=105.1. entry=105.2, invalid=106.0, risk=0.8.
-    # bar 1: down-close, no high break (high <= 106.0), no low violation (low >= 105.1).
-    # bar 2: lower-low (low < 105.1).
+    # Short OB with clear body + strong displacement.
+    # bar 0: clear-body up-close OB. o=105.5, c=107.0, h=107.5, l=105.4.
+    #   body=1.5, range=2.1, body-ratio≈0.71 ≥ 0.5 ✓
+    #   entry=105.5 (>draw=105 ✓), invalid=107.5, risk=2.0
+    # bar 1: small down-close, no break.
+    # bar 2: STRONG lower low — low=104.0 below running min 105.4 by 1.4 pts ≥ 1.0 ✓
     post = [
         {"ts": base11 + pd.Timedelta(minutes=0),
-         "open": 105.2, "high": 106.0, "low": 105.1, "close": 105.7, "volume": 10},  # up-close OB
+         "open": 105.5, "high": 107.5, "low": 105.4, "close": 107.0, "volume": 10},  # clear-body OB
         {"ts": base11 + pd.Timedelta(minutes=1),
-         "open": 105.7, "high": 105.9, "low": 105.15, "close": 105.3, "volume": 10},  # no break
+         "open": 107.0, "high": 107.2, "low": 105.5, "close": 105.8, "volume": 10},  # no break
         {"ts": base11 + pd.Timedelta(minutes=2),
-         "open": 105.3, "high": 105.5, "low": 105.0, "close": 105.1, "volume": 10},  # lower-low (105.0 < 105.1)
+         "open": 105.8, "high": 106.0, "low": 104.0, "close": 104.2, "volume": 10},  # 1.4-pt displacement
     ]
     for i in range(3, 10):
         post.append({
             "ts": base11 + pd.Timedelta(minutes=i),
-            "open": 105.1, "high": 105.15, "low": 104.8, "close": 104.9, "volume": 10,
+            "open": 104.2, "high": 104.5, "low": 103.5, "close": 104.0, "volume": 10,
         })
     follow = []
     for i in range(10, 600):
         follow.append({
             "ts": base11 + pd.Timedelta(minutes=i),
-            "open": 104.9, "high": 105.0, "low": 103.5, "close": 104.0, "volume": 10,
+            "open": 104.0, "high": 104.5, "low": 102.5, "close": 103.0, "volume": 10,
         })
     rows = prior + current + post + follow
     return _build_bars(rows)

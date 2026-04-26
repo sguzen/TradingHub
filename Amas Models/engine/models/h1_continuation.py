@@ -35,6 +35,13 @@ from engine.outcomes import Setup
 
 POST_CLOSE_WINDOW = pd.Timedelta("10min")
 
+# OB pattern tightening — empirically chosen after 5-trade hand-check on 12y NQ
+# revealed the loose definition catches one-tick "structural breaks" the mentor
+# would never call Order Blocks. See docs/model_specs.md "Open questions" #1
+# under H1 Continuation. Both can be parameter-swept in Phase 4.
+OB_MIN_BODY_RATIO = 0.5            # OB candle's body ≥ 50% of its range
+OB_MIN_BREAK_DISPLACEMENT_PTS = 1.0  # break must exceed running extreme by ≥1 NQ point
+
 
 # --------------------------------------------------------------------------- #
 # Setup subclass with H1-Continuation-specific metadata
@@ -168,10 +175,27 @@ def detect_setups(
             continue  # no post-close bars (data gap or end-of-data)
 
         # 3c. Find first M1 pattern in trade direction with valid entry-vs-draw geometry.
+        # Apply OB-tightening filters: body-ratio + break-displacement (see constants
+        # at top of module).
+        #
+        # v1 entry triggers: OB and Breaker only. Inversion-FVG is excluded from
+        # the model after a 12y backtest revealed our formal INV_FVG definition
+        # produces ~19% draw-hit (worse than coin flip), while tightened OB
+        # produces ~68% draw-hit. The Inversion-FVG primitive is preserved in
+        # engine.m1_patterns for future models, but our formalization doesn't
+        # match the mentor's intent for this model. See docs/model_specs.md
+        # "Open questions" — this is a flagged Phase 4+ item.
         candidates: list[m1_patterns.M1Pattern] = []
-        candidates.extend(m1_patterns.find_order_blocks(slice_m1, direction))
-        candidates.extend(m1_patterns.find_breakers(slice_m1, direction))
-        candidates.extend(m1_patterns.find_inversion_fvgs(slice_m1, direction))
+        candidates.extend(m1_patterns.find_order_blocks(
+            slice_m1, direction,
+            min_body_ratio=OB_MIN_BODY_RATIO,
+            min_break_displacement_pts=OB_MIN_BREAK_DISPLACEMENT_PTS,
+        ))
+        candidates.extend(m1_patterns.find_breakers(
+            slice_m1, direction,
+            min_body_ratio=OB_MIN_BODY_RATIO,
+            min_break_displacement_pts=OB_MIN_BREAK_DISPLACEMENT_PTS,
+        ))
         if not candidates:
             continue
         candidates.sort(key=lambda p: p.formed_ts)

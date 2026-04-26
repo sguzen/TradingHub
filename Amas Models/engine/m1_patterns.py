@@ -62,7 +62,12 @@ class M1Pattern:
 # --------------------------------------------------------------------------- #
 
 
-def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[int, int]]:
+def _find_obs_indexed(
+    bars: pd.DataFrame,
+    direction: Direction,
+    min_body_ratio: float = 0.0,
+    min_break_displacement_pts: float = 0.0,
+) -> list[tuple[int, int]]:
     """Internal helper: return list of (i, j) integer-position pairs for OBs.
 
     For LONG: bars[i] is down-close, bars[j].high > max(bars[i:j].high), and no
@@ -75,6 +80,15 @@ def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[in
 
     Returns positional indices into `bars` (0..len(bars)-1), NOT pandas Index
     labels — the caller is responsible for pulling .iloc / .iat off them.
+
+    Filters (default off — pass-through behavior unchanged):
+
+    - `min_body_ratio`: |close - open| / max(high - low, eps) of the OB candle
+      (bar `i`) must be ≥ this ratio. Filters out doji / pin-bar OBs that the
+      mentor would not call real Order Blocks. Default 0.0 = no filter.
+    - `min_break_displacement_pts`: the breaking bar (bar `j`) must violate the
+      running extreme by at least this many points. Filters out one-tick pokes
+      that don't reflect real impulse. Default 0.0 = no filter.
     """
     n = len(bars)
     if n < 2:
@@ -88,6 +102,13 @@ def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[in
     out: list[tuple[int, int]] = []
 
     for i in range(n - 1):
+        # Body-ratio gate on the OB candle itself
+        if min_body_ratio > 0.0:
+            rng_i = max(highs[i] - lows[i], 1e-9)
+            body_i = abs(closes[i] - opens[i])
+            if (body_i / rng_i) < min_body_ratio:
+                continue
+
         if direction == "long":
             if not (closes[i] < opens[i]):  # need DOWN-close
                 continue
@@ -97,6 +118,10 @@ def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[in
             for j in range(i + 1, n):
                 # Check: does bars[j].high break the running max?
                 if highs[j] > running_max_high:
+                    # Displacement gate: the break must be at least N points
+                    if (highs[j] - running_max_high) < min_break_displacement_pts:
+                        # Not enough displacement; abort this OB candidate
+                        break
                     out.append((i, j))
                     break
                 # Otherwise check invalidation BEFORE updating running max.
@@ -112,6 +137,8 @@ def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[in
             running_min_low = ob_low
             for j in range(i + 1, n):
                 if lows[j] < running_min_low:
+                    if (running_min_low - lows[j]) < min_break_displacement_pts:
+                        break
                     out.append((i, j))
                     break
                 if highs[j] > ob_high:
@@ -121,12 +148,25 @@ def _find_obs_indexed(bars: pd.DataFrame, direction: Direction) -> list[tuple[in
     return out
 
 
-def find_order_blocks(bars: pd.DataFrame, direction: Direction) -> list[M1Pattern]:
+def find_order_blocks(
+    bars: pd.DataFrame,
+    direction: Direction,
+    min_body_ratio: float = 0.0,
+    min_break_displacement_pts: float = 0.0,
+) -> list[M1Pattern]:
     """Find all OB patterns of `direction` in the slice `bars`.
 
     Args:
         bars: M1 bars DataFrame (same dtypes as engine.db.load_bars).
         direction: "long" or "short".
+        min_body_ratio: filter — OB candle's body must be ≥ this fraction of
+            its total range. Default 0.0 = no filter. Use ~0.5 to require
+            at least an even-body candle, ~0.6 to require a clear directional
+            body (mentor's "aggressive candle" notion).
+        min_break_displacement_pts: filter — the breaking bar must violate
+            the OB's running extreme by at least this many points. Default
+            0.0 = no filter. Use ~1.0 on NQ to filter out one-tick pokes
+            that don't reflect real impulse.
 
     Returns:
         List of M1Pattern (kind="OB"), sorted by formed_ts ascending.
@@ -138,7 +178,11 @@ def find_order_blocks(bars: pd.DataFrame, direction: Direction) -> list[M1Patter
     if n < 2:
         return []
 
-    pairs = _find_obs_indexed(bars, direction)
+    pairs = _find_obs_indexed(
+        bars, direction,
+        min_body_ratio=min_body_ratio,
+        min_break_displacement_pts=min_break_displacement_pts,
+    )
     ts = bars["ts"].to_numpy()
     opens = bars["open"].to_numpy()
     highs = bars["high"].to_numpy()
@@ -172,7 +216,12 @@ def find_order_blocks(bars: pd.DataFrame, direction: Direction) -> list[M1Patter
 # --------------------------------------------------------------------------- #
 
 
-def find_breakers(bars: pd.DataFrame, direction: Direction) -> list[M1Pattern]:
+def find_breakers(
+    bars: pd.DataFrame,
+    direction: Direction,
+    min_body_ratio: float = 0.0,
+    min_break_displacement_pts: float = 0.0,
+) -> list[M1Pattern]:
     """Find all Breaker patterns of `direction` in the slice `bars`.
 
     A LONG breaker = a SHORT-direction OB at (i, j) that is then violated to
@@ -182,6 +231,12 @@ def find_breakers(bars: pd.DataFrame, direction: Direction) -> list[M1Pattern]:
 
     SHORT mirrors: a LONG-direction OB violated downward then re-tested from
     below.
+
+    Args:
+        bars, direction: as in find_order_blocks.
+        min_body_ratio, min_break_displacement_pts: filters applied to the
+            SOURCE OB (the failed OB that becomes the breaker). See
+            find_order_blocks for semantics. Defaults 0.0 = no filter.
 
     Returns: list of M1Pattern (kind="BREAKER") sorted by formed_ts ascending.
     """
@@ -194,7 +249,11 @@ def find_breakers(bars: pd.DataFrame, direction: Direction) -> list[M1Pattern]:
 
     # Opposite-direction OBs are the SOURCE of breakers in this direction.
     opp = "short" if direction == "long" else "long"
-    ob_pairs = _find_obs_indexed(bars, opp)
+    ob_pairs = _find_obs_indexed(
+        bars, opp,
+        min_body_ratio=min_body_ratio,
+        min_break_displacement_pts=min_break_displacement_pts,
+    )
     if not ob_pairs:
         return []
 
