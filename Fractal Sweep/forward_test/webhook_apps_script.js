@@ -29,6 +29,8 @@ const SHEET_NAME = "Trades";
 // Map from JSON payload field → spreadsheet column header.
 // The indicator emits short names (entry, sl, tp); the sheet uses prefixed
 // names (planned_entry, planned_sl, planned_tp). Translate here.
+// We also write planned_risk_pts directly from the payload's risk_pts so
+// it doesn't depend on the sheet-side formula being intact.
 const FIELD_TO_HEADER = {
   date:        "date",
   time_et:     "time_et",
@@ -38,6 +40,7 @@ const FIELD_TO_HEADER = {
   entry:       "planned_entry",
   sl:          "planned_sl",
   tp:          "planned_tp",
+  risk_pts:    "planned_risk_pts",
   contracts:   "contracts",
   notes:       "notes",
 };
