@@ -114,3 +114,39 @@ def attach_followthrough(classified: pd.DataFrame, minutes: pd.DataFrame) -> pd.
     df['takeout_quarter_of_h2'] = pd.array(takeout_q, dtype='Int64')
     df['immediate_reversal'] = pd.array(reversal, dtype='boolean')
     return df
+
+
+def breakout_metric(events: pd.DataFrame) -> dict:
+    """Aggregation function fed into a slicer."""
+    n_total = len(events)
+    bull = events[events['breakout'] == 'bullish']
+    bear = events[events['breakout'] == 'bearish']
+    n_bull, n_bear = len(bull), len(bear)
+
+    def _rate(sub: pd.DataFrame, col: str) -> float:
+        s = sub[col].dropna()
+        return float(s.mean()) if len(s) else float('nan')
+
+    return {
+        'n_total': n_total,
+        'n_bullish': n_bull,
+        'n_bearish': n_bear,
+        'bullish_breakout_rate': n_bull / n_total if n_total else float('nan'),
+        'bearish_breakout_rate': n_bear / n_total if n_total else float('nan'),
+        'bullish_followthrough_rate': _rate(bull, 'followthrough'),
+        'bearish_followthrough_rate': _rate(bear, 'followthrough'),
+        'bullish_immediate_reversal_rate': _rate(bull, 'immediate_reversal'),
+        'bearish_immediate_reversal_rate': _rate(bear, 'immediate_reversal'),
+    }
+
+
+def build_summaries(events: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Return {summary_name: dataframe} dict for all 5 slicing dimensions."""
+    import slicers
+    return {
+        'aggregate': slicers.slice_aggregate(events, breakout_metric),
+        'by_year': slicers.slice_by_year(events, breakout_metric),
+        'by_hour': slicers.slice_by_hour(events, breakout_metric),
+        'by_dow': slicers.slice_by_dow(events, breakout_metric),
+        'grid': slicers.slice_by_hour_dow(events, breakout_metric),
+    }

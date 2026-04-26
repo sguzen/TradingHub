@@ -173,3 +173,20 @@ def test_followthrough_no_takeout_returns_pd_na():
     assert h1_row['breakout'] == 'bullish'
     assert h1_row['followthrough'] == False
     assert pd.isna(h1_row['takeout_quarter_of_h2'])
+
+
+def test_breakout_metric_returns_rates():
+    """Build a tiny events df and run the metric function directly."""
+    events = pd.DataFrame({
+        'breakout': ['bullish', 'bullish', 'bearish', 'neither', 'no_prev'],
+        'followthrough': [True, False, True, None, None],
+        'immediate_reversal': [False, True, False, None, None],
+        'h1_open_vs_prev_mid': ['above', 'below', 'above', None, None],
+    })
+    rec = bs.breakout_metric(events)
+    assert rec['n_total'] == 5
+    assert rec['n_bullish'] == 2
+    assert rec['n_bearish'] == 1
+    assert rec['bullish_followthrough_rate'] == 0.5
+    assert rec['bearish_followthrough_rate'] == 1.0
+    assert rec['bullish_immediate_reversal_rate'] == 0.5
