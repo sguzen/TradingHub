@@ -213,3 +213,79 @@ No changes to:
 - Combining FVG with F3/F4 in the SMT-confluence aggregates (we only test
   against SMT-alone; F3/F4 confluence is a follow-up if FVG clears the
   decision criterion)
+
+## Results (2026-04-26)
+
+Engine ran end-to-end on the full 12y NQ dataset after Tasks 1–10 landed.
+Baseline `simple_1r` WR: 49.7% on `1H_5M`, 49.2% on `30M_3M`. SMT-only WR:
+57.5% on `1H_5M` (n=2,452), 56.9% on `30M_3M` (n=4,382).
+
+### `1H_5M` `fvg_summary` (simple_1r)
+
+| Cell | n | WR | EV | Δ baseline WR | Δ SMT-only WR |
+|---|---:|---:|---:|---:|---:|
+| `cisd_strict` | 4,087 | 0.502 | +0.005 | +0.5% | — |
+| `cisd_loose` | 4,087 | 0.502 | +0.005 | +0.5% | — |
+| `no_cisd_fvg` | 8,126 | 0.494 | −0.012 | −0.3% | — |
+| `m1_strict` | 11,197 | 0.502 | +0.004 | +0.5% | — |
+| `m1_loose` | 11,197 | 0.502 | +0.004 | +0.5% | — |
+| `no_m1_fvg` | 1,016 | 0.440 | −0.120 | −5.7% | — |
+| `any_strict` | 11,266 | 0.503 | +0.005 | +0.6% | — |
+| `any_loose` | 11,266 | 0.503 | +0.005 | +0.6% | — |
+| `cisd_strict_smt` | 751 | 0.554 | +0.108 | +5.7% | **−2.1%** |
+| `m1_strict_smt` | 2,251 | 0.576 | +0.152 | +7.9% | **+0.1%** |
+| `any_strict_smt` | 2,271 | 0.576 | +0.153 | +8.0% | **+0.1%** |
+
+### `30M_3M` `fvg_summary` (simple_1r)
+
+| Cell | n | WR | EV | Δ baseline WR | Δ SMT-only WR |
+|---|---:|---:|---:|---:|---:|
+| `cisd_strict` | 6,407 | 0.503 | +0.007 | +1.1% | — |
+| `cisd_loose` | 6,407 | 0.503 | +0.007 | +1.1% | — |
+| `no_cisd_fvg` | 14,071 | 0.487 | −0.026 | −0.5% | — |
+| `m1_strict` | 17,026 | 0.494 | −0.011 | +0.2% | — |
+| `m1_loose` | 17,026 | 0.494 | −0.011 | +0.2% | — |
+| `no_m1_fvg` | 3,452 | 0.481 | −0.039 | −1.1% | — |
+| `any_strict` | 17,207 | 0.495 | −0.011 | +0.3% | — |
+| `any_loose` | 17,207 | 0.495 | −0.011 | +0.3% | — |
+| `cisd_strict_smt` | 1,206 | 0.542 | +0.085 | +5.0% | **−2.7%** |
+| `m1_strict_smt` | 3,621 | 0.563 | +0.126 | +7.1% | **−0.7%** |
+| `any_strict_smt` | 3,659 | 0.563 | +0.125 | +7.1% | **−0.7%** |
+
+### Verdict per decision criterion
+
+- Standalone edge ≥ +3% with N ≥ 500: **no cell qualifies on either model.** Best
+  standalone is `30M_3M.cisd_strict` at +1.1%.
+- Stacks with SMT ≥ +1% over SMT-alone with N ≥ 200: **no cell qualifies.**
+  Best confluence is `1H_5M.any_strict_smt` at +0.1% — flat. `30M_3M`'s
+  confluences are all slightly negative vs SMT-alone.
+
+**No cell promotes.** The four flag fields stay on trade rows for future
+reference (cheap to keep), but no dashboard chip is added and no Pine
+indicator change ships.
+
+### What we learned
+
+1. **Strict ≡ loose at scale.** Every cell shows identical `n` between
+   strict and loose. The `bottom ≥ sweep_extreme` constraint is essentially
+   always satisfied when an FVG forms above the sweep wick (`high[i-2]` is
+   typically well above the lowest sweep low by the time the displacement
+   forms). The strict/loose distinction we built doesn't carve out a
+   meaningfully different cohort. Future work: if we want a tighter
+   "supporting FVG" filter, the discriminator must be something else —
+   e.g. distance from FVG to entry, FVG size as a fraction of risk, or
+   whether the CISD bar itself creates the FVG.
+
+2. **FVG and SMT are redundant.** `m1_strict_smt` (n=2,251) lands at
+   essentially the same WR as `smt`-alone (n=2,452). The 200 setups SMT
+   loses by also requiring an FVG don't move WR. SMT alone already
+   captures the displacement signal we hoped FVG would refine.
+
+3. **Negative-signal asymmetry is real but unactionable.** `no_m1_fvg`
+   on `1H_5M` is 44.0% WR (1,016 of 12,213 setups, 8.3%). Excluding
+   FVG-less setups removes 8% of trades for ~0.5% baseline WR lift —
+   below the noise floor and economically marginal.
+
+4. **The plan's "promote if standalone ≥ +3%" bar was the right
+   gate.** Without it we might have shipped a chip on +1.1% +1,706
+   net-trades signal that adds no real edge.
