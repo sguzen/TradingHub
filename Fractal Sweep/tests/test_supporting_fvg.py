@@ -95,3 +95,21 @@ def test_bullish_fvg_filled_before_entry_both_false():
     )
     assert strict is False
     assert loose is False
+
+
+def test_bearish_fvg_does_not_count_for_long():
+    # All bars contain a bearish 3-bar gap but no bullish gap. Long trade.
+    bars = [
+        (110, 112, 108, 109),  # 0 — low=108
+        (109, 110, 106, 107),  # 1
+        (107, 105, 102, 104),  # 2 — high=105 < low[0]=108 → bearish FVG (105, 108)
+        (104, 105, 100, 102),
+        (102, 104,  98, 100),  # entry below — but trade is LONG so wrong-side
+    ]
+    arrs = _arrs(bars)
+    strict, loose = ms.find_supporting_fvg(
+        arrs, window_start_idx=0, entry_idx=4,
+        sweep_extreme=95.0, entry_price=102.0, direction='LONG',
+    )
+    assert strict is False
+    assert loose is False
