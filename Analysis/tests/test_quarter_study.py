@@ -72,3 +72,85 @@ def test_build_features_handles_empty_input():
                                             'q_high_minute', 'q_low_minute'])
     feats = qs.build_features(empty_hourly, empty_quarters)
     assert len(feats) == 0
+
+
+def _synthetic_features(n=20):
+    """Build a small synthetic feature df with known structure for metric tests."""
+    rng = np.random.default_rng(42)
+    df = pd.DataFrame({
+        'q_of_high': rng.integers(1, 5, n),
+        'q_of_low': rng.integers(1, 5, n),
+        'extreme_first': rng.choice(['H', 'L'], n),
+        'q1_dir': rng.choice([-1, 0, 1], n),
+        'q2_dir': rng.choice([-1, 0, 1], n),
+        'q3_dir': rng.choice([-1, 0, 1], n),
+        'q4_dir': rng.choice([-1, 0, 1], n),
+        'q1_range': rng.uniform(1, 10, n),
+        'q2_range': rng.uniform(1, 10, n),
+        'q3_range': rng.uniform(1, 10, n),
+        'q4_range': rng.uniform(1, 10, n),
+        'q1_body': rng.uniform(0, 5, n),
+        'q2_body': rng.uniform(0, 5, n),
+        'q3_body': rng.uniform(0, 5, n),
+        'q4_body': rng.uniform(0, 5, n),
+        'q1_high': rng.uniform(100, 110, n),
+        'q1_low': rng.uniform(90, 100, n),
+        'q4_high': rng.uniform(100, 110, n),
+        'q4_low': rng.uniform(90, 100, n),
+        'hour_range': rng.uniform(5, 20, n),
+        'hour_dir': rng.choice([-1, 0, 1], n),
+        'hour_high': rng.uniform(105, 115, n),
+        'hour_low': rng.uniform(85, 95, n),
+        'year': 2024,
+        'dow': 1,
+        'hour_of_day_et': 10,
+    })
+    return df
+
+
+def test_study_a_returns_q_of_high_distribution():
+    df = _synthetic_features()
+    rec = qs.study_a_metric(df)
+    # Should have keys for q1..q4 high and low pcts
+    assert 'q_of_high_q1_pct' in rec
+    assert 'q_of_low_q4_pct' in rec
+    assert 0 <= rec['q_of_high_q1_pct'] <= 1
+
+
+def test_study_b_returns_extreme_first_pct():
+    df = _synthetic_features()
+    rec = qs.study_b_metric(df)
+    assert 'extreme_first_H_pct' in rec
+    assert 'extreme_first_L_pct' in rec
+
+
+def test_study_c_returns_per_quarter_directional_rates():
+    df = _synthetic_features()
+    rec = qs.study_c_metric(df)
+    for q in (1, 2, 3, 4):
+        assert f'q{q}_up_pct' in rec
+        assert f'q{q}_down_pct' in rec
+        assert f'q{q}_avg_range' in rec
+
+
+def test_study_d_q1_to_hour_dir():
+    df = _synthetic_features()
+    rec = qs.study_d_metric(df)
+    # P(hour_dir=+1 | q1_dir=+1)
+    assert 'p_hour_up_given_q1_up' in rec
+    assert 'p_q4_reversal_given_q1_dir' in rec
+
+
+def test_study_e_q1_high_hold_rate():
+    df = _synthetic_features()
+    rec = qs.study_e_metric(df)
+    assert 'q1_high_hold_rate' in rec
+    assert 'q4_high_hold_rate' in rec
+
+
+def test_study_f_quintile_table_returns_5_rows():
+    df = _synthetic_features(n=100)  # need enough for clean quintiles
+    out = qs.study_f_table(df)
+    assert len(out) == 5
+    assert 'q1_range_quintile' in out.columns
+    assert 'avg_hour_range' in out.columns
