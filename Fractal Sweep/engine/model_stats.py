@@ -321,6 +321,75 @@ def find_cisd(c_arrs, return_ts_ns, direction, max_bars, cisd_mode):
     )
 
 
+# ── SUPPORTING FVG DETECTION ──────────────────────────────────────────────────
+def find_supporting_fvg(arrs, window_start_idx, entry_idx,
+                        sweep_extreme, entry_price, direction):
+    """
+    Scan a single OHLC array for an unfilled same-side 3-bar FVG that supports
+    the trade. Returns (strict, loose) booleans.
+
+    Bullish FVG at index i: low[i] > high[i-2]. Gap band (high[i-2], low[i]).
+    Bearish FVG at index i: high[i] < low[i-2]. Gap band (high[i], low[i-2]).
+
+    Strict: gap body fully between sweep_extreme and entry_price.
+    Loose:  top-of-gap (relative to direction) below/above entry_price.
+    Unfilled at entry: no bar in (i, entry_idx) wicks into the gap.
+
+    Window: scans formation indices i in [window_start_idx + 2, entry_idx).
+    Returns early as soon as a strict FVG is found (strict ⇒ loose).
+    """
+    highs = arrs['high']
+    lows  = arrs['low']
+    n     = len(highs)
+
+    first_i = max(window_start_idx + 2, 2)
+    last_i  = min(entry_idx, n)
+
+    found_loose = False
+
+    if direction == 'LONG':
+        for i in range(first_i, last_i):
+            top    = float(lows[i])
+            bottom = float(highs[i - 2])
+            if top <= bottom:
+                continue  # no bullish gap
+            # Unfilled at entry: no bar in (i, entry_idx) has low <= bottom
+            unfilled = True
+            for j in range(i + 1, last_i):
+                if float(lows[j]) <= bottom:
+                    unfilled = False
+                    break
+            if not unfilled:
+                continue
+            # Loose: top of gap at or below entry_price
+            if top <= entry_price:
+                found_loose = True
+                # Strict: bottom at or above sweep_extreme AND top at or below entry
+                if bottom >= sweep_extreme:
+                    return True, True
+        return False, found_loose
+    else:  # SHORT
+        for i in range(first_i, last_i):
+            top    = float(lows[i - 2])  # upper edge of bearish gap
+            bottom = float(highs[i])     # lower edge of bearish gap
+            if top <= bottom:
+                continue  # no bearish gap
+            unfilled = True
+            for j in range(i + 1, last_i):
+                if float(highs[j]) >= top:
+                    unfilled = False
+                    break
+            if not unfilled:
+                continue
+            # Loose (short): bottom of gap at or above entry
+            if bottom >= entry_price:
+                found_loose = True
+                # Strict (short): top at or below sweep_extreme
+                if top <= sweep_extreme:
+                    return True, True
+        return False, found_loose
+
+
 # ── VECTORISED OUTCOME RESOLUTION ────────────────────────────────────────────
 def resolve_outcomes_vectorised(m1_arrs, pending):
     """
