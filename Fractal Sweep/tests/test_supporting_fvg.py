@@ -134,3 +134,41 @@ def test_bearish_strict_fvg_between_entry_and_sl_short():
     )
     assert strict is True
     assert loose is True
+
+
+def test_bearish_loose_only_short_extends_above_sl():
+    # SHORT: bearish gap with top above sweep_extreme → strict False, loose True.
+    bars = [
+        (114, 116, 112, 113),  # 0 — low=112
+        (113, 114, 110, 111),  # 1
+        (111, 109, 106, 108),  # 2 — high=109 → bearish gap (109, 112)
+        (108, 110, 106, 107),  # 3 — does not fill (max high in (i,entry)=110 < 112)
+        (107, 109, 100, 102),  # 4 — entry
+    ]
+    arrs = _arrs(bars)
+    # sweep_extreme=111 (below the top of gap=112) → strict False
+    # gap bottom=109 >= entry=102 → loose True
+    strict, loose = ms.find_supporting_fvg(
+        arrs, window_start_idx=0, entry_idx=4,
+        sweep_extreme=111.0, entry_price=102.0, direction='SHORT',
+    )
+    assert strict is False
+    assert loose is True
+
+
+def test_bearish_fvg_filled_before_entry_short():
+    # SHORT bearish gap that gets filled (a later bar's high reaches the top).
+    bars = [
+        (114, 116, 112, 113),
+        (113, 114, 110, 111),
+        (111, 109, 106, 108),  # bearish gap (109, 112)
+        (108, 113, 106, 110),  # high=113 >= 112 → fills the gap
+        (110, 112, 100, 102),  # entry
+    ]
+    arrs = _arrs(bars)
+    strict, loose = ms.find_supporting_fvg(
+        arrs, window_start_idx=0, entry_idx=4,
+        sweep_extreme=120.0, entry_price=102.0, direction='SHORT',
+    )
+    assert strict is False
+    assert loose is False
