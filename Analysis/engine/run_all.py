@@ -30,6 +30,11 @@ def main(start: str | None = None, end: str | None = None) -> None:
     out_breakout.mkdir(parents=True, exist_ok=True)
     out_quarters.mkdir(parents=True, exist_ok=True)
 
+    db = bars.db_path()
+    if not db.exists():
+        print(f"[run_all] ERROR: shared DuckDB not found at {db}", file=sys.stderr)
+        sys.exit(1)
+
     print(f"[run_all] Loading 1-min bars (start={start}, end={end})...")
     minutes = bars.load_minutes(start=start, end=end)
     print(f"[run_all] Loaded {len(minutes):,} 1-min rows")
@@ -37,7 +42,7 @@ def main(start: str | None = None, end: str | None = None) -> None:
     hourly, quarters = bars.build_all_from_minutes(minutes)
     n_input_hours = (minutes['ny_ts'].dt.floor('h')).nunique()
     n_dropped = n_input_hours - len(hourly)
-    print(f"[run_all] Built {len(hourly):,} hourly bars (dropped {n_dropped:,} for completeness/settlement)")
+    print(f"[run_all] Built {len(hourly):,} hourly bars (dropped {n_dropped:,} incomplete hours)")
 
     # Breakout study
     print(f"[run_all] Running breakout study...")
@@ -65,8 +70,8 @@ def main(start: str | None = None, end: str | None = None) -> None:
     manifest = {
         'schema_version': SCHEMA_VERSION,
         'run_timestamp_utc': datetime.now(timezone.utc).isoformat(),
-        'date_range_start': str(hourly['hour_start_et'].min()),
-        'date_range_end': str(hourly['hour_start_et'].max()),
+        'date_range_start': str(hourly['hour_start_et'].min()) if len(hourly) else None,
+        'date_range_end': str(hourly['hour_start_et'].max()) if len(hourly) else None,
         'total_hours': int(len(hourly)),
         'hours_dropped': int(n_dropped),
         'n_bullish_breakouts': n_bull,
