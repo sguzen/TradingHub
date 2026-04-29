@@ -32,7 +32,7 @@ API_KEY    = os.environ.get("DATABENTO_API_KEY", "")
 DATASET    = "GLBX.MDP3"
 SCHEMA     = "ohlcv-1m"
 STYPE      = "continuous"
-TIMEZONE   = "America/Toronto"
+TIMEZONE   = "America/New_York"
 MAC_NOTIFY = True
 
 INSTRUMENTS = {
