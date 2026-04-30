@@ -468,6 +468,7 @@ html,body{background:var(--bg);color:var(--text-primary);font-family:var(--font-
   <div class="hdr-right">
     <div class="demo-badge" id="demo-badge" style="display:none">⚠ Demo Data</div>
     <div id="data-freshness" style="display:none;font-size:10px;color:var(--text-muted);font-family:var(--font-data);white-space:nowrap"></div>
+    <button class="load-btn" id="recalc-btn" onclick="triggerRecalc()">⟳ Recalculate</button>
     <button class="load-btn" onclick="document.getElementById('json-loader').click()">↑ Load model_stats.json</button>
     <div class="theme-picker" role="radiogroup" aria-label="Theme">
       <button class="theme-opt" data-theme="dark"   title="Dark"   aria-label="Dark theme">☀</button>
@@ -1750,8 +1751,14 @@ function getActiveTFData(fullProfileData){
   if (activeTF === 'all') return fullProfileData;
   const slice = fullProfileData.by_tf?.[activeTF];
   if (!slice) return fullProfileData; // no data for this TF — fall back to all
-  // Merge: slice provides meta/risk_stats/charts, full profile provides heatmap/combos/filter_impact
-  return Object.assign({}, fullProfileData, slice);
+  // Merge: slice provides meta/risk_stats/charts, full profile provides heatmap/combos/filter_impact.
+  // Patch back avg_win_r/avg_loss_r/mae_bell from full risk_stats — not recomputed per sub-period.
+  const mergedRS = Object.assign({}, fullProfileData.risk_stats || {}, slice.risk_stats || {}, {
+    avg_win_r:  (fullProfileData.risk_stats || {}).avg_win_r,
+    avg_loss_r: (fullProfileData.risk_stats || {}).avg_loss_r,
+    mae_bell:   (fullProfileData.risk_stats || {}).mae_bell,
+  });
+  return Object.assign({}, fullProfileData, slice, { risk_stats: mergedRS });
 }
 
 function renderControls(){
@@ -4543,40 +4550,10 @@ function renderModel(D){
   const beLeg=document.getElementById('be-wr-legend');
   if(beLeg) beLeg.textContent=`Breakeven ${(be*100).toFixed(1)}%`;
   const rs=D.risk_stats||{};
-  const acct=ACCT;  // user-configured account size constant
 
-  const fmt$=v=>v!=null?'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0}):'—';
   const fmtPct=v=>v!=null?v.toFixed(2)+'%':'—';
 
-  // Compute dollar stats from by_year + R averages × account constants
-  // (engine no longer bakes in dollar fields — they depend on user's account size)
-  const avgWinR=rs.avg_win_r, avgLossR=rs.avg_loss_r;
-  const byYearAll=D.by_year||[];
-  let _eq=acct, _peak=acct, _minEq=acct, _maxDdUsd=0, _maxDdPct=0, _dailyPnl={};
-  if(avgWinR!=null&&avgLossR!=null&&byYearAll.length){
-    byYearAll.forEach(yr=>{
-      const pnl=(yr.wins*(avgWinR*RPT))+(( yr.n-yr.wins)*(avgLossR*RPT));
-      _eq+=pnl;
-      if(_eq<_minEq)_minEq=_eq;
-      if(_eq>_peak)_peak=_eq;
-      const ddU=_peak-_eq, ddP=ddU/_peak*100;
-      if(ddU>_maxDdUsd){_maxDdUsd=ddU;_maxDdPct=ddP;}
-    });
-  }
-  const totalPnl = avgWinR!=null ? _eq-acct : null;
-  const totalPnlStr = totalPnl != null ? (totalPnl >= 0 ? '+$' : '-$') + Math.abs(Math.round(totalPnl)).toLocaleString('en-US') : '—';
-  const blown = _minEq<=0;
-  const minEq = avgWinR!=null ? _minEq : null;
-  const maxDdPct = avgWinR!=null ? _maxDdPct : null;
-  const maxDdUsd = avgWinR!=null ? _maxDdUsd : null;
-  const maxDdStr = maxDdPct != null ? maxDdPct.toFixed(1)+'%' : '—';
-  // Sharpe: computed from EV and by_year count distribution (approximation)
-  // Use the R-based EV and PF from meta for CE; no dollar Sharpe here
-  const sharpeVal = null;  // not available without per-trade data in dashboard
-  const sharpeStr = '—';
-  const sharpeCls = 'w';
-
-  // Hero tiles — Row 1: performance, Row 2: risk
+  // Hero tiles
   const mrEl=document.getElementById('meta-row'); mrEl.innerHTML='';
   if (activeProfile === 'raw_measure') {
     const note = document.createElement('div');
@@ -4586,7 +4563,6 @@ function renderModel(D){
   }
   const rrTarget = m.rr_target != null ? m.rr_target : (rs.tp_pct != null && rs.sl_pct != null && rs.sl_pct > 0 ? rs.tp_pct / rs.sl_pct : null);
   const rrStr = rrTarget != null ? rrTarget.toFixed(2)+':1' : '—';
-  const ddCls = maxDdPct == null ? 'w' : maxDdPct <= 15 ? 'g' : maxDdPct <= 30 ? 'a' : 'r';
   const wrVal = m.win_rate;
   const wrCls = wrVal == null ? 'w' : wrVal >= 0.55 ? 'g' : wrVal >= 0.45 ? 'a' : 'r';
   const evVal = m.ev_per_trade;
@@ -4594,40 +4570,25 @@ function renderModel(D){
   const pfCls = pfVal == null ? 'w' : pfVal >= 1.5 ? 'g' : pfVal >= 1.2 ? 'a' : pfVal >= 1.0 ? 'b' : 'r';
   const ceVal = rs.ce;
   const ceCls = ceVal == null ? 'w' : ceVal >= 0.40 ? 'g' : ceVal >= 0.20 ? 'a' : 'r';
-  const pnlCls = totalPnl == null ? 'w' : totalPnl > 0 ? 'g' : 'r';
   const dr = fmtDateRange(m.date_range);
   const tradesStr = (rs.trades ?? m.total_wl ?? 0).toLocaleString() + ' trades · ' + dr;
-  // Trades per trading day — dynamic per Period selection and active filter
-  // chips (SMT, Hour-Aligned, Prior-Engulfing). Uses m.trading_days when the
-  // engine provides it (All Time); otherwise counts weekdays between the
-  // meta date_range endpoints.
   const totalWl = rs.trades ?? m.total_wl ?? 0;
   const tradingDays = m.trading_days != null && m.trading_days > 0
     ? m.trading_days
     : _tradingDaysFromRange(m.date_range);
-  const tradesPerDay = tradingDays && tradingDays > 0
-    ? (totalWl / tradingDays)
-    : null;
+  const tradesPerDay = tradingDays && tradingDays > 0 ? (totalWl / tradingDays) : null;
   const tpdStr = tradesPerDay != null ? tradesPerDay.toFixed(2) : '—';
   const tpdCls = tradesPerDay == null ? 'w' : tradesPerDay >= 1 ? 'g' : tradesPerDay >= 0.3 ? 'a' : 'r';
-  const tpdSub = tradingDays
-    ? `${totalWl.toLocaleString()} trades ÷ ${tradingDays.toLocaleString()} trading days`
-    : '—';
+  const tpdSub = tradingDays ? `${totalWl.toLocaleString()} trades ÷ ${tradingDays.toLocaleString()} trading days` : '—';
   [
-    {label:'Win Rate',    val:m.win_rate!=null?pct(m.win_rate):'—',           sub:tradesStr,                                      cls:wrCls,  vc:wrCls},
-    {label:'EV (R)',      val:evVal!=null?(evVal>0?'+':'')+evVal.toFixed(3)+'R':'—', sub:'Expected value per R risked',             cls:evVal==null?'w':evVal>0?'g':'r', vc:evVal==null?'w':evVal>0?'g':'r'},
-    {label:'Prof Factor', val:pfVal!=null?pfVal.toFixed(3):'—',               sub:'Gross profit ÷ gross loss',                    cls:pfCls,  vc:pfCls},
-    {label:'CE',          val:ceVal!=null?ceVal.toFixed(3):'—',               sub:'Combined Edge · EV/R × PF',                    cls:ceCls,  vc:ceCls},
-    {label:'Total P&L',   val:totalPnlStr,                                    sub:`$${acct.toLocaleString()} account · $${RPT.toLocaleString()}/trade · ${dr}`, cls:pnlCls, vc:pnlCls},
-    {label:'Sharpe',      val:sharpeStr,                                      sub:'Annualised Sharpe ratio',                      cls:sharpeCls, vc:sharpeCls},
-    {label:'Trades/Day',  val:tpdStr,                                         sub:tpdSub,                                         cls:tpdCls, vc:tpdCls},
-    ...(rs.sl_pct!=null?[{label:'SL %',val:rs.sl_pct.toFixed(2)+'%',sub:'Fixed stop-loss % from entry',cls:'a',vc:'a'}]:[]),
-    ...(rs.tp_pct!=null?[{label:'TP %',val:rs.tp_pct.toFixed(2)+'%',sub:'Fixed take-profit % from entry',cls:'g',vc:'g'}]:[]),
-    {label:'R:R',         val:rrStr,                                          sub:'Reward-to-risk ratio (TP÷SL)',                 cls:'b',    vc:'b'},
-    {label:'Account',     val:blown==null?'—':blown?'<span style="font-family:var(--font-data);font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;background:var(--red-tint);border:1px solid var(--red-border);color:var(--red)">BLOWN</span>':'<span style="font-family:var(--font-data);font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;background:var(--green-tint);border:1px solid var(--green-border);color:var(--green)">SAFE</span>', sub:`$${acct.toLocaleString()} @ $${RPT.toLocaleString()}/trade`, cls:blown?'r':'g', vc:blown?'r':'g'},
-    {label:'Max DD',      val:maxDdStr,                                       sub:`-$${maxDdUsd!=null?Math.round(maxDdUsd).toLocaleString():'—'} from peak · ${dr}`, cls:ddCls, vc:ddCls},
-    {label:'Max W Run',   val:rs.max_consec_wins??'—',                        sub:'Longest winning streak · '+dr,                 cls:'g',    vc:'g'},
-    {label:'Max L Run',   val:rs.max_consec_losses??'—',                      sub:'Longest losing streak · '+dr,                  cls:'r',    vc:'r'},
+    {label:'Win Rate',    val:wrVal!=null?pct(wrVal):'—',                      sub:tradesStr,                      cls:wrCls,  vc:wrCls},
+    {label:'EV (R)',      val:evVal!=null?(evVal>0?'+':'')+evVal.toFixed(3)+'R':'—', sub:'Expected value per R risked', cls:evVal==null?'w':evVal>0?'g':'r', vc:evVal==null?'w':evVal>0?'g':'r'},
+    {label:'Prof Factor', val:pfVal!=null?pfVal.toFixed(3):'—',                sub:'Gross profit ÷ gross loss',     cls:pfCls,  vc:pfCls},
+    {label:'CE',          val:ceVal!=null?ceVal.toFixed(3):'—',                sub:'Combined Edge · EV/R × PF',    cls:ceCls,  vc:ceCls},
+    {label:'R:R',         val:rrStr,                                           sub:'Reward-to-risk ratio (TP÷SL)', cls:'b',    vc:'b'},
+    {label:'Trades/Day',  val:tpdStr,                                          sub:tpdSub,                         cls:tpdCls, vc:tpdCls},
+    {label:'Max W Run',   val:rs.max_consec_wins??'—',                         sub:'Longest winning streak · '+dr, cls:'g',    vc:'g'},
+    {label:'Max L Run',   val:rs.max_consec_losses??'—',                       sub:'Longest losing streak · '+dr,  cls:'r',    vc:'r'},
     {label:'Avg L Run',   val:rs.avg_consec_losses!=null?rs.avg_consec_losses.toFixed(1):'—', sub:'Average losing streak length · '+dr, cls:'r', vc:'r'},
   ].forEach(card=>{
     const el=document.createElement('div'); el.className=`mc ${card.cls}`;
@@ -5900,7 +5861,16 @@ function renderProfileComparison(targetEl, dateRanges, tradeDateSet) {
     // Apply active TF period
     let d = fullD;
     if (activeTF !== 'all' && fullD.by_tf && fullD.by_tf[activeTF]) {
-      d = Object.assign({}, fullD, fullD.by_tf[activeTF]);
+      const slice = fullD.by_tf[activeTF];
+      // Merge slice over full profile, then patch risk_stats: carry forward avg_win_r,
+      // avg_loss_r, mae_bell from the full profile since they are profile-level constants
+      // not recomputed per sub-period.
+      const mergedRS = Object.assign({}, fullD.risk_stats || {}, slice.risk_stats || {}, {
+        avg_win_r:  (fullD.risk_stats || {}).avg_win_r,
+        avg_loss_r: (fullD.risk_stats || {}).avg_loss_r,
+        mae_bell:   (fullD.risk_stats || {}).mae_bell,
+      });
+      d = Object.assign({}, fullD, slice, { risk_stats: mergedRS });
     }
 
     let wr, ev, pf, n, sharpe, maxDD, totalPnl, minEq, blown, mcw, mcl;
@@ -7087,6 +7057,47 @@ document.getElementById('json-loader').addEventListener('change',e=>{
   fr.onload=ev=>{try{applyLoadedData(JSON.parse(ev.target.result));}catch{alert('Invalid JSON');}};
   fr.readAsText(f);
 });
+
+// ── Recalc button (calls local server.py) ───────────────────────────────────
+async function triggerRecalc(){
+  const btn=document.getElementById('recalc-btn');
+  if(!btn||btn.disabled)return;
+  btn.disabled=true;
+  btn.textContent='⟳ Running…';
+  try{
+    const r=await fetch('http://localhost:8001/recalc?engine=fractal_sweep',{method:'POST'});
+    if(r.status===409){btn.textContent='⟳ Already running';setTimeout(()=>{btn.textContent='⟳ Recalculate';btn.disabled=false;},2000);return;}
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    btn.textContent='⟳ Running…';
+    pollRecalc();
+  }catch(e){
+    btn.textContent='⚠ Server not running';
+    btn.title='Start server.py first: python3 server.py';
+    setTimeout(()=>{btn.textContent='⟳ Recalculate';btn.disabled=false;btn.title='';},3000);
+  }
+}
+function pollRecalc(){
+  const btn=document.getElementById('recalc-btn');
+  const iv=setInterval(async()=>{
+    try{
+      const r=await fetch('http://localhost:8001/recalc/status?engine=fractal_sweep');
+      const s=await r.json();
+      if(s.status==='ok'){
+        clearInterval(iv);
+        btn.textContent='✓ Done — reloading…';
+        setTimeout(()=>{
+          fetch('./model_stats.json').then(r=>r.json()).then(applyLoadedData).finally(()=>{
+            btn.textContent='⟳ Recalculate';btn.disabled=false;
+          });
+        },400);
+      } else if(s.status==='error'){
+        clearInterval(iv);
+        btn.textContent='⚠ Engine error';
+        setTimeout(()=>{btn.textContent='⟳ Recalculate';btn.disabled=false;},3000);
+      }
+    }catch{clearInterval(iv);btn.textContent='⟳ Recalculate';btn.disabled=false;}
+  },2000);
+}
 </script>
 </body>
 </html>
