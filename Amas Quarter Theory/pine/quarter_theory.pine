@@ -1010,6 +1010,87 @@ if gQStructOn and isTfMin1() and isHourClose() and not na(activeTriad)
     liveLowLabel  := na
 
 
+// ── Hour-open line (live, extends to current bar) ─────────────────────────
+// Solid horizontal line at the open price of the hour, labelled "XXam Open".
+// One line + one label per hour, both updated in-place every bar so the line
+// extends to the current bar and the label sits at its right edge.
+
+format12h(int h24) =>
+    int h12 = h24 % 12 == 0 ? 12 : h24 % 12
+    string suffix = h24 < 12 ? "am" : "pm"
+    str.tostring(h12) + suffix
+
+var line currentHourOpenLine = na
+var label currentHourOpenLabel = na
+
+// On each bar inside the active hour, extend the live open-line/label to bar_index
+if gQStructOn and not na(currentHourOpenLine) and not na(blockId()) and not na(hourIndexInTriad())
+    line.set_x2(currentHourOpenLine, bar_index)
+    if not na(currentHourOpenLabel)
+        label.set_x(currentHourOpenLabel, bar_index)
+
+// At hour open, drop refs first (so prior line freezes in place), then spawn a
+// fresh pair anchored at this bar's open price.
+if gQStructOn and isFirstBarOfQuarter() and quarterOfHour() == 1 and not na(blockId())
+    currentHourOpenLine := na
+    currentHourOpenLabel := na
+    string hourTag = format12h(hour(time, NY_TZ))
+    color cOpen = gTheme == "Light" ? color.new(#475569, 30) : color.new(#cbd5e1, 30)
+    currentHourOpenLine := line.new(bar_index, open, bar_index, open,
+                                    xloc=xloc.bar_index, color=cOpen,
+                                    style=line.style_solid, width=1)
+    currentHourOpenLabel := label.new(bar_index, open, hourTag + " Open",
+                                      xloc=xloc.bar_index, style=label.style_label_left,
+                                      color=color.new(cOpen, 100), textcolor=cOpen, size=size.small)
+
+
+// ── Hour high/low marker (whichever is closer to current close) ───────────
+// At hour close, draw a horizontal line from the candle that printed the
+// hour's extreme to the closing bar, labelled "XXam High" or "XXam Low".
+// Selection: whichever extreme is **closer in price to the closing bar's close**
+// — that's the "active" reference the next hour is most likely to revisit.
+if gQStructOn and isHourClose() and not na(activeTriad)
+    int hidx_hl = hourIndexInTriad()
+    HourAgg justClosedHL = hidx_hl == 1 ? activeTriad.c1 : hidx_hl == 2 ? activeTriad.c2 : activeTriad.c3
+    if not na(justClosedHL)
+        float hi = hourHigh(justClosedHL)
+        float lo = hourLow(justClosedHL)
+        if not na(hi) and not na(lo)
+            // Find earliest quarter holding the extremes
+            QuarterAgg qHiHL = na
+            QuarterAgg qLoHL = na
+            for q_idx_hl = 1 to 4
+                QuarterAgg qxHL = q_idx_hl == 1 ? justClosedHL.q1 : q_idx_hl == 2 ? justClosedHL.q2 : q_idx_hl == 3 ? justClosedHL.q3 : justClosedHL.q4
+                if not na(qxHL)
+                    if na(qHiHL) and qxHL.high_ == hi
+                        qHiHL := qxHL
+                    if na(qLoHL) and qxHL.low_ == lo
+                        qLoHL := qxHL
+
+            // Pick whichever extreme is closer to current close
+            float distToHi = math.abs(close - hi)
+            float distToLo = math.abs(close - lo)
+            bool useHigh = distToHi <= distToLo
+
+            // Tag uses the just-closed hour. This fires on the :59 bar of that hour,
+            // so hour(time, NY_TZ) is the right value.
+            string hlTag = format12h(hour(time, NY_TZ))
+
+            color cMark = gTheme == "Light" ? color.new(#0f172a, 30) : color.new(#e2eaf4, 30)
+            if useHigh and not na(qHiHL)
+                line.new(qHiHL.highBar, hi, bar_index, hi, xloc=xloc.bar_index,
+                         color=cMark, style=line.style_solid, width=1)
+                label.new(bar_index, hi, hlTag + " High",
+                          xloc=xloc.bar_index, style=label.style_label_left,
+                          color=color.new(cMark, 100), textcolor=cMark, size=size.small)
+            else if not na(qLoHL)
+                line.new(qLoHL.lowBar, lo, bar_index, lo, xloc=xloc.bar_index,
+                         color=cMark, style=line.style_solid, width=1)
+                label.new(bar_index, lo, hlTag + " Low",
+                          xloc=xloc.bar_index, style=label.style_label_left,
+                          color=color.new(cMark, 100), textcolor=cMark, size=size.small)
+
+
 // ── Hour close verdicts ───────────────────────────────────────────────────
 // Anchored slightly below the hour-low so it doesn't overlap with the
 // in-stat/out-of-stat low label (also drawn at bar_index, qLo.low_).
