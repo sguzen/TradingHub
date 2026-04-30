@@ -537,12 +537,22 @@ if gQStructOn and gShowQDiv and isFirstBarOfQuarter() and not na(blockId()) and 
         currentQ4Line := line.new(bar_index, yBot, bar_index, yTop, xloc=xloc.bar_index,
                                   extend=extend.none, color=hourDivLine(), style=line.style_solid, width=1)
 
-// ── 05-box full-height column ─────────────────────────────────────────────
+// ── 05-box column (bounded to box range, drawn live as box forms) ────────
+// One box, anchored to the active hour's box high/low and bar 0..4 of the hour.
+var box current05Box = na
+
 if gBoxOn and gShowBoxCol and isFirstBarOfQuarter() and quarterOfHour() == 1 and not na(blockId())
-    box.new(left=bar_index, top=high * 10, right=bar_index + 4, bottom=low * 0.1,
-            xloc=xloc.bar_index, bgcolor=T.box_tint,
-            border_color=color.new(T.box_tint, math.max(0, color.t(T.box_tint) - 5)),
-            border_width=1, border_style=line.style_solid)
+    current05Box := box.new(left=bar_index, top=high, right=bar_index + 4, bottom=low,
+                            xloc=xloc.bar_index, bgcolor=T.box_tint,
+                            border_color=color.new(T.box_tint, math.max(0, color.t(T.box_tint) - 10)),
+                            border_width=1, border_style=line.style_solid)
+
+// Update 05-box bounds during minutes :00–:04
+if gBoxOn and gShowBoxCol and isBoxBar() and not na(current05Box) and not na(blockId())
+    new_top_05    = math.max(box.get_top(current05Box),    high)
+    new_bottom_05 = math.min(box.get_bottom(current05Box), low)
+    box.set_top(current05Box, new_top_05)
+    box.set_bottom(current05Box, new_bottom_05)
 
 // ── ±0.05% / ±0.10% bands (drawn on the :04 minute when box locks) ────────
 bandLevels(float boxHi, float boxLo) =>
@@ -864,24 +874,34 @@ if isTriadClose() and not na(activeTriad)
     priorTriadLo := triadLow(activeTriad)
 
 
-// ── Active hour & triad tints ─────────────────────────────────────────────
+// ── Active hour & triad tints (bounded to their respective ranges) ────────
 var box activeHourTint = na
 var box activeTriadTint = na
 
 if gReadoutsOn and not na(activeTriad)
     int hidx_t = hourIndexInTriad()
     HourAgg curH_t = hidx_t == 1 ? activeTriad.c1 : hidx_t == 2 ? activeTriad.c2 : hidx_t == 3 ? activeTriad.c3 : na
+
+    // Active hour: bounded to current hour's running high/low
     if not na(curH_t)
-        if not na(activeHourTint)
-            box.delete(activeHourTint)
-        activeHourTint := box.new(curH_t.anchorBar, high * 5, bar_index, low * 0.2,
-                                  xloc=xloc.bar_index, bgcolor=T.active_hr,
-                                  border_color=color.new(T.active_hr, 100), border_width=0)
-    if not na(activeTriadTint)
-        box.delete(activeTriadTint)
-    activeTriadTint := box.new(activeTriad.anchorBar, high * 5, bar_index, low * 0.2,
-                               xloc=xloc.bar_index, bgcolor=T.active_triad,
-                               border_color=color.new(T.active_triad, 100), border_width=0)
+        float curHi = hourHigh(curH_t)
+        float curLo = hourLow(curH_t)
+        if not na(curHi) and not na(curLo)
+            if not na(activeHourTint)
+                box.delete(activeHourTint)
+            activeHourTint := box.new(curH_t.anchorBar, curHi, bar_index, curLo,
+                                      xloc=xloc.bar_index, bgcolor=T.active_hr,
+                                      border_color=color.new(T.active_hr, 100), border_width=0)
+
+    // Active triad: bounded to triad's running high/low
+    float trHi = triadHigh(activeTriad)
+    float trLo = triadLow(activeTriad)
+    if not na(trHi) and not na(trLo)
+        if not na(activeTriadTint)
+            box.delete(activeTriadTint)
+        activeTriadTint := box.new(activeTriad.anchorBar, trHi, bar_index, trLo,
+                                   xloc=xloc.bar_index, bgcolor=T.active_triad,
+                                   border_color=color.new(T.active_triad, 100), border_width=0)
 
 
 // ── 1h hour readout (centered, ATR-offset below price) ────────────────────
