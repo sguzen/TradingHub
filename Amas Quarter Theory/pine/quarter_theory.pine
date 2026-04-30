@@ -150,12 +150,12 @@ resolveTheme() =>
           doji                 = color.new(#f59e0b, 0),
           mid_1h               = color.new(#f59e0b, 0),
           mid_3h               = color.new(#e2eaf4, 0),
-          band_05              = color.new(#ffffff, 75),
-          band_10              = color.new(#ffffff, 50),
-          box_tint             = color.new(#ffffff, 94),
-          active_hr            = color.new(#06b6d4, 95),
-          active_triad         = color.new(#06b6d4, 97),
-          q_div                = color.new(#ffffff, 88),
+          band_05              = color.new(#ffffff, 60),
+          band_10              = color.new(#ffffff, 30),
+          box_tint             = color.new(#ffffff, 85),
+          active_hr            = color.new(#06b6d4, 90),
+          active_triad         = color.new(#06b6d4, 94),
+          q_div                = color.new(#ffffff, 75),
           readout_bg           = color.new(#111827, 15),
           readout_border       = color.new(#ffffff, 90),
           readout_text         = color.new(#e2eaf4, 0),
@@ -178,12 +178,12 @@ resolveTheme() =>
           doji                 = color.new(#d97706, 0),
           mid_1h               = color.new(#d97706, 0),
           mid_3h               = color.new(#1f2937, 0),
-          band_05              = color.new(#000000, 75),
-          band_10              = color.new(#000000, 45),
-          box_tint             = color.new(#000000, 94),
-          active_hr            = color.new(#0891b2, 94),
-          active_triad         = color.new(#0891b2, 97),
-          q_div                = color.new(#000000, 85),
+          band_05              = color.new(#000000, 55),
+          band_10              = color.new(#000000, 25),
+          box_tint             = color.new(#000000, 88),
+          active_hr            = color.new(#0891b2, 88),
+          active_triad         = color.new(#0891b2, 93),
+          q_div                = color.new(#000000, 70),
           readout_bg           = color.new(#ffffff, 8),
           readout_border       = color.new(#000000, 90),
           readout_text         = color.new(#0f172a, 0),
@@ -234,7 +234,8 @@ NY_TZ = "America/New_York"
 
 quarterOfHour() =>
     int m = minute(time, NY_TZ)
-    m / 15 + 1
+    int q = m / 15 + 1
+    q
 
 blockId() =>
     int h = hour(time, NY_TZ)
@@ -676,10 +677,10 @@ detectSweepsForQuarter(HourAgg h, int byQ) =>
             QuarterAgg targ = tQ == 1 ? h.q1 : tQ == 2 ? h.q2 : h.q3
             if not na(targ)
                 if byQuarter.high_ > targ.high_
-                    events := events + "Q" + str.tostring(byQ) + "→Q" + str.tostring(tQ) + "high "
+                    events := events + "Q" + str.tostring(int(byQ)) + "→Q" + str.tostring(int(tQ)) + " high  "
                     newBias := newBias != -1 ? 1 : 0
                 if byQuarter.low_ < targ.low_
-                    events := events + "Q" + str.tostring(byQ) + "→Q" + str.tostring(tQ) + "low "
+                    events := events + "Q" + str.tostring(int(byQ)) + "→Q" + str.tostring(int(tQ)) + " low  "
                     newBias := newBias != 1 ? -1 : 0
     [events, newBias]
 
@@ -712,7 +713,7 @@ if gQStructOn and isLastBarOfQuarter() and not na(activeTriad)
             if gShowSweepers
                 color cSwLabel = T.sweeper
                 label.new(bar_index, newBias > 0 ? high : low,
-                          "Q" + str.tostring(byQ) + " sweeper",
+                          "Q" + str.tostring(int(byQ)) + " sweeper",
                           xloc=xloc.bar_index,
                           style=newBias > 0 ? label.style_label_down : label.style_label_up,
                           color=color.new(cSwLabel, 80), textcolor=cSwLabel, size=size.tiny,
@@ -724,7 +725,7 @@ if gQStructOn and isLastBarOfQuarter() and not na(activeTriad)
                           style=label.style_label_left,
                           color=color.new(cArr, 100), textcolor=cArr, size=size.small)
             if gAlertsOn and gAlertSweep
-                alert("Quarter Theory: sweeper Q" + str.tostring(byQ), alert.freq_once_per_bar)
+                alert("Quarter Theory: sweeper Q" + str.tostring(int(byQ)), alert.freq_once_per_bar)
 
 
 // ── In-stat / out-of-stat extreme labels (drawn at hour close) ────────────
@@ -840,7 +841,7 @@ if gReadoutsOn and gShow1h and not na(activeTriad)
     int hidx_ro = hourIndexInTriad()
     HourAgg curH_ro = hidx_ro == 1 ? activeTriad.c1 : hidx_ro == 2 ? activeTriad.c2 : hidx_ro == 3 ? activeTriad.c3 : na
     if not na(curH_ro) and not na(hourLow(curH_ro))
-        string title = "▸ HOUR " + str.tostring(hour(time, NY_TZ)) + ":00 · Q" + str.tostring(quarterOfHour()) + " forming"
+        string title = "▸ HOUR " + str.tostring(hour(time, NY_TZ)) + ":00 · Q" + str.tostring(int(quarterOfHour())) + " forming"
         string probLine = "L-up — · L-dn — · Doji —"
         if gShowN
             probLine := probLine + "  n=—"
@@ -872,7 +873,7 @@ var array<box>   completedTriadReadoutBoxes = array.new<box>()
 
 if gReadoutsOn and gShow3h and not na(activeTriad)
     string trCls = classifyTriad(activeTriad)
-    string title = "▸ TRIAD " + activeTriad.blockId + " · C" + str.tostring(hourIndexInTriad()) + " forming · " + (trCls == "pending" ? "tracking..." : trCls + " tracking")
+    string title = "▸ TRIAD " + activeTriad.blockId + " · C" + str.tostring(int(hourIndexInTriad())) + " forming · " + (trCls == "pending" ? "tracking..." : trCls + " tracking")
     string stateLine = "mid3h=" + mid3hState + " · midhr=" + midhrState
     string probLine = "L-up — · A-up — · Doji — · L-dn — · A-dn —"
     if gShowN
