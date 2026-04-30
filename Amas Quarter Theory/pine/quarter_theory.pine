@@ -156,7 +156,7 @@ resolveTheme() =>
           band_10              = color.new(#ffffff, 30),
           box_tint             = color.new(#ffffff, 92),       // 05 box bg: lighter
           active_hr            = color.new(#cbd5e1, 92),       // light gray (slate-300), neutral
-          active_triad         = color.new(#cbd5e1, 95),       // even lighter gray for triad
+          active_triad         = color.new(#cbd5e1, 88),       // slightly more visible than active hour
           q_div                = color.new(#ffffff, 88),
           readout_bg           = color.new(#1a2235, 5),        // bg-raised, near-opaque
           readout_border       = color.new(#ffffff, 75),
@@ -184,7 +184,7 @@ resolveTheme() =>
           band_10              = color.new(#000000, 25),
           box_tint             = color.new(#94a3b8, 92),       // 05 box bg: light slate, lighter
           active_hr            = color.new(#94a3b8, 90),       // light gray (slate-400), neutral
-          active_triad         = color.new(#94a3b8, 94),       // lighter gray for triad
+          active_triad         = color.new(#94a3b8, 86),       // more opaque than active hour
           q_div                = color.new(#94a3b8, 92),       // light slate, very faint on white
           readout_bg           = color.new(#f1f5f9, 5),        // slate-100 fill, near-opaque
           readout_border       = color.new(#475569, 50),
@@ -503,7 +503,8 @@ if gQStructOn and gShowQDiv and isFirstBarOfQuarter() and quarterOfHour() == 1 a
     int barsPerHourDiv = math.max(1, int(60 * 60 / timeframe.in_seconds("")))
     currentHourBox := box.new(left=bar_index, top=high, right=bar_index + barsPerHourDiv - 1, bottom=low,
                               xloc=xloc.bar_index, bgcolor=hourBoxBg(),
-                              border_color=color.new(T.q_div, 100), border_width=0)
+                              border_color=color.new(T.q_div, math.max(0, color.t(T.q_div) - 35)),
+                              border_width=2)
     currentQ2Line := na
     currentQ3Line := na
     currentQ4Line := na
@@ -767,11 +768,19 @@ if gMidOn and gShowMid1h and isFirstBarOfQuarter() and quarterOfHour() == 1 and 
                                  width=gMid1hWidth, style=line.style_solid)
 
 // Reset / spawn 3h midline at triad open (first bar of C1)
+// Lazy-spawn fallback: if activeTriad exists but no line yet (chart loaded
+// mid-block), create one anchored at the triad's start bar.
+// 3h midline uses a dotted style to differentiate from the solid 1h midline.
 if gMidOn and gShowMid3h and isFirstBarOfQuarter() and quarterOfHour() == 1 and hourIndexInTriad() == 1 and not na(blockId())
     int barsPerTriadMid = math.max(1, int(3 * 60 * 60 / timeframe.in_seconds("")))
     currentMid3hLine := line.new(bar_index, na, bar_index + barsPerTriadMid - 1, na,
                                  xloc=xloc.bar_index, color=T.mid_3h,
-                                 width=gMid3hWidth, style=line.style_solid)
+                                 width=gMid3hWidth, style=line.style_dotted)
+else if gMidOn and gShowMid3h and not na(activeTriad) and na(currentMid3hLine)
+    int barsPerTriadMidLazy = math.max(1, int(3 * 60 * 60 / timeframe.in_seconds("")))
+    currentMid3hLine := line.new(activeTriad.anchorBar, na, activeTriad.anchorBar + barsPerTriadMidLazy - 1, na,
+                                 xloc=xloc.bar_index, color=T.mid_3h,
+                                 width=gMid3hWidth, style=line.style_dotted)
 
 // Update y-coords each bar so the line follows the running mid
 if gMidOn and gShowMid1h and not na(currentMid1hLine) and not na(curMid1h)
@@ -865,19 +874,22 @@ if gQStructOn and isHourClose() and not na(activeTriad)
             bool inStatLo = qLo.qIdx == 1 or qLo.qIdx == 4
 
             // Text always renders dark; background is a tinted fill for legibility.
-            // Anchored to the candle that printed the extreme (qHi.highBar / qLo.lowBar).
+            // Anchored to the candle that printed the extreme (qHi.highBar / qLo.lowBar),
+            // offset ~20 pts (≈ 0.3*ATR) beyond the hour box top/bottom so they
+            // float above/below the price action instead of sitting on the wick.
+            float labelOffset = atrOffset() * 0.3
             color textHi = inStatHi ? T.in_stat : T.out_stat
             color textLo = inStatLo ? T.in_stat : T.out_stat
             color bgHi   = color.new(textHi, 80)
             color bgLo   = color.new(textLo, 80)
             if (inStatHi and gShowInStat) or (not inStatHi and gShowOutStat)
                 string txtHi = "Q" + str.tostring(qHi.qIdx) + (inStatHi ? " in-stat high" : " out-of-stat high")
-                label.new(qHi.highBar, qHi.high_, txtHi, xloc=xloc.bar_index,
+                label.new(qHi.highBar, qHi.high_ + labelOffset, txtHi, xloc=xloc.bar_index,
                           style=label.style_label_down, color=bgHi,
                           textcolor=textHi, size=size.small)
             if (inStatLo and gShowInStat) or (not inStatLo and gShowOutStat)
                 string txtLo = "Q" + str.tostring(qLo.qIdx) + (inStatLo ? " in-stat low" : " out-of-stat low")
-                label.new(qLo.lowBar, qLo.low_, txtLo, xloc=xloc.bar_index,
+                label.new(qLo.lowBar, qLo.low_ - labelOffset, txtLo, xloc=xloc.bar_index,
                           style=label.style_label_up, color=bgLo,
                           textcolor=textLo, size=size.small)
 
@@ -911,7 +923,8 @@ if gVerdictsOn and isTriadClose() and not na(activeTriad)
                    cls_t == "apex-up" ? T.apex_up :
                    cls_t == "apex-down" ? T.apex_dn :
                    T.doji
-        if gShowTriadVerd
+        // Show line/apex triad verdicts only — doji triads are not labelled.
+        if gShowTriadVerd and cls_t != "doji"
             label.new(bar_index, triadLow(activeTriad), cls_t + " triad", xloc=xloc.bar_index,
                       style=label.style_label_up, color=color.new(ct, 88),
                       textcolor=ct, size=size.small)
@@ -965,119 +978,11 @@ if gReadoutsOn and not na(activeTriad)
             box.delete(activeTriadTint)
         activeTriadTint := box.new(activeTriad.anchorBar, trHi, bar_index, trLo,
                                    xloc=xloc.bar_index, bgcolor=T.active_triad,
-                                   border_color=color.new(T.active_triad, 100), border_width=0)
+                                   border_color=color.new(T.active_triad, math.max(0, color.t(T.active_triad) - 40)),
+                                   border_width=2)
 
 
-// ── 1h hour readout (single styled label, anchored below price) ───────────
-// Use a single label with styled background. Position: ATR-offset below the
-// active hour's running low, horizontally centered on the active hour.
-
-var label activeHourReadout = na
-
-if gReadoutsOn and gShow1h and not na(activeTriad)
-    int hidx_ro = hourIndexInTriad()
-    HourAgg curH_ro = hidx_ro == 1 ? activeTriad.c1 : hidx_ro == 2 ? activeTriad.c2 : hidx_ro == 3 ? activeTriad.c3 : na
-    if not na(curH_ro) and not na(hourLow(curH_ro))
-        string roTitle = "HOUR " + str.tostring(hour(time, NY_TZ)) + ":00 · Q" + str.tostring(int(quarterOfHour()))
-        string roProb  = "L-up — · L-dn — · Doji —" + (gShowN ? "  n=—" : "")
-        string roState = "midhr: " + midhrState + (boxReactState != "none" ? "  ·  box: " + boxReactState : "")
-        string roText  = roTitle + "\n" + roProb + "\n" + roState
-
-        float yPos = hourLow(curH_ro) - atrOffset()
-        int barsPerHourRO = math.max(1, int(60 * 60 / timeframe.in_seconds("")))
-        int centerBar = curH_ro.anchorBar + barsPerHourRO / 2
-
-        if not na(activeHourReadout)
-            label.delete(activeHourReadout)
-        activeHourReadout := label.new(centerBar, yPos, roText, xloc=xloc.bar_index,
-                                       style=label.style_label_up,
-                                       color=T.readout_bg,
-                                       textcolor=T.readout_text, size=size.small,
-                                       tooltip="Active hour state · midline reactions and 05-box rejections shown live")
-
-
-// ── 3h triad readout (single styled label, below the hour readout) ────────
-var label activeTriadReadout = na
-var array<label> completedTriadReadouts = array.new<label>()
-
-if gReadoutsOn and gShow3h and not na(activeTriad)
-    string trCls = classifyTriad(activeTriad)
-    string trTitle = "TRIAD " + activeTriad.blockId + " · C" + str.tostring(int(hourIndexInTriad())) +
-                     " · " + (trCls == "pending" ? "tracking" : trCls)
-    string trState = "mid3h: " + mid3hState + "  ·  midhr: " + midhrState
-    string trProb  = "L-up — · A-up — · Doji — · L-dn — · A-dn —" + (gShowN ? "  n=—" : "")
-    string trText  = trTitle + "\n" + trState + "\n" + trProb
-
-    float lowestY = na
-    if not na(activeTriad.c1)
-        lowestY := hourLow(activeTriad.c1)
-    if not na(activeTriad.c2)
-        l2 = hourLow(activeTriad.c2)
-        if not na(l2) and (na(lowestY) or l2 < lowestY)
-            lowestY := l2
-    if not na(activeTriad.c3)
-        l3 = hourLow(activeTriad.c3)
-        if not na(l3) and (na(lowestY) or l3 < lowestY)
-            lowestY := l3
-    if not na(lowestY)
-        float yPos2 = lowestY - atrOffset() * 3.5
-        int barsPerHour2 = math.max(1, int(60 * 60 / timeframe.in_seconds("")))
-        int centerBar2 = activeTriad.anchorBar + (barsPerHour2 * 3) / 2
-
-        if not na(activeTriadReadout)
-            label.delete(activeTriadReadout)
-        activeTriadReadout := label.new(centerBar2, yPos2, trText, xloc=xloc.bar_index,
-                                        style=label.style_label_up,
-                                        color=T.readout_bg,
-                                        textcolor=T.readout_text, size=size.small,
-                                        tooltip="Active triad state · block=" + activeTriad.blockId +
-                                                "\nClass so far: " + trCls)
-
-
-// ── 3h running OHLC + flip-level overlay ──────────────────────────────────
-flipLevels(TriadAgg t) =>
-    string txt = "—"
-    if not na(t) and not na(t.c1) and not na(t.c2)
-        h2 = hourHigh(t.c2)
-        l2 = hourLow(t.c2)
-        cls = classifyTriad(t)
-        if cls == "pending" and not na(h2) and not na(l2)
-            txt := "C3 line-up: > " + str.tostring(h2, format.mintick) +
-                   " · apex-up: < " + str.tostring(h2, format.mintick) +
-                   "  |  line-dn: < " + str.tostring(l2, format.mintick) +
-                   " · apex-dn: > " + str.tostring(l2, format.mintick)
-    txt
-
-var label ohlcOverlay = na
-
-if gVerdictsOn and gShowOhlcOver and not na(activeTriad)
-    string c1s = na(activeTriad.c1) ? "-" : (str.tostring(hourHigh(activeTriad.c1), format.mintick) + "/" + str.tostring(hourLow(activeTriad.c1), format.mintick))
-    string c2s = na(activeTriad.c2) ? "-" : (str.tostring(hourHigh(activeTriad.c2), format.mintick) + "/" + str.tostring(hourLow(activeTriad.c2), format.mintick))
-    string c3s = na(activeTriad.c3) ? "(forming)" : (str.tostring(hourHigh(activeTriad.c3), format.mintick) + "/" + str.tostring(hourLow(activeTriad.c3), format.mintick))
-    string ohlc = "C1 " + c1s + "  |  C2 " + c2s + "  |  C3 " + c3s
-    string flip = flipLevels(activeTriad)
-    string txt = ohlc + "\n" + flip
-
-    if not na(ohlcOverlay)
-        label.delete(ohlcOverlay)
-    ohlcOverlay := label.new(bar_index, high, txt,
-                             xloc=xloc.bar_index, style=label.style_label_left,
-                             color=color.new(T.readout_bg, 30),
-                             textcolor=T.readout_text_dim, size=size.small)
-
-
-// ╔══════════════════════════════════════════════════════════════════════════╗
-// ║ 7. LABEL HOUSEKEEPING (FIFO under history_depth)                         ║
-// ╚══════════════════════════════════════════════════════════════════════════╝
-
-// On triad close: archive the active readout into the completed FIFO; trim oldest
-// when over the history depth limit. Pine's max_*_count caps also act as a
-// hard backstop (set to 500 in indicator() above).
-if isTriadClose() and not na(activeTriad)
-    if not na(activeTriadReadout)
-        array.push(completedTriadReadouts, activeTriadReadout)
-        activeTriadReadout := na
-    while array.size(completedTriadReadouts) > gHistDepth
-        oldL = array.shift(completedTriadReadouts)
-        if not na(oldL)
-            label.delete(oldL)
+// ── Readouts and OHLC overlay removed.
+// Hour and triad readout boxes (1h/3h) and the 3h running OHLC + flip-level
+// overlay were removed by user request. Empirical tables aren't wired yet,
+// so the placeholders weren't useful. Re-add when probabilities are live.
