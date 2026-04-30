@@ -2443,6 +2443,8 @@ def main():
     CISD_FAST_BARS = args.cisd_fast_bars
     SESSION_FILTER_ENABLED = args.rth_only
 
+    all_parquet_trades = []
+
     if SESSION_FILTER_ENABLED:
         for mk in MODELS:
             MODELS[mk]['session_hrs'] = (7.0, 16.0)
@@ -2539,7 +2541,20 @@ def main():
                 base_rows, base_pending, m1, stop_val, target_val, ptype)
             if df_p.empty:
                 continue
-            print(f"         building stats + TF slices ...", flush=True)
+
+            # ── Prepare data for Parquet export (add cascade levels) ──────────
+            parquet_df = df_p[~df_p['outcome'].isin(['SKIP','INVALID'])].copy()
+            if not parquet_df.empty:
+                cl  = parquet_df['cisd_level']
+                sl  = parquet_df['stop_price']
+                sp  = sl - cl     # negative for longs, positive for shorts → works direction-agnostic
+                parquet_df['level_33'] = (cl + 0.3333 * sp).round(2)
+                parquet_df['level_50'] = (cl + 0.5000 * sp).round(2)
+                parquet_df['level_66'] = (cl + 0.6667 * sp).round(2)
+                parquet_df['model_key']   = mk
+                parquet_df['profile_key'] = pk
+                # Ensure deepest_adverse_price exists (simple_1r etc. have it)
+                all_parquet_trades.append(parquet_df)
             stats = build_model_stats(
                 df_p, trading_days, mk, cfg, stop_val, target_val, pk, ptype)
             model_profiles[pk] = stats
@@ -2571,6 +2586,12 @@ def main():
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, 'w') as f:
         json.dump(all_stats, f, indent=2, default=str)
+
+    # ── Write Parquet (after JSON, so `out` exists) ──────────────────────────
+    if all_parquet_trades:
+        parquet_out = out.with_suffix('.parquet')   # "model_stats.parquet"
+        pd.concat(all_parquet_trades, ignore_index=True).to_parquet(parquet_out, index=False)
+        print(f"\n  ✓  Granular trades → {parquet_out}  ({len(pd.concat(all_parquet_trades)):,} rows)")
 
     # ── Summary table ──────────────────────────────────────────────────────────
     print(f"\n{'═'*78}")
