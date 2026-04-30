@@ -58,7 +58,7 @@ G_MID = "📐 Midlines"
 gMidOn        = input.bool(true,  "▶ Enable group", group=G_MID)
 gShowMid1h    = input.bool(true,  "Show 1h midline", group=G_MID)
 gShowMid3h    = input.bool(true,  "Show 3h midline", group=G_MID)
-gShowMidReact = input.bool(true,  "Show midline reaction markers", group=G_MID)
+gShowMidReact = input.bool(false, "Show midline reaction markers", group=G_MID)
 gMid1hWidth   = input.int(1, "1h midline width", minval=1, maxval=4, group=G_MID)
 gMid3hWidth   = input.int(1, "3h midline width", minval=1, maxval=4, group=G_MID)
 
