@@ -1152,9 +1152,13 @@ def render():
         st.subheader("Trade Detail")
         detail_rows = []
         for trade, lr in zip(sorted_trades, leg_results):
+            dw = trade.get("dow")
             row = {
                 "Date":      trade.get("date", ""),
                 "Dir":       trade.get("direction", ""),
+                "Hr":        trade.get("hr"),
+                "Session":   trade.get("session", ""),
+                "DOW":       DOW_NAMES.get(dw, "") if dw is not None else "",
                 "Entry":     trade.get("entry_price"),
                 "CISD":      trade.get("cisd_level"),
                 "L33":       trade.get("level_33"),
