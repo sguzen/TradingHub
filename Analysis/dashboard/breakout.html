@@ -90,6 +90,7 @@
       await renderHero();
       await renderTakeout();
       await renderPrevMid();
+      await renderBreakdowns();
     }
 
     async function renderPrevMid() {
@@ -145,6 +146,87 @@
         card('bullish', 'below') +
         card('bearish', 'above') +
         card('bearish', 'below');
+    }
+
+    async function renderBreakdowns() {
+      const where = FilterBar.whereClause();
+      const minCount = FilterBar.minCount();
+      const dir = FilterBar.direction();
+      const activeYears = new Set(FilterBar.years());
+      const activeHours = new Set(FilterBar.hours());
+      const activeDows = new Set(FilterBar.dows());
+
+      // Common SQL pattern: aggregate over events at the slice-key level,
+      // computing classifiable count, bull rate, bear rate, bull FT, bear FT.
+      function sliceSql(keyExpr) {
+        return `
+          SELECT ${keyExpr} AS k,
+                 COUNT(*) AS n,
+                 COUNT(*) FILTER (WHERE breakout != 'no_prev') AS n_class,
+                 COUNT(*) FILTER (WHERE breakout = 'bullish') AS n_bull,
+                 COUNT(*) FILTER (WHERE breakout = 'bearish') AS n_bear,
+                 AVG(CASE WHEN breakout = 'bullish' AND followthrough THEN 1.0
+                          WHEN breakout = 'bullish' THEN 0.0 END) AS bull_ft,
+                 AVG(CASE WHEN breakout = 'bearish' AND followthrough THEN 1.0
+                          WHEN breakout = 'bearish' THEN 0.0 END) AS bear_ft
+          FROM events
+          GROUP BY k ORDER BY k
+        `;
+      }
+
+      function transform(rows) {
+        return rows.map(r => {
+          const n_class = Number(r.n_class) || 0;
+          return {
+            k: r.k,
+            count: Number(r.n) || 0,
+            bull_rate: n_class > 0 ? Number(r.n_bull) / n_class : null,
+            bear_rate: n_class > 0 ? Number(r.n_bear) / n_class : null,
+            bull_ft: r.bull_ft,
+            bear_ft: r.bear_ft,
+          };
+        });
+      }
+
+      const baseCols = (keyLabel) => {
+        const cols = [
+          { key: 'k', label: keyLabel, type: 'label' },
+          { key: 'count', label: 'n', type: 'count' },
+        ];
+        if (dir !== 'bearish') {
+          cols.push({ key: 'bull_rate', label: 'Bull rate', type: 'inlineBar', maxPct: 0.4, color: 'green' });
+          cols.push({ key: 'bull_ft',   label: 'Bull FT',   type: 'baseline', baseline: 0.5, maxPct: 1.0, colorAbove: 'green', colorBelow: 'red' });
+        }
+        if (dir !== 'bullish') {
+          cols.push({ key: 'bear_rate', label: 'Bear rate', type: 'inlineBar', maxPct: 0.4, color: 'red' });
+          cols.push({ key: 'bear_ft',   label: 'Bear FT',   type: 'baseline', baseline: 0.5, maxPct: 1.0, colorAbove: 'red', colorBelow: 'green' });
+        }
+        return cols;
+      };
+
+      // By year
+      const yearRows = transform(await query(sliceSql('year')));
+      renderInlineBarTable(document.getElementById('t-by-year'),
+        yearRows.map(r => ({ ...r, k: r.k })),
+        baseCols('Year'),
+        { minCount, dimRowFn: (r) => !activeYears.has(Number(r.k)) });
+
+      // By hour-of-day
+      const hourRows = transform(await query(sliceSql('hour_of_day_et')));
+      renderInlineBarTable(document.getElementById('t-by-hour'),
+        hourRows.map(r => ({ ...r, k: String(r.k).padStart(2, '0') + ' ET' })),
+        baseCols('Hour'),
+        { minCount, dimRowFn: (r) => !activeHours.has(Number(String(r.k).slice(0,2))) });
+
+      // By DOW
+      const dowRows = transform(await query(sliceSql('dow')));
+      renderInlineBarTable(document.getElementById('t-by-dow'),
+        dowRows.map(r => ({ ...r, k: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][Number(r.k)] })),
+        baseCols('DOW'),
+        { minCount, dimRowFn: (r) => {
+            const idx = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(r.k);
+            return !activeDows.has(idx);
+        }});
     }
 
     async function renderTakeout() {
