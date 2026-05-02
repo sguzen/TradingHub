@@ -74,7 +74,7 @@ def test_triad_emits_six_element_array():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())  # NQ has data, ES empty
     h = canonical_hash(_triad_key("t1"))
-    expected = f'map.put(EMPIRICAL_NQ_TRIAD, "{h}", array.from(0.4, 0.1, 0.2, 0.1, 0.2, 100.0))'
+    expected = f'map.put(EMPIRICAL_NQ_TRIAD, "{h}", Probs.new(array.from(0.4, 0.1, 0.2, 0.1, 0.2, 100.0)))'
     assert expected in out
 
 
@@ -86,7 +86,7 @@ def test_hour_emits_four_element_array():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_hour_key("h1"))
-    expected = f'map.put(EMPIRICAL_NQ_HOUR, "{h}", array.from(0.5, 0.2, 0.3, 50.0))'
+    expected = f'map.put(EMPIRICAL_NQ_HOUR, "{h}", Probs.new(array.from(0.5, 0.2, 0.3, 50.0)))'
     assert expected in out
 
 
@@ -99,7 +99,7 @@ def test_missing_outcome_defaults_to_zero():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_triad_key("partial"))
-    expected = f'map.put(EMPIRICAL_NQ_TRIAD, "{h}", array.from(0.7, 0.0, 0.0, 0.0, 0.3, 30.0))'
+    expected = f'map.put(EMPIRICAL_NQ_TRIAD, "{h}", Probs.new(array.from(0.7, 0.0, 0.0, 0.0, 0.3, 30.0)))'
     assert expected in out
 
 
@@ -179,7 +179,7 @@ def test_sweep_h_emits_two_element_array():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_sweep_h_key("s1"))
-    expected = f'map.put(EMPIRICAL_NQ_SWEEP_H, "{h}", array.from(0.6, 50.0))'
+    expected = f'map.put(EMPIRICAL_NQ_SWEEP_H, "{h}", Probs.new(array.from(0.6, 50.0)))'
     assert expected in out
 
 
@@ -190,7 +190,7 @@ def test_sweep_l_emits_two_element_array():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_sweep_l_key("s1"))
-    expected = f'map.put(EMPIRICAL_NQ_SWEEP_L, "{h}", array.from(0.3, 40.0))'
+    expected = f'map.put(EMPIRICAL_NQ_SWEEP_L, "{h}", Probs.new(array.from(0.3, 40.0)))'
     assert expected in out
 
 
@@ -201,7 +201,7 @@ def test_pair_emits_two_element_array_with_prior_class_in_key():
     ])
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_pair_key("p1"))
-    expected = f'map.put(EMPIRICAL_NQ_PAIR, "{h}", array.from(0.4, 60.0))'
+    expected = f'map.put(EMPIRICAL_NQ_PAIR, "{h}", Probs.new(array.from(0.4, 60.0)))'
     assert expected in out
 
 
@@ -217,7 +217,7 @@ def test_ext_up_emits_mean_median_mode_n_array():
     out = pine_emit.emit_pine_tables(df, df.iloc[0:0].copy())
     h = canonical_hash(_ext_up_key("e1"))
     # mean=30.0, median=10.0, mode=10.0, n=100.0
-    expected = f'map.put(EMPIRICAL_NQ_EXT_UP, "{h}", array.from(30.0, 10.0, 10.0, 100.0))'
+    expected = f'map.put(EMPIRICAL_NQ_EXT_UP, "{h}", Probs.new(array.from(30.0, 10.0, 10.0, 100.0)))'
     assert expected in out
 
 
