@@ -61,8 +61,7 @@ def _run_engine(engine_key: str, cmd: list[str]) -> None:
 class Handler(SimpleHTTPRequestHandler):
     def log_message(self, fmt, *args):
         # Log recalc API calls; suppress noisy static-asset requests.
-        path = args[0] if args else ""
-        if "/recalc" in path or self.command in ("POST", "OPTIONS"):
+        if "/recalc" in (self.path or "") or self.command in ("POST", "OPTIONS"):
             super().log_message(fmt, *args)
 
     def do_OPTIONS(self):

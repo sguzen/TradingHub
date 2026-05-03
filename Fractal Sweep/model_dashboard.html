@@ -1243,11 +1243,11 @@ function rDistChart(container,data){
   const total=data.reduce((s,d)=>s+d.n,0);
   const pcts=data.map(d=>+(d.n/total*100).toFixed(1));
   const maxP=Math.max(...pcts)+4;
-  const fills={loss:c.red,mid:c.barMid,win:c.green,'win+':isDark?'#059669':'#047857'};
   const bw=cw/data.length*0.52,gap=cw/data.length;
+  const _rFill=d=>{const b=d.bucket||'';if(/^(Loss|Expired)/.test(b))return c.red;if(/^(1R|>1R)/.test(b))return c.green;if(/^(BE)/.test(b))return c.amber;return c.barMid;};
   let bars='',lbls='',yl='';
   [10,20,30,40,50].forEach(yv=>{if(yv>maxP)return;const y=ch-(yv/maxP)*ch;lbls+=`<line x1="0" y1="${y}" x2="${cw}" y2="${y}" stroke="${c.gridLine}" stroke-width="1" stroke-dasharray="2,4"/>`;yl+=`<text x="-6" y="${y+4}" text-anchor="end" font-size="9" fill="${c.axisText}" font-family="${SVG_FONT}">${yv}%</text>`;});
-  data.forEach((d,i)=>{const x=i*gap+gap/2-bw/2,bh=(pcts[i]/maxP)*ch,y=ch-bh,fill=fills[d.fill]||c.barMid;bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${fill}" fill-opacity="0.85" rx="3" onmouseenter="showTip(event,[['${d.bucket}','${pcts[i]}%','g'],['count','${d.n.toLocaleString()}','']])" onmouseleave="hideTip()" style="cursor:default"/>`;d.bucket.split(' ').forEach((w,wi)=>{lbls+=`<text x="${x+bw/2}" y="${ch+15+wi*11}" text-anchor="middle" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">${w}</text>`;});});
+  data.forEach((d,i)=>{const x=i*gap+gap/2-bw/2,bh=(pcts[i]/maxP)*ch,y=ch-bh,fill=_rFill(d);bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${fill}" fill-opacity="0.85" rx="3" onmouseenter="showTip(event,[['${d.bucket}','${pcts[i]}%','g'],['count','${d.n.toLocaleString()}','']])" onmouseleave="hideTip()" style="cursor:default"/>`;d.bucket.split(' ').forEach((w,wi)=>{lbls+=`<text x="${x+bw/2}" y="${ch+15+wi*11}" text-anchor="middle" font-size="8" fill="${c.axisText}" font-family="${SVG_FONT}">${w}</text>`;});});
   container.innerHTML=`<svg width="${W}" height="${H}" style="overflow:visible;display:block"><g transform="translate(${ml},${mt})">${lbls}${bars}${yl}</g></svg>`;
 }
 
@@ -1758,7 +1758,8 @@ function getActiveTFData(fullProfileData){
     avg_loss_r: (fullProfileData.risk_stats || {}).avg_loss_r,
     mae_bell:   (fullProfileData.risk_stats || {}).mae_bell,
   });
-  return Object.assign({}, fullProfileData, slice, { risk_stats: mergedRS });
+  const mergedMeta = Object.assign({}, fullProfileData.meta || {}, slice.meta || {});
+  return Object.assign({}, fullProfileData, slice, { meta: mergedMeta, risk_stats: mergedRS });
 }
 
 function renderControls(){
@@ -4588,6 +4589,7 @@ function renderModel(D){
     {label:'R:R',         val:rrStr,                                           sub:'Reward-to-risk ratio (TP÷SL)', cls:'b',    vc:'b'},
     {label:'Trades/Day',  val:tpdStr,                                          sub:tpdSub,                         cls:tpdCls, vc:tpdCls},
     {label:'Max W Run',   val:rs.max_consec_wins??'—',                         sub:'Longest winning streak · '+dr, cls:'g',    vc:'g'},
+    {label:'Avg W Run',   val:rs.avg_consec_wins!=null?rs.avg_consec_wins.toFixed(1):'—', sub:'Average winning streak length · '+dr, cls:'g', vc:'g'},
     {label:'Max L Run',   val:rs.max_consec_losses??'—',                       sub:'Longest losing streak · '+dr,  cls:'r',    vc:'r'},
     {label:'Avg L Run',   val:rs.avg_consec_losses!=null?rs.avg_consec_losses.toFixed(1):'—', sub:'Average losing streak length · '+dr, cls:'r', vc:'r'},
   ].forEach(card=>{
@@ -4631,15 +4633,16 @@ function renderModel(D){
 }
 
 // ── EQUITY CURVE ─────────────────────────────────────────────────────────────
+const EQ_ACCT = 2000, EQ_RPT = 200;
 function _buildEquityPts(D){
   const rs=D?.risk_stats||{};
   const byYear=D?.by_year||[];
   const avgWinR=rs.avg_win_r, avgLossR=rs.avg_loss_r;
   if(!byYear.length||avgWinR==null||avgLossR==null) return null;
-  let eq=ACCT, peak=eq;
+  let eq=EQ_ACCT, peak=eq;
   const pts=[{yr:'Start',eq,dd:0,pnl:null}];
   byYear.forEach(d=>{
-    const pnl=d.wins*(avgWinR*RPT)+(d.n-d.wins)*(avgLossR*RPT);
+    const pnl=d.wins*(avgWinR*EQ_RPT)+(d.n-d.wins)*(avgLossR*EQ_RPT);
     eq+=pnl;
     if(eq>peak) peak=eq;
     pts.push({yr:d.yr,eq,dd:(peak-eq)/peak*100,pnl});
@@ -4652,14 +4655,14 @@ function renderEquityCurveFS(D){
   if(!container) return;
   const an=document.getElementById('eq-acct-size');
   const rn2=document.getElementById('eq-risk-per-trade');
-  if(an) an.textContent=ACCT.toLocaleString();
-  if(rn2) rn2.textContent=RPT.toLocaleString();
+  if(an) an.textContent=EQ_ACCT.toLocaleString();
+  if(rn2) rn2.textContent=EQ_RPT.toLocaleString();
   const pts=_buildEquityPts(D);
   if(!pts){
     container.innerHTML=`<div style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:8px">Load real model_stats.json to see the equity curve.</div>`;
     return;
   }
-  _drawEquityCurveSVG(container,pts,ACCT);
+  _drawEquityCurveSVG(container,pts,EQ_ACCT);
 }
 
 function renderOverviewEquityCurve(D){
@@ -4667,14 +4670,14 @@ function renderOverviewEquityCurve(D){
   if(!container) return;
   const an=document.getElementById('ov-eq-acct-size');
   const rn2=document.getElementById('ov-eq-risk-per-trade');
-  if(an) an.textContent=ACCT.toLocaleString();
-  if(rn2) rn2.textContent=RPT.toLocaleString();
+  if(an) an.textContent=EQ_ACCT.toLocaleString();
+  if(rn2) rn2.textContent=EQ_RPT.toLocaleString();
   const pts=_buildEquityPts(D);
   if(!pts){
     container.innerHTML=`<div style="font-family:var(--font-data);font-size:11px;color:var(--text-muted);padding:8px">Load real model_stats.json to see the equity curve.</div>`;
     return;
   }
-  _drawEquityCurveSVG(container,pts,ACCT);
+  _drawEquityCurveSVG(container,pts,EQ_ACCT);
 }
 
 function _drawEquityCurveSVG(container,pts,acctSize){
