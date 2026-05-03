@@ -25,3 +25,18 @@ def is_silver(direction, hour_et, last_close, prev_low, prev_prev_low,
     elif direction == 'LONG':
         return last_close > prev_high and last_close > prev_prev_high
     return False
+
+
+def is_smt(direction, es_window_high, es_window_low, es_prev_high, es_prev_low):
+    """SMT divergence: ES did NOT sweep its corresponding HTF extreme.
+
+    For a bearish NQ Wick Lick (NQ swept prev high), SMT means ES's max during
+    the same HTF window did NOT exceed ES's prev high.
+    """
+    if direction == 'SHORT':
+        es_swept = es_window_high > es_prev_high
+        return not es_swept
+    elif direction == 'LONG':
+        es_swept = es_window_low < es_prev_low
+        return not es_swept
+    return False
