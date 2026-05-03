@@ -45,6 +45,31 @@ import pandas as pd
 import numpy as np
 import json
 from datetime import datetime, timezone
+
+
+class _SanitizingEncoder(json.JSONEncoder):
+    """JSON encoder that writes NaN / Infinity as null (valid JSON)."""
+    def default(self, obj):
+        return super().default(obj)
+
+    def iterencode(self, o, _one_shot=False):
+        # Fast path: pre-walk and replace float NaN/Inf with None
+        return super().iterencode(_sanitize(o), _one_shot)
+
+
+def _sanitize(obj):
+    import math
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize(v) for v in obj]
+    return obj
+
+
 from pathlib import Path
 import scipy.stats as _scipy_stats
 
@@ -2626,7 +2651,7 @@ def main():
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, 'w') as f:
-        json.dump(all_stats, f, indent=2, default=str)
+        json.dump(all_stats, f, indent=2, cls=_SanitizingEncoder)
 
     # ── Write Parquet (after JSON, so `out` exists) ──────────────────────────
     if all_parquet_trades:
