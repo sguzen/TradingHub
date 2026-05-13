@@ -608,7 +608,7 @@ async function renderOutcomeDist(target) {
 }
 
 // ── Heatmap (Hour × DoW EV) ──────────────────────────────────────────────
-async function renderHeatmap(target) {
+async function renderEvHeatmap(target) {
   const where = buildWhere();
   const sql = `
     SELECT hour, dow, COUNT(*) AS n, AVG(composite_r) AS ev
@@ -953,7 +953,7 @@ async function renderActive() {
       document.getElementById('edge-direction').innerHTML = renderBucketTable(dirRows, 'Direction');
 
       await renderYearly(document.getElementById('edge-yearly'));
-      await renderHeatmap(document.getElementById('edge-heatmap'));
+      await renderEvHeatmap(document.getElementById('edge-heatmap'));
 
       const sessExpr = `CASE WHEN hour >= 18 OR hour < 2 THEN 'ASIA' WHEN hour BETWEEN 2 AND 7 THEN 'LONDON' WHEN hour BETWEEN 8 AND 15 THEN 'NY' ELSE 'OTHER' END`;
       const sessRows = await bucketStats(sessExpr, false);
