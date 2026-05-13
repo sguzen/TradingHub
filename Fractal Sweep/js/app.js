@@ -15,7 +15,7 @@ import { updateFilterChipDeltas } from './tabs/filters.js';
 import { renderRecentTrades } from './tabs/trades.js';
 import { renderMAEStudy, renderMFEStudy } from './tabs/excursion.js';
 import { renderFilterVariants } from './verdict.js';
-import { switchSMT, switchF3, switchF4, _restoreFilters,
+import { switchSMT, switchF3, switchF4, switchP42, switchPD, _restoreFilters,
          renderRangeSlots, addCustomRange, removeRange, updateRange, saveAndRenderRanges,
          applyCustomRanges, switchCustomTab, customRanges,
          setRenderActive } from './walkforward.js';
@@ -183,6 +183,8 @@ window.applyTheme = applyTheme;
 window.switchSMT = switchSMT;
 window.switchF3 = switchF3;
 window.switchF4 = switchF4;
+window.switchP42 = switchP42;
+window.switchPD = switchPD;
 window.switchModel = switchModel;
 window.switchProfile = switchProfile;
 window.switchTF = switchTF;
