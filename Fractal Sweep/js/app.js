@@ -218,7 +218,11 @@ if(savedTF){
   }
 }
 
-// Restore saved theme
+// Restore saved theme. The .theme-opt button click handlers are auto-wired
+// by Analysis/dashboard/shared.js (loaded as a deferred script in <head>).
+// shared.js calls window.applyTheme — and because this module's
+// `window.applyTheme = applyTheme` assignment above runs later, the
+// local applyTheme (with chart redraw) wins.
 if(_savedTheme){ applyTheme(_savedTheme); setCurrentTheme(_savedTheme); }
 
 // Show a loading overlay while model_stats.json is being fetched. Demo data
