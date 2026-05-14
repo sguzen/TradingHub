@@ -56,15 +56,67 @@ function switchModel(k){
 }
 
 function renderProfileDropdown(){
-  const sel = document.getElementById('profile-select');
-  if (!sel) return;
-  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
-  const profiles = getAvailableProfiles(fullKey);
-  sel.innerHTML = profiles.map(pk => `<option value="${pk}" ${pk===activeProfile?'selected':''}>${PROFILE_LABELS[pk]||pk}${PCT_PROFILES.has(pk)?' %':''}</option>`).join('');
+  // Set selector values from activeProfile
+  updateProfileSelectorsFromKey(activeProfile);
 }
 function switchProfile(pk){
   setActiveProfile(pk);
+  updateProfileSelectorsFromKey(pk);
   window.render();
+}
+
+function profileKeyFromSelectors() {
+  const special = document.getElementById('profile-special')?.value;
+  if (special === 'raw_measure') return 'raw_measure';
+  const r = document.getElementById('profile-r')?.value || '1';
+  const ref = document.getElementById('profile-ref')?.value || 'entry';
+  const entry = document.getElementById('profile-entry')?.value || 'open';
+  return buildProfileKey(r, ref, entry);
+}
+
+function buildProfileKey(r, ref, entry) {
+  const rSuffix = r === '1' ? '1r' : r === '1.5' ? '1r5' : '2r';
+  if (entry === 'open' && ref === 'entry') return `simple_${rSuffix}`;
+  if (entry === 'open' && ref === 'ob')    return `ob_${rSuffix}`;
+  if (ref === 'entry') return `${entry}_${rSuffix}`;
+  return `${entry}_ob_${rSuffix}`;
+}
+
+function parseProfileKey(pk) {
+  if (pk === 'raw_measure') return { r: '1', ref: 'entry', entry: 'open' };
+  if (pk.startsWith('simple_')) return { r: pk.includes('1r5') ? '1.5' : pk.includes('2r') ? '2' : '1', ref: 'entry', entry: 'open' };
+  if (pk.startsWith('ob_'))    return { r: pk.includes('1r5') ? '1.5' : pk.includes('2r') ? '2' : '1', ref: 'ob',    entry: 'open' };
+  const m = pk.match(/^(l\d+)_(ob_)?(\w+)$/);
+  if (m) return { entry: m[1], ref: m[2] ? 'ob' : 'entry', r: m[3].includes('1r5') ? '1.5' : m[3].includes('2r') ? '2' : '1' };
+  return { r: '1', ref: 'entry', entry: 'open' };
+}
+
+let _updatingSelectors = false;
+
+function updateProfileSelectorsFromKey(pk) {
+  if (_updatingSelectors) return;
+  _updatingSelectors = true;
+  const special = document.getElementById('profile-special');
+  const rEl = document.getElementById('profile-r');
+  const refEl = document.getElementById('profile-ref');
+  const entryEl = document.getElementById('profile-entry');
+  if (pk === 'raw_measure') {
+    if (special) special.value = 'raw_measure';
+    _updatingSelectors = false;
+    return;
+  }
+  if (special) special.value = '';
+  const p = parseProfileKey(pk);
+  if (rEl) rEl.value = p.r;
+  if (refEl) refEl.value = p.ref;
+  if (entryEl) entryEl.value = p.entry;
+  _updatingSelectors = false;
+}
+
+function updateProfileFromSelectors() {
+  if (_updatingSelectors) return;
+  const pk = profileKeyFromSelectors();
+  switchProfile(pk);
 }
 
 function switchTF(tf){
@@ -166,4 +218,4 @@ function renderModel(D){
   renderVerdict(document.getElementById('overview-verdict-panel'));
 }
 
-export { renderModel, renderModelDropdown, renderProfileDropdown, switchProfile, switchTF, renderControls, switchModel, renderClassificationBreakdown };
+export { renderModel, renderModelDropdown, renderProfileDropdown, switchProfile, switchTF, renderControls, switchModel, renderClassificationBreakdown, updateProfileFromSelectors };
