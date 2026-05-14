@@ -91,18 +91,16 @@ function parseProfileKey(pk) {
   return { r: '1', ref: 'entry', entry: 'open' };
 }
 
-let _updatingSelectors = false;
+let _updatingSelectors = 0;
 
 function updateProfileSelectorsFromKey(pk) {
-  if (_updatingSelectors) return;
-  _updatingSelectors = true;
+  _updatingSelectors = Date.now();
   const special = document.getElementById('profile-special');
   const rEl = document.getElementById('profile-r');
   const refEl = document.getElementById('profile-ref');
   const entryEl = document.getElementById('profile-entry');
   if (pk === 'raw_measure') {
     if (special) special.value = 'raw_measure';
-    _updatingSelectors = false;
     return;
   }
   if (special) special.value = '';
@@ -110,7 +108,12 @@ function updateProfileSelectorsFromKey(pk) {
   if (rEl) rEl.value = p.r;
   if (refEl) refEl.value = p.ref;
   if (entryEl) entryEl.value = p.entry;
-  _updatingSelectors = false;
+}
+
+function updateProfileFromSelectors() {
+  if (Date.now() - _updatingSelectors < 100) return;
+  const pk = profileKeyFromSelectors();
+  if (pk && pk !== activeProfile) switchProfile(pk);
 }
 
 function updateProfileFromSelectors() {

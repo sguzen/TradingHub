@@ -102,7 +102,10 @@ class Handler(SimpleHTTPRequestHandler):
             state.pop("stderr", None)
             self._json(200, state)
             return
-        super().do_GET()
+        try:
+            super().do_GET()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
 
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
