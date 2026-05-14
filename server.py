@@ -59,6 +59,12 @@ def _run_engine(engine_key: str, cmd: list[str]) -> None:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
+
     def log_message(self, fmt, *args):
         # Log recalc API calls; suppress noisy static-asset requests.
         if "/recalc" in (self.path or "") or self.command in ("POST", "OPTIONS"):

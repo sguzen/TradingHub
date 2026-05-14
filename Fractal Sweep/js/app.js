@@ -177,6 +177,13 @@ function pollRecalc(){
 }
 
 // ── Window bindings (for HTML onclick handlers) ──────────────────────────
+// Global error resilience
+window.onerror = function(msg, url, line) {
+  console.error('[sweep]', msg, url, line);
+  const el = document.getElementById('meta-row');
+  if (el) el.innerHTML = `<div style="grid-column:1/-1;font-family:var(--font-data);font-size:11px;color:var(--red);padding:8px">Error: ${msg} (line ${line})</div>`;
+};
+
 window.renderActive = renderActive;
 window.parseKey = parseKey;
 window.applyTheme = applyTheme;
