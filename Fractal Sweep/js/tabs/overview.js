@@ -1,7 +1,7 @@
 import { activeModel, activeMode, activeCisd, activeProfile, activeTF, activeSmt, activeF3, activeF4, MODEL_KEYS, MODEL_LABELS, RR_PROFILES, PROFILE_LABELS, PCT_PROFILES, CLS_META, SVG_FONT, isDark, activePageTab, setActiveModel, setActiveProfile, setActiveTF } from '../state.js';
 import { pct, evFmt, pfFmt, evCls, wrHeatClr, wrHeatTxt, fmtDateRange, _tradingDaysFromRange } from '../utils.js';
 import { C, lineChart, rDistChart, filterWaterfall, dirCards, drawSetupViz, _buildEquityPts, renderEquityCurveFS, renderOverviewEquityCurve } from '../charts.js';
-import { getProfileData, getActiveTFData, getFilteredD, getSmtD, getAvailableProfiles } from '../data.js';
+import { getProfileData, getActiveTFData, getFilteredD, getSmtD, getAvailableProfiles, loadProfile } from '../data.js';
 import { renderEdgeStudy } from './edge.js';
 import { renderFilterVariants, renderProfileComparison, renderVerdict } from '../verdict.js';
 import { renderMAEStudy, renderMFEStudy } from './excursion.js';
@@ -59,7 +59,10 @@ function renderProfileDropdown(){
   // Set selector values from activeProfile
   updateProfileSelectorsFromKey(activeProfile);
 }
-function switchProfile(pk){
+async function switchProfile(pk){
+  const fullKey = `${activeModel}_${activeMode}_${activeCisd}`;
+  // Ensure profile data is loaded from API
+  await loadProfile(fullKey, pk);
   setActiveProfile(pk);
   updateProfileSelectorsFromKey(pk);
   window.render();
