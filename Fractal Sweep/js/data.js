@@ -118,7 +118,7 @@ async function loadModelList() {
 }
 
 async function loadProfile(fullKey, profileKey) {
-  if (!DATA[fullKey]) DATA[fullKey] = { profiles: {} };
+  if (!DATA[fullKey] || !DATA[fullKey].profiles) DATA[fullKey] = { profiles: {} };
   if (DATA[fullKey].profiles[profileKey]) return DATA[fullKey].profiles[profileKey];
 
   const data = await fetchData({ model: fullKey, profile: profileKey });

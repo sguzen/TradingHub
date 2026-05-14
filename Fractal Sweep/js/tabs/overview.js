@@ -119,12 +119,6 @@ function updateProfileFromSelectors() {
   if (pk && pk !== activeProfile) switchProfile(pk);
 }
 
-function updateProfileFromSelectors() {
-  if (_updatingSelectors) return;
-  const pk = profileKeyFromSelectors();
-  switchProfile(pk);
-}
-
 function switchTF(tf){
   setActiveTF(tf);
   const builder = document.getElementById('custom-range-builder');
