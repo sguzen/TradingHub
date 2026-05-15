@@ -991,6 +991,7 @@ if truncate_on_hit and array.size(active_dir) > 0
         _tp = array.get(active_tp,   _i)
         _sl = array.get(active_sl,   _i)
         _en = array.get(active_entry, _i)
+        _orig_risk_pts = math.abs(_en - _sl)  // save before TP1 may move SL to BE
         _hit_sl = _d == 1 ? low  <= _sl : high >= _sl
         _hit_tp = _d == 1 ? high >= _tp : low  <= _tp
         // TP1 hit → move SL to BE (entry). Guard against mismatched array sizes.
@@ -1082,8 +1083,8 @@ if truncate_on_hit and array.size(active_dir) > 0
                 array.remove(active_extra_lbl_count, _i)
                 array.remove(active_extra_bx_count,  _i)
             // Scoreboard: tally every resolved trade, split by direction.
-            // Win = +risk × rr; Loss = -risk. BE after TP1 = scratch (0 pts).
-            _trade_risk_pts = math.abs(_en - array.get(active_sl, _i))
+            // Win = +risk × rr; Loss = -risk. BE after TP1 = partial profit.
+            _trade_risk_pts = _orig_risk_pts
             _took_tp1 = _i < array.size(active_tp1_hit) and array.get(active_tp1_hit, _i)
             _tp1_n_val = _took_tp1 and _i < array.size(active_tp1_n) ? array.get(active_tp1_n, _i) : 0
             _tp1_lvl_val = _took_tp1 and _i < array.size(active_tp1) ? array.get(active_tp1, _i) : _en
@@ -1091,13 +1092,15 @@ if truncate_on_hit and array.size(active_dir) > 0
             bool _is_partial = false
             if _resolved_sl and _took_tp1 and _sl == _en
                 _is_partial := true
+                // _trade_pts = total pts across ONLY TP1 contracts (already includes contract count)
                 _trade_pts := _tp1_n_val * (_d == 1 ? (_tp1_lvl_val - _en) : (_en - _tp1_lvl_val))
             else if _resolved_sl
                 _trade_pts := -_trade_risk_pts
             else
                 _trade_pts := _trade_risk_pts * rr_ratio
             _trade_n        = _trade_risk_pts > 0 ? math.floor(risk_usd / (_trade_risk_pts * point_value_usd)) : 0
-            _trade_pnl      = _trade_pts * _trade_n * point_value_usd
+            // PnL: partials already account for contracts in _trade_pts; full wins/losses use per-contract pts × n
+            _trade_pnl      = _is_partial ? _trade_pts * point_value_usd : _trade_pts * _trade_n * point_value_usd
             if _d == 1
                 if _is_partial
                     score_long_partials += 1
