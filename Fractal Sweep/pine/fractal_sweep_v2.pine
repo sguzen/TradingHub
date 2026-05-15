@@ -26,7 +26,16 @@ entry_mode      = input.string("Market", "Entry Point",     options=["Market", "
 target_ref      = input.string("Entry", "Target Reference", options=["Entry", "OB Open"],           group=G_TRADE, tooltip="Entry = TP measured from entry price. OB Open = TP measured from CISD / order-block opening price.")
 show_cascade    = input.bool(false, "Show Cascade Levels", group=G_TRADE, tooltip="Draw L33/L50/L66 retracement lines between CISD level and SL.")
 sl_mode         = input.string("Sweep Extreme", "Stop-Loss At", options=["Sweep Extreme", "CISD Level"], group=G_TRADE, tooltip="Sweep Extreme = structural SL at the wick. CISD Level = tighter SL at the CISD line.")
-rr_ratio        = input.float(1.0,   "R:R Target",            group=G_TRADE, step=0.5, minval=0.5, tooltip="TP = entry + risk × R:R. Default 1R matches the simple_1r backtest profile.")
+// ── Final TP ──
+tp_mode         = input.string("R:R Ratio", "TP Mode", options=["R:R Ratio", "Projection Level"], group=G_TRADE, tooltip="R:R Ratio = TP at N× risk from reference. Projection Level = TP at a CISD series projection multiple.")
+rr_ratio        = input.float(1.0, "R:R Target", group=G_TRADE, step=0.5, minval=0.5, tooltip="Used when TP Mode = R:R Ratio. TP = reference + risk × N.")
+tp_proj         = input.float(1.0, "TP Projection", group=G_TRADE, step=0.5, minval=0.25, tooltip="Used when TP Mode = Projection Level. TP at this multiple of the CISD series range from the CISD level.")
+// ── Partial TP (TP1) ──
+use_partial     = input.bool(false, "Use Partial TP", group=G_TRADE, tooltip="Enable a first take-profit level to scale out part of the position.")
+tp1_mode        = input.string("R:R Ratio", "TP1 Mode", options=["R:R Ratio", "Projection Level"], group=G_TRADE, tooltip="Same as TP Mode, but for the partial take-profit.")
+tp1_rr          = input.float(0.5, "TP1 R:R Target", group=G_TRADE, step=0.25, minval=0.25, tooltip="Used when TP1 Mode = R:R Ratio.")
+tp1_proj        = input.float(0.5, "TP1 Projection", group=G_TRADE, step=0.25, minval=0.25, tooltip="Used when TP1 Mode = Projection Level.")
+partial_pct     = input.float(50.0, "Partial Size %", group=G_TRADE, minval=10, maxval=90, step=5, tooltip="% of position to close at TP1. Contracts rounded UP (e.g. 50% of 5 = 3).")
 risk_usd        = input.float(225.0, "Risk per Trade ($)",    group=G_TRADE, minval=1.0, step=25,   tooltip="Dollar risk per trade. Default $225 = 1 MNQ at max stop (112.5 pts × $2/pt).")
 point_value_usd = input.float(2.0,   "$ per Point",           group=G_TRADE, minval=0.01, step=0.5,  tooltip="MNQ = $2.00/pt · NQ = $20.00/pt · MES = $1.25/pt · ES = $12.50/pt")
 truncate_on_hit = input.bool(true,   "Truncate on TP/SL Hit", group=G_TRADE, tooltip="Shrink R:R box + entry/SL/TP lines when price resolves. Sweep & CISD lines stay for context.")
@@ -260,6 +269,11 @@ var float draw_target_ref_long  = na
 var float draw_target_ref_short = na
 var float draw_risk_long       = na
 var float draw_risk_short      = na
+// v2: partial TP state
+var float draw_tp1_long        = na
+var float draw_tp1_short       = na
+var bool  draw_use_partial     = false
+var float draw_cisd_series_range = na
 // arrays to track fired setup drawings for cleanup when exceeding max_setups
 var fired_lines  = array.new_line()
 var fired_labels = array.new_label()
@@ -347,6 +361,11 @@ var active_sweep_ln   = array.new_line()
 var active_cisd_lbl   = array.new_label()
 var active_sweep_lbl  = array.new_label()
 var active_entry_bar  = array.new_int()
+// Partial TP1 tracking
+var active_tp1        = array.new_float()
+var active_tp1_ln     = array.new_line()
+var active_tp1_lbl    = array.new_label()
+var active_tp1_n      = array.new_int()
 // Variable-count per-setup extras (midlines, projections, T-Spot zone+line).
 // Flat pools hold all extras; each setup records how many it owns. To find
 // setup _i's slice we sum the counts of setups [0.._i-1] → that's the start
@@ -724,9 +743,20 @@ f_target_ref(_dir, _entry) =>
     else
         _entry
 
-// Compute risk adjusted for alternate entry (level entries closer to SL)
+// Compute adjusted risk for alternate entry (level entries closer to SL)
 f_adjusted_risk(_dir, _entry) =>
     math.abs(_entry - (_dir == "LONG" ? sweep_ext_long : sweep_ext_short))
+
+// Compute TP price — R:R based or projection-based
+f_compute_tp(_dir, _ref, _risk, _mode, _rr, _proj, _cisd_lvl) =>
+    if _mode == "Projection Level"
+        _dir == "LONG" ? _cisd_lvl + _cisd_series_range * _proj : _cisd_lvl - _cisd_series_range * _proj
+    else
+        _dir == "LONG" ? _ref + _risk * _rr : _ref - _risk * _rr
+
+// Partial contracts: round UP (e.g. 50% of 5 = 3 contracts at TP1)
+f_partial_contracts(_full_n, _pct) =>
+    _pct > 0 ? math.ceil(_full_n * _pct / 100.0) : 0
 
 // ── DEBUG ─────────────────────────────────────────────────────────────────────
 // Perf: only rebuild debug text once per bar close, not every tick.
@@ -1074,7 +1104,38 @@ if truncate_on_hit and array.size(active_dir) > 0
             array.remove(active_sweep_lbl,  _i)
             if array.size(active_entry_bar) > _i
                 array.remove(active_entry_bar, _i)
+            if array.size(active_tp1) > _i
+                line.delete(   array.remove(active_tp1_ln,  _i))
+                label.delete(  array.remove(active_tp1_lbl, _i))
+                array.remove(active_tp1,     _i)
+                array.remove(active_tp1_n,   _i)
         _i -= 1
+
+// ── CISD SERIES RANGE for projection-based TP ─────────────────────────────
+// Replicates the DRAW projection logic: walks backward from CISD candle
+// through all consecutive same-direction candles to find the delivery series range.
+f_cisd_series_range(_dir, _cisd_off) =>
+    _sr_hi = _dir == "LONG" ? high[_cisd_off + 1] : high[_cisd_off + 1]
+    _sr_lo = _dir == "LONG" ? low[_cisd_off + 1]  : low[_cisd_off + 1]
+    _s_rng = 0.0
+    first = true
+    for k = 1 to _cisd_off
+        _idx = _cisd_off + 1 - k
+        if _dir == "LONG"
+            if close[_idx] < open[_idx]
+                _sr_hi := math.max(_sr_hi, high[_idx])
+                _sr_lo := math.min(_sr_lo, low[_idx])
+            else
+                break
+        else
+            if close[_idx] > open[_idx]
+                _sr_hi := math.max(_sr_hi, high[_idx])
+                _sr_lo := math.min(_sr_lo, low[_idx])
+            else
+                break
+    _sr_hi - _sr_lo
+
+var float _cisd_series_range = na
 
 // ── FIRE: LONG — store draw state; R:R box drawn next bar at open (matches backtest entry) ─
 if long_valid
@@ -1098,6 +1159,12 @@ if long_valid
     draw_entry_long        := f_entry_price("LONG")
     draw_target_ref_long   := f_target_ref("LONG", draw_entry_long)
     draw_risk_long         := math.abs(draw_entry_long - sweep_ext_long)
+    // CISD series range for projection-based TP
+    _cisd_series_range     := f_cisd_series_range("LONG", cisd_long_off)
+    draw_cisd_series_range := _cisd_series_range
+    // Compute final TP and optional partial TP1
+    draw_tp1_long    := use_partial ? f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp1_mode, tp1_rr, tp1_proj, cisd_long_lvl) : na
+    draw_use_partial := use_partial
     // Clean up own CISD preview
     line.delete(cisd_prev_long)
     cisd_prev_long := na
@@ -1121,16 +1188,18 @@ if long_valid
         sweep_lbl_long := na
     // Emit webhook-ready JSON payload
     _ent_L     = draw_entry_long
-    _tp_L      = draw_target_ref_long + draw_risk_long * rr_ratio
+    _tp_L      = f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp_mode, rr_ratio, tp_proj, cisd_long_lvl)
     _n_long    = draw_risk_long > 0 ? math.floor(risk_usd / (draw_risk_long * point_value_usd)) : 0
-    alert('{"v":1,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-LONG",' +
+    _n_tp1_L   = use_partial ? f_partial_contracts(_n_long, partial_pct) : 0
+    alert('{"v":2,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-LONG",' +
           '"source":"fractal_sweep","ticker":"' + syminfo.ticker + '",' +
           '"combo":"' + combo + '","direction":"LONG",' +
           '"entry":' + str.tostring(_ent_L, "#.########") + ',' +
           '"sl":' + str.tostring(sweep_ext_long, "#.########") + ',' +
           '"tp":' + str.tostring(_tp_L, "#.########") + ',' +
+          (use_partial ? '"tp1":' + str.tostring(draw_tp1_long, "#.########") + ',' +
+           '"tp1_contracts":' + str.tostring(_n_tp1_L) + ',' : '') +
           '"risk_pts":' + str.tostring(draw_risk_long, "#.##") + ',' +
-          '"rr":' + str.tostring(rr_ratio, "#.##") + ',' +
           '"contracts":' + str.tostring(_n_long) + ',' +
           '"smt":' + (smt_long ? "true" : "false") + ',' +
           '"fired_at_ms":' + str.tostring(timenow) + '}',
@@ -1158,6 +1227,8 @@ if short_valid
     draw_entry_short       := f_entry_price("SHORT")
     draw_target_ref_short  := f_target_ref("SHORT", draw_entry_short)
     draw_risk_short        := math.abs(draw_entry_short - sweep_ext_short)
+    // Compute final TP and optional partial TP1
+    draw_tp1_short   := use_partial ? f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp1_mode, tp1_rr, tp1_proj, cisd_short_lvl) : na
     // Clean up own CISD preview
     line.delete(cisd_prev_short)
     cisd_prev_short := na
@@ -1180,16 +1251,18 @@ if short_valid
         label.delete(sweep_lbl_short)
         sweep_lbl_short := na
     _ent_S     = draw_entry_short
-    _tp_S      = draw_target_ref_short - draw_risk_short * rr_ratio
+    _tp_S      = f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp_mode, rr_ratio, tp_proj, cisd_short_lvl)
     _n_short   = draw_risk_short > 0 ? math.floor(risk_usd / (draw_risk_short * point_value_usd)) : 0
-    alert('{"v":1,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-SHORT",' +
+    _n_tp1_S   = use_partial ? f_partial_contracts(_n_short, partial_pct) : 0
+    alert('{"v":2,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-SHORT",' +
           '"source":"fractal_sweep","ticker":"' + syminfo.ticker + '",' +
           '"combo":"' + combo + '","direction":"SHORT",' +
           '"entry":' + str.tostring(_ent_S, "#.########") + ',' +
           '"sl":' + str.tostring(sweep_ext_short, "#.########") + ',' +
           '"tp":' + str.tostring(_tp_S, "#.########") + ',' +
+          (use_partial ? '"tp1":' + str.tostring(draw_tp1_short, "#.########") + ',' +
+           '"tp1_contracts":' + str.tostring(_n_tp1_S) + ',' : '') +
           '"risk_pts":' + str.tostring(draw_risk_short, "#.##") + ',' +
-          '"rr":' + str.tostring(rr_ratio, "#.##") + ',' +
           '"contracts":' + str.tostring(_n_short) + ',' +
           '"smt":' + (smt_short ? "true" : "false") + ',' +
           '"fired_at_ms":' + str.tostring(timenow) + '}',
@@ -1206,7 +1279,8 @@ if draw_long[1]
     entry = entry_mode == "Market" ? open : draw_entry_long
     sl    = sl_mode == "CISD Level" ? draw_cisd_lvl_long : draw_sweep_ext_long
     risk  = draw_risk_long
-    tp    = draw_target_ref_long + risk * rr_ratio
+    tp    = f_compute_tp("LONG", draw_target_ref_long, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_long)
+    tp1   = use_partial ? f_compute_tp("LONG", draw_target_ref_long, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_long) : na
     r_end = bar_index + rr_extend
     _cisd_ln_L = line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_L)
@@ -1238,6 +1312,18 @@ if draw_long[1]
         // Contract size badge — compact, centered above the R:R box.
         if show_size_badge
             f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(tp, sl), str.tostring(_contracts_L) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
+        // Partial TP1 line and badge
+        if use_partial and not na(tp1) and tp1 > entry and tp1 < tp
+            _tp1_n    = f_partial_contracts(_contracts_L, partial_pct)
+            _tp1_ln_L = line.new(bar_index, tp1, r_end, tp1, color=color.new(c_tp, 60), width=2, style=line.style_dashed)
+            f_reg_line(_tp1_ln_L)
+            _tp1_lbl_L = label.new(bar_index + rr_lbl_x, tp1, "TP1  +" + str.tostring(tp1 - entry, "#.##") + " pts  " + str.tostring(_tp1_n) + " ct", color=show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100), textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+            f_reg_label(_tp1_lbl_L)
+            if truncate_on_hit
+                array.push(active_tp1, tp1)
+                array.push(active_tp1_ln, _tp1_ln_L)
+                array.push(active_tp1_lbl, _tp1_lbl_L)
+                array.push(active_tp1_n, _tp1_n)
         f_reg_line(_sl_ln_L)
         f_reg_box(_risk_box_L)
         f_reg_box(_rew_box_L)
@@ -1358,7 +1444,8 @@ if draw_short[1]
     entry = entry_mode == "Market" ? open : draw_entry_short
     sl    = sl_mode == "CISD Level" ? draw_cisd_lvl_short : draw_sweep_ext_short
     risk  = draw_risk_short
-    tp    = draw_target_ref_short - risk * rr_ratio
+    tp    = f_compute_tp("SHORT", draw_target_ref_short, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_short)
+    tp1   = use_partial ? f_compute_tp("SHORT", draw_target_ref_short, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_short) : na
     r_end = bar_index + rr_extend
     _cisd_ln_S = line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_S)
@@ -1388,6 +1475,18 @@ if draw_short[1]
         // Contract size badge — compact, centered above the R:R box.
         if show_size_badge
             f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(sl, tp), str.tostring(_contracts_S) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
+        // Partial TP1 line and badge (SHORT)
+        if use_partial and not na(tp1) and tp1 < entry and tp1 > tp
+            _tp1_n    = f_partial_contracts(_contracts_S, partial_pct)
+            _tp1_ln_S = line.new(bar_index, tp1, r_end, tp1, color=color.new(c_tp, 60), width=2, style=line.style_dashed)
+            f_reg_line(_tp1_ln_S)
+            _tp1_lbl_S = label.new(bar_index + rr_lbl_x, tp1, "TP1  +" + str.tostring(entry - tp1, "#.##") + " pts  " + str.tostring(_tp1_n) + " ct", color=show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100), textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+            f_reg_label(_tp1_lbl_S)
+            if truncate_on_hit
+                array.push(active_tp1, tp1)
+                array.push(active_tp1_ln, _tp1_ln_S)
+                array.push(active_tp1_lbl, _tp1_lbl_S)
+                array.push(active_tp1_n, _tp1_n)
         f_reg_line(_sl_ln_S)
         f_reg_box(_risk_box_S)
         f_reg_box(_rew_box_S)
