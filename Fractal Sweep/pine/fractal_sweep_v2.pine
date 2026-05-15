@@ -974,8 +974,10 @@ if truncate_on_hit and array.size(active_dir) > 0
         _en = array.get(active_entry, _i)
         _hit_sl = _d == 1 ? low  <= _sl : high >= _sl
         _hit_tp = _d == 1 ? high >= _tp : low  <= _tp
-        // TP1 hit → move SL to BE (entry)
-        _has_tp1 = _i < array.size(active_tp1) and not na(array.get(active_tp1, _i))
+        // TP1 hit → move SL to BE (entry). Guard against mismatched array sizes.
+        _has_tp1 = false
+        if _i < array.size(active_tp1) and _i < array.size(active_tp1_hit)
+            _has_tp1 := not na(array.get(active_tp1, _i))
         if _has_tp1 and not array.get(active_tp1_hit, _i)
             _tp1_lvl = array.get(active_tp1, _i)
             _hit_tp1 = _d == 1 ? high >= _tp1_lvl : low <= _tp1_lvl
@@ -1065,13 +1067,14 @@ if truncate_on_hit and array.size(active_dir) > 0
             _trade_risk_pts = math.abs(_en - array.get(active_sl, _i))
             _took_tp1 = _i < array.size(active_tp1_hit) and array.get(active_tp1_hit, _i)
             _tp1_n_val = _took_tp1 and _i < array.size(active_tp1_n) ? array.get(active_tp1_n, _i) : 0
+            _tp1_lvl_val = _took_tp1 and _i < array.size(active_tp1) ? array.get(active_tp1, _i) : _en
+            float _trade_pts = 0.0
             if _resolved_sl and _took_tp1 and _sl == _en
-                // Scratch: BE hit after TP1 already taken — partial profit locked
-                _trade_pts = _tp1_n_val * (_d == 1 ? (array.get(active_tp1, _i) - _en) : (_en - array.get(active_tp1, _i)))
+                _trade_pts := _tp1_n_val * (_d == 1 ? (_tp1_lvl_val - _en) : (_en - _tp1_lvl_val))
             else if _resolved_sl
-                _trade_pts = -_trade_risk_pts
+                _trade_pts := -_trade_risk_pts
             else
-                _trade_pts = _trade_risk_pts * rr_ratio
+                _trade_pts := _trade_risk_pts * rr_ratio
             _trade_n        = _trade_risk_pts > 0 ? math.floor(risk_usd / (_trade_risk_pts * point_value_usd)) : 0
             _trade_pnl      = _trade_pts * _trade_n * point_value_usd
             if _d == 1
