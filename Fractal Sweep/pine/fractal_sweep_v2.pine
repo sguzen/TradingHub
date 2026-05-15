@@ -1142,8 +1142,11 @@ if truncate_on_hit and array.size(active_dir) > 0
                 _mark_x    = math.round((_entry_bar + bar_index) / 2)
                 _mark_y    = math.min(_sl, _tp)
                 _mark_text = _is_partial ? "½" : _resolved_sl ? "✗" : "✓"
+                _pnl_str   = (_trade_pnl >= 0 ? "+$" : "-$") + str.tostring(math.abs(_trade_pnl), "#")
+                _mark_text += " " + _pnl_str
                 _mark_col  = _is_partial ? c_tp : _resolved_sl ? c_sl : c_tp
-                _mark_lbl  = label.new(_mark_x, _mark_y, _mark_text, color=_mark_col, textcolor=color.white, style=label.style_label_up, size=size.normal, tooltip=_resolved_sl ? "Stop loss hit" : "Take profit hit")
+                _tp_info = _is_partial ? "Partial — TP1 hit, BE" : _resolved_sl ? "Stop loss hit" : "Take profit hit"
+                _mark_lbl  = label.new(_mark_x, _mark_y, _mark_text, color=_mark_col, textcolor=color.white, style=label.style_label_up, size=size.small, tooltip=_tp_info + " · " + _pnl_str)
                 array.push(outcome_markers, _mark_lbl)
                 // Record parent setup's entry bar so pruning can delete this
                 // marker when the parent setup ages out of max_setups.
