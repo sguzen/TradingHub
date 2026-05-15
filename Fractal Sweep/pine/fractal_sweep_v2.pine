@@ -747,10 +747,15 @@ f_target_ref(_dir, _entry) =>
 f_adjusted_risk(_dir, _entry) =>
     math.abs(_entry - (_dir == "LONG" ? sweep_ext_long : sweep_ext_short))
 
+// Compute projection span: |sweep_extreme - cisd_level| — the OB-to-SL span
+f_proj_span(_dir) =>
+    math.abs((_dir == "LONG" ? cisd_long_lvl : cisd_short_lvl) - (_dir == "LONG" ? sweep_ext_long : sweep_ext_short))
+
 // Compute TP price — R:R based or projection-based
 f_compute_tp(_dir, _ref, _risk, _mode, _rr, _proj, _cisd_lvl, _sr) =>
+    _span = f_proj_span(_dir)
     if _mode == "Projection Level"
-        _dir == "LONG" ? _cisd_lvl + _sr * _proj : _cisd_lvl - _sr * _proj
+        _dir == "LONG" ? _cisd_lvl + _span * _proj : _cisd_lvl - _span * _proj
     else
         _dir == "LONG" ? _ref + _risk * _rr : _ref - _risk * _rr
 
@@ -1282,7 +1287,11 @@ if draw_long[1]
     tp    = f_compute_tp("LONG", draw_target_ref_long, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_long, _cisd_series_range)
     tp1   = use_partial ? f_compute_tp("LONG", draw_target_ref_long, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_long, _cisd_series_range) : na
     r_end = bar_index + rr_extend
+    // Fill check: for level entries, scan up to 3 bars for price to reach entry
     _filled_long = entry_mode == "Market" or low <= entry
+    if not _filled_long and entry_mode != "Market"
+        if low[1] <= entry or low[2] <= entry
+            _filled_long := true
     _cisd_ln_L = line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_L)
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_long
@@ -1294,6 +1303,8 @@ if draw_long[1]
     _sweep_lbl_draw_L = label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_L)
     // R:R trade setup drawings — gated by Show Trade Setup and entry fill
+    if not _filled_long and entry_mode != "Market"
+        f_reg_label(label.new(bar_index, sl + (tp - sl) * 0.5, "NOT FILLED", color=color.new(c_sl, 10), textcolor=c_sl, style=label.style_label_down, size=size.small))
     if show_trade_setup and _filled_long
         _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
         _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
@@ -1400,11 +1411,11 @@ if draw_long[1]
         else
             f_reg_label(label.new(bar_index, sl - (entry - sl) * 0.15, "NO SMT", color=color.new(color.gray, 40), textcolor=c_rr_lbl_text, style=label.style_label_up, size=size.small))
     // Record how many extras this setup owns so resolution can truncate them
-    if truncate_on_hit and _filled_short
+    if truncate_on_hit and _filled_long
         array.push(active_extra_ln_count,  array.size(active_extra_lines)  - _ex_ln_start)
         array.push(active_extra_lbl_count, array.size(active_extra_labels) - _ex_lbl_start)
         array.push(active_extra_bx_count,  array.size(active_extra_boxes)  - _ex_bx_start)
-    if _filled_short
+    if _filled_long
         array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
         array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
         array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
@@ -1444,12 +1455,16 @@ if draw_short[1]
     _snap_labels := array.size(fired_labels)
     _snap_boxes  := array.size(fired_boxes)
     entry = entry_mode == "Market" ? open : draw_entry_short
+    _filled_short = entry_mode == "Market" or high >= entry
+    // Fill check: for level entries, scan up to 3 bars
+    if not _filled_short and entry_mode != "Market"
+        if high[1] >= entry or high[2] >= entry
+            _filled_short := true
     sl    = sl_mode == "CISD Level" ? draw_cisd_lvl_short : draw_sweep_ext_short
     risk  = draw_risk_short
     tp    = f_compute_tp("SHORT", draw_target_ref_short, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_short, _cisd_series_range)
     tp1   = use_partial ? f_compute_tp("SHORT", draw_target_ref_short, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_short, _cisd_series_range) : na
     r_end = bar_index + rr_extend
-    _filled_short = entry_mode == "Market" or high >= entry
     _cisd_ln_S = line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_S)
     cisd_x = cisd_lbl_pos == "Right" ? bar_index + rr_extend : draw_cisd_bar_short
@@ -1461,6 +1476,8 @@ if draw_short[1]
     _sweep_lbl_draw_S = label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_S)
     // R:R trade setup drawings — gated by Show Trade Setup and entry fill
+    if not _filled_short and entry_mode != "Market"
+        f_reg_label(label.new(bar_index, sl - (tp - sl) * 0.5, "NOT FILLED", color=color.new(c_sl, 10), textcolor=c_sl, style=label.style_label_up, size=size.small))
     if show_trade_setup and _filled_short
         _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
         _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
