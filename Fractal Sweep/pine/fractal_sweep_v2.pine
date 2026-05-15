@@ -748,9 +748,9 @@ f_adjusted_risk(_dir, _entry) =>
     math.abs(_entry - (_dir == "LONG" ? sweep_ext_long : sweep_ext_short))
 
 // Compute TP price — R:R based or projection-based
-f_compute_tp(_dir, _ref, _risk, _mode, _rr, _proj, _cisd_lvl) =>
+f_compute_tp(_dir, _ref, _risk, _mode, _rr, _proj, _cisd_lvl, _sr) =>
     if _mode == "Projection Level"
-        _dir == "LONG" ? _cisd_lvl + _cisd_series_range * _proj : _cisd_lvl - _cisd_series_range * _proj
+        _dir == "LONG" ? _cisd_lvl + _sr * _proj : _cisd_lvl - _sr * _proj
     else
         _dir == "LONG" ? _ref + _risk * _rr : _ref - _risk * _rr
 
@@ -1163,7 +1163,7 @@ if long_valid
     _cisd_series_range     := f_cisd_series_range("LONG", cisd_long_off)
     draw_cisd_series_range := _cisd_series_range
     // Compute final TP and optional partial TP1
-    draw_tp1_long    := use_partial ? f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp1_mode, tp1_rr, tp1_proj, cisd_long_lvl) : na
+    draw_tp1_long    := use_partial ? f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp1_mode, tp1_rr, tp1_proj, cisd_long_lvl, _cisd_series_range) : na
     draw_use_partial := use_partial
     // Clean up own CISD preview
     line.delete(cisd_prev_long)
@@ -1188,7 +1188,7 @@ if long_valid
         sweep_lbl_long := na
     // Emit webhook-ready JSON payload
     _ent_L     = draw_entry_long
-    _tp_L      = f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp_mode, rr_ratio, tp_proj, cisd_long_lvl)
+    _tp_L      = f_compute_tp("LONG", draw_target_ref_long, draw_risk_long, tp_mode, rr_ratio, tp_proj, cisd_long_lvl, _cisd_series_range)
     _n_long    = draw_risk_long > 0 ? math.floor(risk_usd / (draw_risk_long * point_value_usd)) : 0
     _n_tp1_L   = use_partial ? f_partial_contracts(_n_long, partial_pct) : 0
     alert('{"v":2,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-LONG",' +
@@ -1228,7 +1228,7 @@ if short_valid
     draw_target_ref_short  := f_target_ref("SHORT", draw_entry_short)
     draw_risk_short        := math.abs(draw_entry_short - sweep_ext_short)
     // Compute final TP and optional partial TP1
-    draw_tp1_short   := use_partial ? f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp1_mode, tp1_rr, tp1_proj, cisd_short_lvl) : na
+    draw_tp1_short   := use_partial ? f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp1_mode, tp1_rr, tp1_proj, cisd_short_lvl, _cisd_series_range) : na
     // Clean up own CISD preview
     line.delete(cisd_prev_short)
     cisd_prev_short := na
@@ -1251,7 +1251,7 @@ if short_valid
         label.delete(sweep_lbl_short)
         sweep_lbl_short := na
     _ent_S     = draw_entry_short
-    _tp_S      = f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp_mode, rr_ratio, tp_proj, cisd_short_lvl)
+    _tp_S      = f_compute_tp("SHORT", draw_target_ref_short, draw_risk_short, tp_mode, rr_ratio, tp_proj, cisd_short_lvl, _cisd_series_range)
     _n_short   = draw_risk_short > 0 ? math.floor(risk_usd / (draw_risk_short * point_value_usd)) : 0
     _n_tp1_S   = use_partial ? f_partial_contracts(_n_short, partial_pct) : 0
     alert('{"v":2,"id":"FS-' + syminfo.ticker + '-' + str.tostring(time) + '-SHORT",' +
@@ -1279,8 +1279,8 @@ if draw_long[1]
     entry = entry_mode == "Market" ? open : draw_entry_long
     sl    = sl_mode == "CISD Level" ? draw_cisd_lvl_long : draw_sweep_ext_long
     risk  = draw_risk_long
-    tp    = f_compute_tp("LONG", draw_target_ref_long, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_long)
-    tp1   = use_partial ? f_compute_tp("LONG", draw_target_ref_long, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_long) : na
+    tp    = f_compute_tp("LONG", draw_target_ref_long, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_long, _cisd_series_range)
+    tp1   = use_partial ? f_compute_tp("LONG", draw_target_ref_long, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_long, _cisd_series_range) : na
     r_end = bar_index + rr_extend
     _cisd_ln_L = line.new(draw_cisd_bar_long, draw_cisd_lvl_long, r_end, draw_cisd_lvl_long, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_L)
@@ -1444,8 +1444,8 @@ if draw_short[1]
     entry = entry_mode == "Market" ? open : draw_entry_short
     sl    = sl_mode == "CISD Level" ? draw_cisd_lvl_short : draw_sweep_ext_short
     risk  = draw_risk_short
-    tp    = f_compute_tp("SHORT", draw_target_ref_short, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_short)
-    tp1   = use_partial ? f_compute_tp("SHORT", draw_target_ref_short, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_short) : na
+    tp    = f_compute_tp("SHORT", draw_target_ref_short, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_short, _cisd_series_range)
+    tp1   = use_partial ? f_compute_tp("SHORT", draw_target_ref_short, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_short, _cisd_series_range) : na
     r_end = bar_index + rr_extend
     _cisd_ln_S = line.new(draw_cisd_bar_short, draw_cisd_lvl_short, r_end, draw_cisd_lvl_short, color=c_cisd, width=2, style=line.style_solid)
     f_reg_line(_cisd_ln_S)
