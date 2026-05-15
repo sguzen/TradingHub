@@ -366,6 +366,8 @@ var active_tp1        = array.new_float()
 var active_tp1_ln     = array.new_line()
 var active_tp1_lbl    = array.new_label()
 var active_tp1_n      = array.new_int()
+// BE after TP1 tracking
+var active_tp1_hit      = array.new_bool()
 // Variable-count per-setup extras (midlines, projections, T-Spot zone+line).
 // Flat pools hold all extras; each setup records how many it owns. To find
 // setup _i's slice we sum the counts of setups [0.._i-1] → that's the start
@@ -972,6 +974,23 @@ if truncate_on_hit and array.size(active_dir) > 0
         _en = array.get(active_entry, _i)
         _hit_sl = _d == 1 ? low  <= _sl : high >= _sl
         _hit_tp = _d == 1 ? high >= _tp : low  <= _tp
+        // TP1 hit → move SL to BE (entry)
+        _has_tp1 = _i < array.size(active_tp1) and not na(array.get(active_tp1, _i))
+        if _has_tp1 and not array.get(active_tp1_hit, _i)
+            _tp1_lvl = array.get(active_tp1, _i)
+            _hit_tp1 = _d == 1 ? high >= _tp1_lvl : low <= _tp1_lvl
+            if _hit_tp1
+                array.set(active_tp1_hit, _i, true)
+                array.set(active_sl, _i, _en)  // move SL to entry (BE)
+                // Update SL line and label to show BE
+                _sl_ln = array.get(active_sl_ln, _i)
+                _sl_lbl = array.get(active_sl_lbl, _i)
+                line.set_y1(_sl_ln, _en)
+                line.set_y2(_sl_ln, _en)
+                line.set_color(_sl_ln, c_mid)
+                label.set_y(_sl_lbl, _en)
+                label.set_text(_sl_lbl, "BE")
+                _sl := _en
         _resolved_sl = _hit_sl
         _resolved_tp = _hit_tp and not _hit_sl
         if _resolved_sl or _resolved_tp
@@ -1042,9 +1061,17 @@ if truncate_on_hit and array.size(active_dir) > 0
                 array.remove(active_extra_lbl_count, _i)
                 array.remove(active_extra_bx_count,  _i)
             // Scoreboard: tally every resolved trade, split by direction.
-            // Win = +risk × rr; Loss = -risk. Points are signed; PnL = pts × contracts × $/pt.
-            _trade_risk_pts = math.abs(_en - _sl)
-            _trade_pts      = _resolved_sl ? -_trade_risk_pts : _trade_risk_pts * rr_ratio
+            // Win = +risk × rr; Loss = -risk. BE after TP1 = scratch (0 pts).
+            _trade_risk_pts = math.abs(_en - array.get(active_sl, _i))
+            _took_tp1 = _i < array.size(active_tp1_hit) and array.get(active_tp1_hit, _i)
+            _tp1_n_val = _took_tp1 and _i < array.size(active_tp1_n) ? array.get(active_tp1_n, _i) : 0
+            if _resolved_sl and _took_tp1 and _sl == _en
+                // Scratch: BE hit after TP1 already taken — partial profit locked
+                _trade_pts = _tp1_n_val * (_d == 1 ? (array.get(active_tp1, _i) - _en) : (_en - array.get(active_tp1, _i)))
+            else if _resolved_sl
+                _trade_pts = -_trade_risk_pts
+            else
+                _trade_pts = _trade_risk_pts * rr_ratio
             _trade_n        = _trade_risk_pts > 0 ? math.floor(risk_usd / (_trade_risk_pts * point_value_usd)) : 0
             _trade_pnl      = _trade_pts * _trade_n * point_value_usd
             if _d == 1
@@ -1114,6 +1141,7 @@ if truncate_on_hit and array.size(active_dir) > 0
                 label.delete(  array.remove(active_tp1_lbl, _i))
                 array.remove(active_tp1,     _i)
                 array.remove(active_tp1_n,   _i)
+                array.remove(active_tp1_hit, _i)
         _i -= 1
 
 // ── CISD SERIES RANGE for projection-based TP ─────────────────────────────
@@ -1336,6 +1364,7 @@ if draw_long[1]
                 array.push(active_tp1_ln, _tp1_ln_L)
                 array.push(active_tp1_lbl, _tp1_lbl_L)
                 array.push(active_tp1_n, _tp1_n)
+                array.push(active_tp1_hit, false)
         f_reg_line(_sl_ln_L)
         f_reg_box(_risk_box_L)
         f_reg_box(_rew_box_L)
@@ -1507,6 +1536,7 @@ if draw_short[1]
                 array.push(active_tp1_ln, _tp1_ln_S)
                 array.push(active_tp1_lbl, _tp1_lbl_S)
                 array.push(active_tp1_n, _tp1_n)
+                array.push(active_tp1_hit, false)
         f_reg_line(_sl_ln_S)
         f_reg_box(_risk_box_S)
         f_reg_box(_rew_box_S)
