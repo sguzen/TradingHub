@@ -307,6 +307,11 @@ var int   score_all_long_wins    = 0
 var int   score_all_long_losses  = 0
 var int   score_all_short_wins   = 0
 var int   score_all_short_losses = 0
+// Partial wins — BE hit after TP1 already taken
+var int   score_long_partials     = 0
+var int   score_short_partials    = 0
+var int   score_all_long_partials  = 0
+var int   score_all_short_partials = 0
 var float score_all_long_pts     = 0.0
 var float score_all_short_pts    = 0.0
 var float score_all_long_pnl     = 0.0
@@ -338,6 +343,8 @@ if na(score_day) or _sess_day != score_day
     score_long_losses  := 0
     score_short_wins   := 0
     score_short_losses := 0
+    score_long_partials  := 0
+    score_short_partials := 0
     score_long_pts     := 0.0
     score_short_pts    := 0.0
     score_long_pnl     := 0.0
@@ -801,8 +808,10 @@ if show_scoreboard and barstate.islast and _sb_dirty
     // modes read pre-accumulated counters directly.
     _sb_lw  = 0
     _sb_ll  = 0
+    _sb_lp  = 0
     _sb_sw  = 0
     _sb_slo = 0
+    _sb_sp  = 0
     _sb_lpts = 0.0
     _sb_spts = 0.0
     _sb_lpnl = 0.0
@@ -810,8 +819,10 @@ if show_scoreboard and barstate.islast and _sb_dirty
     if scoreboard_scope == "All Time"
         _sb_lw   := score_all_long_wins
         _sb_ll   := score_all_long_losses
+        _sb_lp   := score_all_long_partials
         _sb_sw   := score_all_short_wins
         _sb_slo  := score_all_short_losses
+        _sb_sp   := score_all_short_partials
         _sb_lpts := score_all_long_pts
         _sb_spts := score_all_short_pts
         _sb_lpnl := score_all_long_pnl
@@ -844,17 +855,20 @@ if show_scoreboard and barstate.islast and _sb_dirty
     else
         _sb_lw   := score_long_wins
         _sb_ll   := score_long_losses
+        _sb_lp   := score_long_partials
         _sb_sw   := score_short_wins
         _sb_slo  := score_short_losses
+        _sb_sp   := score_short_partials
         _sb_lpts := score_long_pts
         _sb_spts := score_short_pts
         _sb_lpnl := score_long_pnl
         _sb_spnl := score_short_pnl
     _total_wins   = _sb_lw + _sb_sw
     _total_losses = _sb_ll + _sb_slo
-    _total_n      = _total_wins + _total_losses
-    _long_n       = _sb_lw + _sb_ll
-    _short_n      = _sb_sw + _sb_slo
+    _total_partials = _sb_lp + _sb_sp
+    _total_n      = _total_wins + _total_losses + _total_partials + _total_partials
+    _long_n       = _sb_lw + _sb_ll + _sb_lp
+    _short_n      = _sb_sw + _sb_slo + _sb_sp
     _long_wr      = _long_n   > 0 ? _sb_lw  / _long_n   * 100 : 0.0
     _short_wr     = _short_n  > 0 ? _sb_sw  / _short_n  * 100 : 0.0
     _total_wr     = _total_n  > 0 ? _total_wins / _total_n  * 100 : 0.0
@@ -940,27 +954,32 @@ if show_scoreboard and barstate.islast and _sb_dirty
     table.cell(scoreboard_tbl, 1, 5, str.tostring(_sb_ll),   text_color=_sb_sl, bgcolor=_sb_alt, text_size=size.small)
     table.cell(scoreboard_tbl, 2, 5, str.tostring(_sb_slo),  text_color=_sb_sl, bgcolor=_sb_alt, text_size=size.small)
     table.cell(scoreboard_tbl, 3, 5, str.tostring(_total_losses),       text_color=_sb_sl, bgcolor=_sb_alt, text_size=size.small)
+    // Partials (TP1 hit → BE)
+    table.cell(scoreboard_tbl, 0, 6, "Partials", text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 6, str.tostring(_sb_lp),  text_color=_sb_tp, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 6, str.tostring(_sb_sp),  text_color=_sb_tp, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 3, 6, str.tostring(_total_partials), text_color=_sb_tp, bgcolor=_sb_bg, text_size=size.small)
     // Win Rate
-    table.cell(scoreboard_tbl, 0, 6, "WR",     text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 1, 6, _wr_long_str,  text_color=_sb_text, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 2, 6, _wr_short_str, text_color=_sb_text, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 3, 6, _wr_total_str, text_color=_sb_text, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 0, 7, "WR",     text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 7, _wr_long_str,  text_color=_sb_text, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 7, _wr_short_str, text_color=_sb_text, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 3, 7, _wr_total_str, text_color=_sb_text, bgcolor=_sb_alt, text_size=size.small)
     // Points
-    table.cell(scoreboard_tbl, 0, 7, "Points", text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
-    table.cell(scoreboard_tbl, 1, 7, _long_pts_str,  text_color=_long_pts_col,  bgcolor=_sb_alt, text_size=size.small)
-    table.cell(scoreboard_tbl, 2, 7, _short_pts_str, text_color=_short_pts_col, bgcolor=_sb_alt, text_size=size.small)
-    table.cell(scoreboard_tbl, 3, 7, _total_pts_str, text_color=_total_pts_col, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 0, 8, "Points", text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 8, _long_pts_str,  text_color=_long_pts_col,  bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 8, _short_pts_str, text_color=_short_pts_col, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 3, 8, _total_pts_str, text_color=_total_pts_col, bgcolor=_sb_bg, text_size=size.small)
     // P&L
-    table.cell(scoreboard_tbl, 0, 8, "PnL",    text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 1, 8, _long_pnl_str,  text_color=_long_pnl_col,  bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 2, 8, _short_pnl_str, text_color=_short_pnl_col, bgcolor=_sb_bg, text_size=size.small)
-    table.cell(scoreboard_tbl, 3, 8, _total_pnl_str, text_color=_total_pnl_col, bgcolor=_sb_bg, text_size=size.small)
+    table.cell(scoreboard_tbl, 0, 9, "PnL",    text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 1, 9, _long_pnl_str,  text_color=_long_pnl_col,  bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 2, 9, _short_pnl_str, text_color=_short_pnl_col, bgcolor=_sb_alt, text_size=size.small)
+    table.cell(scoreboard_tbl, 3, 9, _total_pnl_str, text_color=_total_pnl_col, bgcolor=_sb_alt, text_size=size.small)
     // Footer — only rendered when there are pending setups to announce.
     if _active_n > 0
-        table.cell(scoreboard_tbl, 0, 9, str.tostring(_active_n) + " pending", text_color=_sb_muted, bgcolor=_sb_alt, text_size=size.small)
-        table.cell(scoreboard_tbl, 1, 9, "", bgcolor=_sb_alt)
-        table.cell(scoreboard_tbl, 2, 9, "", bgcolor=_sb_alt)
-        table.cell(scoreboard_tbl, 3, 9, "", bgcolor=_sb_alt)
+        table.cell(scoreboard_tbl, 0, 10, str.tostring(_active_n) + " pending", text_color=_sb_muted, bgcolor=_sb_bg, text_size=size.small)
+        table.cell(scoreboard_tbl, 1, 10, "", bgcolor=_sb_bg)
+        table.cell(scoreboard_tbl, 2, 10, "", bgcolor=_sb_bg)
+        table.cell(scoreboard_tbl, 3, 10, "", bgcolor=_sb_bg)
 
 // ── RESOLVE ACTIVE SETUPS — truncate R:R drawings on TP/SL hit ───────────────
 // Walk from tail to head so we can pop resolved rows without index drift.
@@ -1069,7 +1088,9 @@ if truncate_on_hit and array.size(active_dir) > 0
             _tp1_n_val = _took_tp1 and _i < array.size(active_tp1_n) ? array.get(active_tp1_n, _i) : 0
             _tp1_lvl_val = _took_tp1 and _i < array.size(active_tp1) ? array.get(active_tp1, _i) : _en
             float _trade_pts = 0.0
+            bool _is_partial = false
             if _resolved_sl and _took_tp1 and _sl == _en
+                _is_partial := true
                 _trade_pts := _tp1_n_val * (_d == 1 ? (_tp1_lvl_val - _en) : (_en - _tp1_lvl_val))
             else if _resolved_sl
                 _trade_pts := -_trade_risk_pts
@@ -1078,7 +1099,10 @@ if truncate_on_hit and array.size(active_dir) > 0
             _trade_n        = _trade_risk_pts > 0 ? math.floor(risk_usd / (_trade_risk_pts * point_value_usd)) : 0
             _trade_pnl      = _trade_pts * _trade_n * point_value_usd
             if _d == 1
-                if _resolved_sl
+                if _is_partial
+                    score_long_partials += 1
+                    score_all_long_partials += 1
+                else if _resolved_sl
                     score_long_losses += 1
                     score_all_long_losses += 1
                 else
@@ -1089,7 +1113,10 @@ if truncate_on_hit and array.size(active_dir) > 0
                 score_all_long_pts += _trade_pts
                 score_all_long_pnl += _trade_pnl
             else
-                if _resolved_sl
+                if _is_partial
+                    score_short_partials += 1
+                    score_all_short_partials += 1
+                else if _resolved_sl
                     score_short_losses += 1
                     score_all_short_losses += 1
                 else
@@ -1114,8 +1141,8 @@ if truncate_on_hit and array.size(active_dir) > 0
                 _entry_bar = array.size(active_entry_bar) > _i ? array.get(active_entry_bar, _i) : bar_index
                 _mark_x    = math.round((_entry_bar + bar_index) / 2)
                 _mark_y    = math.min(_sl, _tp)
-                _mark_text = _resolved_sl ? "✗" : "✓"
-                _mark_col  = _resolved_sl ? c_sl : c_tp
+                _mark_text = _is_partial ? "½" : _resolved_sl ? "✗" : "✓"
+                _mark_col  = _is_partial ? c_tp : _resolved_sl ? c_sl : c_tp
                 _mark_lbl  = label.new(_mark_x, _mark_y, _mark_text, color=_mark_col, textcolor=color.white, style=label.style_label_up, size=size.normal, tooltip=_resolved_sl ? "Stop loss hit" : "Take profit hit")
                 array.push(outcome_markers, _mark_lbl)
                 // Record parent setup's entry bar so pruning can delete this
@@ -1356,8 +1383,9 @@ if draw_long[1]
         if show_size_badge
             f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(tp, sl), str.tostring(_contracts_L) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
         // Partial TP1 line and badge
+        var _tp1_n = 0, _tp1_ln_L = line(na), _tp1_lbl_L = label(na)
         if use_partial and not na(tp1) and tp1 > entry and tp1 < tp
-            _tp1_n    = f_partial_contracts(_contracts_L, partial_pct)
+            _tp1_n    := f_partial_contracts(_contracts_L, partial_pct)
             _tp1_ln_L = line.new(bar_index, tp1, r_end, tp1, color=color.new(c_tp, 60), width=2, style=line.style_dashed)
             f_reg_line(_tp1_ln_L)
             _tp1_lbl_L = label.new(bar_index + rr_lbl_x, tp1, "TP1  +" + str.tostring(tp1 - entry, "#.##") + " pts  " + str.tostring(_tp1_n) + " ct", color=show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100), textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
@@ -1528,11 +1556,12 @@ if draw_short[1]
         if show_size_badge
             f_reg_label(label.new(math.round((bar_index + r_end) / 2), math.max(sl, tp), str.tostring(_contracts_S) + " contracts", color=c_size_bg, textcolor=c_rr_lbl_text, style=label.style_label_down, size=size.small, tooltip="Recommended contracts to keep dollar risk at $" + str.tostring(risk_usd, "#") + " given SL distance"))
         // Partial TP1 line and badge (SHORT)
+        var _tp1_n_s = 0, _tp1_ln_S = line(na), _tp1_lbl_S = label(na)
         if use_partial and not na(tp1) and tp1 < entry and tp1 > tp
-            _tp1_n    = f_partial_contracts(_contracts_S, partial_pct)
+            _tp1_n_s    := f_partial_contracts(_contracts_S, partial_pct)
             _tp1_ln_S = line.new(bar_index, tp1, r_end, tp1, color=color.new(c_tp, 60), width=2, style=line.style_dashed)
             f_reg_line(_tp1_ln_S)
-            _tp1_lbl_S = label.new(bar_index + rr_lbl_x, tp1, "TP1  +" + str.tostring(entry - tp1, "#.##") + " pts  " + str.tostring(_tp1_n) + " ct", color=show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100), textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
+            _tp1_lbl_S = label.new(bar_index + rr_lbl_x, tp1, "TP1  +" + str.tostring(entry - tp1, "#.##") + " pts  " + str.tostring(_tp1_n_s) + " ct", color=show_rr_pills ? rr_lbl_tp_col : color.new(color.black, 100), textcolor=_pill_fg, style=rr_lbl_style, size=size.small)
             f_reg_label(_tp1_lbl_S)
         f_reg_line(_sl_ln_S)
         f_reg_box(_risk_box_S)
@@ -1563,7 +1592,7 @@ if draw_short[1]
             array.push(active_tp1,     use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? tp1 : na)
             array.push(active_tp1_ln,  use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? _tp1_ln_S : na)
             array.push(active_tp1_lbl, use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? _tp1_lbl_S : na)
-            array.push(active_tp1_n,   use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? _tp1_n : 0)
+            array.push(active_tp1_n,   use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? _tp1_n_s : 0)
             array.push(active_tp1_hit, false)
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
