@@ -442,15 +442,23 @@ if is_new_anchor and tf_supported
     alerted_short   := false
     // Clean up stale sweep lines and CISD previews from expired setups
     if not _was_alerted_long
-        line.delete(sweep_line_long);  sweep_line_long  := na
-        label.delete(sweep_lbl_long);  sweep_lbl_long   := na
-        line.delete(cisd_prev_long);   cisd_prev_long   := na
-        label.delete(cisd_prev_lbl_long); cisd_prev_lbl_long := na
+        line.delete(sweep_line_long)
+        sweep_line_long := na
+        label.delete(sweep_lbl_long)
+        sweep_lbl_long := na
+        line.delete(cisd_prev_long)
+        cisd_prev_long := na
+        label.delete(cisd_prev_lbl_long)
+        cisd_prev_lbl_long := na
     if not _was_alerted_short
-        line.delete(sweep_line_short); sweep_line_short := na
-        label.delete(sweep_lbl_short); sweep_lbl_short  := na
-        line.delete(cisd_prev_short);  cisd_prev_short  := na
-        label.delete(cisd_prev_lbl_short); cisd_prev_lbl_short := na
+        line.delete(sweep_line_short)
+        sweep_line_short := na
+        label.delete(sweep_lbl_short)
+        sweep_lbl_short := na
+        line.delete(cisd_prev_short)
+        cisd_prev_short := na
+        label.delete(cisd_prev_lbl_short)
+        cisd_prev_lbl_short := na
     // find the FIRST (earliest) LTF bar within the prior HTF period that reached the high/low
     // Scan from newest (k=1) outward. Track the last match seen. Stop when we leave the period.
     // This way we find the earliest match within the prior period, not from older periods.
@@ -932,7 +940,7 @@ if show_scoreboard and barstate.islast and _sb_dirty
         _setups_per_day_str := n_session_days > 0 ? str.tostring(setups_all_time / n_session_days, "#.#") : "–"
     table.delete(scoreboard_tbl)
     // 4 columns (Metric / LONG / SHORT / TOTAL) × 10 rows (title + header + 7 metrics + footer).
-    scoreboard_tbl := table.new(position.top_right, 4, 10, bgcolor=_sb_bg, border_color=color.new(_sb_frame, 0), border_width=1, frame_color=color.new(_sb_frame, 0), frame_width=1)
+    scoreboard_tbl := table.new(position.top_right, 4, 11, bgcolor=_sb_bg, border_color=color.new(_sb_frame, 0), border_width=1, frame_color=color.new(_sb_frame, 0), frame_width=1)
     // Title row — combo/risk info lives here between title and date.
     _title_str = scoreboard_scope == "Today" ? "Today's Scorecard" : scoreboard_scope == "Last N Trades" ? "Recent Scorecard" : "All-Time Scorecard"
     table.cell(scoreboard_tbl, 0, 0, _title_str, text_color=_sb_text,  bgcolor=_sb_alt, text_size=size.small)
@@ -1358,10 +1366,10 @@ if draw_long[1]
     tp    = f_compute_tp("LONG", draw_target_ref_long, risk, tp_mode, rr_ratio, tp_proj, draw_cisd_lvl_long, _cisd_series_range)
     tp1   = use_partial ? f_compute_tp("LONG", draw_target_ref_long, risk, tp1_mode, tp1_rr, tp1_proj, draw_cisd_lvl_long, _cisd_series_range) : na
     r_end = bar_index + rr_extend
-    // Fill check: for level entries, scan up to 3 bars for price to reach entry
+    // Fill check: for level entries, entry must be reached on entry bar or fire bar (not before)
     _filled_long = entry_mode == "Market" or low <= entry
     if not _filled_long and entry_mode != "Market"
-        if low[1] <= entry or low[2] <= entry
+        if low[1] <= entry
             _filled_long := true
     if _filled_long
         setups_today    += 1
@@ -1532,9 +1540,9 @@ if draw_short[1]
     _snap_boxes  := array.size(fired_boxes)
     entry = entry_mode == "Market" ? open : draw_entry_short
     _filled_short = entry_mode == "Market" or high >= entry
-    // Fill check: for level entries, scan up to 3 bars
+    // Fill check: for level entries, entry must be reached on entry bar or fire bar
     if not _filled_short and entry_mode != "Market"
-        if high[1] >= entry or high[2] >= entry
+        if high[1] >= entry
             _filled_short := true
     if _filled_short
         setups_today    += 1
