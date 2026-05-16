@@ -375,6 +375,8 @@ var active_tp1_lbl    = array.new_label()
 var active_tp1_n      = array.new_int()
 // BE after TP1 tracking
 var active_tp1_hit      = array.new_bool()
+// Fill tracking — deferred for level entries
+var active_filled       = array.new_bool()
 // Variable-count per-setup extras (midlines, projections, T-Spot zone+line).
 // Flat pools hold all extras; each setup records how many it owns. To find
 // setup _i's slice we sum the counts of setups [0.._i-1] → that's the start
@@ -1010,7 +1012,12 @@ if truncate_on_hit and array.size(active_dir) > 0
         _tp = array.get(active_tp,   _i)
         _sl = array.get(active_sl,   _i)
         _en = array.get(active_entry, _i)
-        _orig_risk_pts = math.abs(_en - _sl)  // save before TP1 may move SL to BE
+        _orig_risk_pts = math.abs(_en - _sl)
+        // Deferred fill: check if entry reached on this bar (for level entries)
+        if _i < array.size(active_filled) and not array.get(active_filled, _i)
+            _now_filled = _d == 1 ? low <= _en : high >= _en
+            if _now_filled
+                array.set(active_filled, _i, true)
         _hit_sl = _d == 1 ? low  <= _sl : high >= _sl
         _hit_tp = _d == 1 ? high >= _tp : low  <= _tp
         // TP1 hit → move SL to BE (entry). Guard against mismatched array sizes.
@@ -1191,6 +1198,8 @@ if truncate_on_hit and array.size(active_dir) > 0
             array.remove(active_sweep_lbl,  _i)
             if array.size(active_entry_bar) > _i
                 array.remove(active_entry_bar, _i)
+            if array.size(active_filled) > _i
+                array.remove(active_filled, _i)
             if array.size(active_tp1) > _i
                 line.delete(   array.remove(active_tp1_ln,  _i))
                 label.delete(  array.remove(active_tp1_lbl, _i))
@@ -1384,9 +1393,7 @@ if draw_long[1]
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_lo_bar
     _sweep_lbl_draw_L = label.new(sweep_x, draw_anc_lo, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_L)
-    // R:R trade setup drawings — gated by Show Trade Setup and entry fill
-    if not _filled_long and entry_mode != "Market"
-        f_reg_label(label.new(bar_index, sl + (tp - sl) * 0.5, "NOT FILLED", color=color.new(c_sl, 10), textcolor=c_sl, style=label.style_label_down, size=size.small))
+    // R:R trade setup drawings — gated by Show Trade Setup
     if show_trade_setup and _filled_long
         _sl_ln_L    = line.new(draw_sl_anchor_long, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
         _risk_box_L = box.new(bar_index, entry, r_end, sl,  border_color=rr_risk_border, bgcolor=rr_risk_col)
@@ -1421,8 +1428,8 @@ if draw_long[1]
         f_reg_label(_tp_lbl_L)
         f_reg_label(_entry_lbl_L)
         f_reg_label(_sl_lbl_L)
-        // Track for TP/SL truncation — only if entry was actually filled
-        if truncate_on_hit and _filled_long
+        // Track for TP/SL truncation — push all setups; fill resolved later
+        if truncate_on_hit
             array.push(active_dir, 1)
             array.push(active_tp, tp)
             array.push(active_sl, sl)
@@ -1439,13 +1446,14 @@ if draw_long[1]
             array.push(active_cisd_lbl, _cisd_lbl_draw_L)
             array.push(active_sweep_lbl, _sweep_lbl_draw_L)
             array.push(active_entry_bar, bar_index)
-            // Always sync TP1 arrays — push na when no partial
+            array.push(active_filled, _filled_long)
+            // Always sync TP1 arrays
             array.push(active_tp1,     use_partial and not na(tp1) and tp1 > entry and tp1 < tp ? tp1 : na)
             array.push(active_tp1_ln,  use_partial and not na(tp1) and tp1 > entry and tp1 < tp ? _tp1_ln_L : na)
             array.push(active_tp1_lbl, use_partial and not na(tp1) and tp1 > entry and tp1 < tp ? _tp1_lbl_L : na)
             array.push(active_tp1_n,   use_partial and not na(tp1) and tp1 > entry and tp1 < tp ? _tp1_n : 0)
             array.push(active_tp1_hit, false)
-    // Only record extras + setup counts if filled — unfilled setups bypass scoreboard
+    // Record extras + setup counts
     _ex_ln_start  = array.size(active_extra_lines)
     _ex_lbl_start = array.size(active_extra_labels)
     _ex_bx_start  = array.size(active_extra_boxes)
@@ -1495,15 +1503,14 @@ if draw_long[1]
         else
             f_reg_label(label.new(bar_index, sl - (entry - sl) * 0.15, "NO SMT", color=color.new(color.gray, 40), textcolor=c_rr_lbl_text, style=label.style_label_up, size=size.small))
     // Record how many extras this setup owns so resolution can truncate them
-    if truncate_on_hit and _filled_long
+    if truncate_on_hit
         array.push(active_extra_ln_count,  array.size(active_extra_lines)  - _ex_ln_start)
         array.push(active_extra_lbl_count, array.size(active_extra_labels) - _ex_lbl_start)
         array.push(active_extra_bx_count,  array.size(active_extra_boxes)  - _ex_bx_start)
-    if _filled_long
-        array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
-        array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
-        array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
-        array.push(setup_entry_bars,   bar_index)
+    array.push(setup_line_counts,  array.size(fired_lines)  - _snap_lines)
+    array.push(setup_label_counts, array.size(fired_labels) - _snap_labels)
+    array.push(setup_box_counts,   array.size(fired_boxes)  - _snap_boxes)
+    array.push(setup_entry_bars,   bar_index)
     while array.size(setup_line_counts) > max_setups
         _nl = array.shift(setup_line_counts)
         _nb = array.shift(setup_label_counts)
@@ -1562,10 +1569,8 @@ if draw_short[1]
     sweep_x = sweep_lbl_pos == "Right" ? r_end : draw_anc_hi_bar
     _sweep_lbl_draw_S = label.new(sweep_x, draw_anc_hi, sweep_text + " " + sweep_tf_lbl, color=color.new(c_sweep, 100), textcolor=c_sweep, style=sweep_lbl_style, size=size.small)
     f_reg_label(_sweep_lbl_draw_S)
-    // R:R trade setup drawings — gated by Show Trade Setup and entry fill
-    if not _filled_short and entry_mode != "Market"
-        f_reg_label(label.new(bar_index, sl - (tp - sl) * 0.5, "NOT FILLED", color=color.new(c_sl, 10), textcolor=c_sl, style=label.style_label_up, size=size.small))
-    if show_trade_setup and _filled_short
+    // R:R trade setup drawings — gated by Show Trade Setup
+    if show_trade_setup
         _sl_ln_S    = line.new(draw_sl_anchor_short, sl, r_end, sl, color=c_sl, width=2, style=sweep_lstyle)
         _risk_box_S = box.new(bar_index, sl,    r_end, entry, border_color=rr_risk_border, bgcolor=rr_risk_col)
         _rew_box_S  = box.new(bar_index, entry, r_end, tp,    border_color=rr_rew_border,  bgcolor=rr_rew_col)
@@ -1597,8 +1602,8 @@ if draw_short[1]
         f_reg_label(_tp_lbl_S)
         f_reg_label(_entry_lbl_S)
         f_reg_label(_sl_lbl_S)
-        // Track for TP/SL truncation — only if entry was actually filled
-        if truncate_on_hit and _filled_short
+        // Track for TP/SL truncation — push all setups; fill resolved later
+        if truncate_on_hit
             array.push(active_dir, -1)
             array.push(active_tp, tp)
             array.push(active_sl, sl)
@@ -1615,6 +1620,7 @@ if draw_short[1]
             array.push(active_cisd_lbl, _cisd_lbl_draw_S)
             array.push(active_sweep_lbl, _sweep_lbl_draw_S)
             array.push(active_entry_bar, bar_index)
+            array.push(active_filled, _filled_short)
             // Always sync TP1 arrays — push na when no partial
             array.push(active_tp1,     use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? tp1 : na)
             array.push(active_tp1_ln,  use_partial and not na(tp1) and tp1 < entry and tp1 > tp ? _tp1_ln_S : na)
